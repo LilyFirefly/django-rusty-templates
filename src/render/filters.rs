@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::sync::LazyLock;
 
 use html_escape::encode_quoted_attribute_to_string;
-use pyo3::prelude::*;
+use pyo3::{prelude::*, IntoPyObjectExt};
 use pyo3::sync::GILOnceCell;
 use pyo3::types::PyType;
 
@@ -13,6 +13,7 @@ use crate::filters::{
 use crate::parse::Filter;
 use crate::render::types::{Content, ContentString, Context};
 use crate::render::{Resolve, ResolveFailures, ResolveResult};
+use crate::render::PyRenderError;
 use crate::types::TemplateString;
 use regex::Regex;
 use unicode_normalization::UnicodeNormalization;
@@ -177,10 +178,10 @@ impl ResolveFilter for CenterFilter {
     ) -> ResolveResult<'t, 'py> {
         let left: usize;
         let right: usize;
-        let arg_size: usize;
         let content = match variable {
             Some(content) => {
                 content.render(context)?.into_owned()
+                // content.render(context)?
             },
             None => return Ok("".as_content()),
         };
@@ -188,23 +189,31 @@ impl ResolveFilter for CenterFilter {
             .argument
             .resolve(py, template, context, ResolveFailures::Raise)?
             .expect("missing argument in context should already have raised");
-        let arg_int = arg.to_bigint();
-        match arg_int {
-            Some(arg_int) => {
-                arg_size = arg_int.to_usize().unwrap();
-                if arg_size <= content.len() {
-                    return Ok(content.into_content());
+        let arg_size = arg.to_usize();
+        let argument_size;
+        
+        match arg_size {
+            Some(size) => {
+                argument_size = size;
+                if size <= content.len() {
+                    let data = content.into_content();
+                    return Ok(data);
                 }
-                right = (arg_size - content.len()) / 2;
-                left = arg_size - content.len() - right;
+                right = (size - content.len()) / 2;
+                left = size - content.len() - right;
             },
             None => {
-                return Ok("".as_content());
+                return Ok("center filter argument must be an integer".as_content());
             }
         }
-        let string_left = " ".repeat(left);
-        let string_right = " ".repeat(right);
-        Ok((string_left + &content + &string_right).into_content())
+        // let centered = format!("{0:^1$}", content, arg_size);
+        let mut centered = String::with_capacity(argument_size);
+
+        centered.push_str(&" ".repeat(left));
+        centered.push_str(&content);
+        centered.push_str(&" ".repeat(right));
+
+        Ok(centered.into_content())
     }
 }
 
@@ -418,6 +427,7 @@ mod tests {
         Ok(safe_string)
     }
 
+    use core::error;
     use std::collections::HashMap;
 
     #[test]
@@ -710,6 +720,55 @@ mod tests {
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "django");
+        })
+    }
+
+    #[test]
+    fn test_render_filter_center_no_argument_return_err() {
+        pyo3::prepare_freethreaded_python();
+
+        Python::with_gil(|py| {
+            let engine = EngineData::empty();
+            let template_string = "{{ var|center }}".to_string();
+            let context = PyDict::new(py);
+            context.set_item("var", "hello").unwrap();
+            let error = Template::new_from_string(py, template_string, &engine).unwrap_err();
+
+            let error_string = format!("{error}");
+
+            assert!(error_string.contains("Expected an argument"));
+        })
+    }
+
+    #[test]
+    fn test_render_filter_center_invalid_argument_return_err() {
+        pyo3::prepare_freethreaded_python();
+
+        Python::with_gil(|py| {
+            let engine = EngineData::empty();
+            let template_string = "{{ var|center:'invalid' }}".to_string();
+            let context = PyDict::new(py);
+            context.set_item("var", "hello").unwrap();
+            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let error = template.render(py, Some(context), None).unwrap();
+            // let error_string = format!("{error}");
+
+            assert_eq!(error, "center filter argument must be an integer");
+        })
+    }
+
+    #[test]
+    fn test_render_filter_center_no_variable() {
+        pyo3::prepare_freethreaded_python();
+
+        Python::with_gil(|py| {
+            let engine = EngineData::empty();
+            let template_string = "{{ var|center:'11' }}".to_string();
+            let context = PyDict::new(py);
+            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let result = template.render(py, Some(context), None).unwrap();
+
+            assert_eq!(result, "");
         })
     }
 

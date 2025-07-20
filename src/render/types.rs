@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use html_escape::encode_quoted_attribute;
 use num_bigint::{BigInt, ToBigInt};
+use num_traits::ToPrimitive;
 use pyo3::exceptions::PyAttributeError;
 use pyo3::intern;
 use pyo3::prelude::*;
@@ -108,6 +109,30 @@ impl<'t, 'py> Content<'t, 'py> {
         })
     }
 
+    pub fn to_usize(&self) -> Option<usize> {
+        match self {
+            Self::Int(left) => left.to_usize(),
+            Self::String(left) => match left.as_raw().parse::<usize>() {
+                Ok(left) => Some(left),
+                Err(_) => None,
+            },
+            Self::Float(left) => left.trunc().to_usize(),
+            Self::Py(left) => match left.extract::<usize>() {
+                Ok(left) => Some(left),
+                Err(_) => {
+                    let int = PyType::new::<PyInt>(left.py());
+                    match int.call1((left,)) {
+                        Ok(left) => Some(
+                            left.extract::<usize>()
+                                .expect("Python integers are usize compatible"),
+                        ),
+                        Err(_) => None,
+                    }
+                }
+            },
+        }
+    }
+    
     pub fn to_bigint(&self) -> Option<BigInt> {
         match self {
             Self::Int(left) => Some(left.clone()),
