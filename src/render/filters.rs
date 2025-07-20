@@ -191,7 +191,7 @@ impl ResolveFilter for CenterFilter {
             .expect("missing argument in context should already have raised");
         let arg_size = arg.to_usize();
         let argument_size;
-        
+
         match arg_size {
             Some(size) => {
                 argument_size = size;
