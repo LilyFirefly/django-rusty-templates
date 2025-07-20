@@ -181,7 +181,6 @@ impl ResolveFilter for CenterFilter {
         let content = match variable {
             Some(content) => {
                 content.render(context)?.into_owned()
-                // content.render(context)?
             },
             None => return Ok("".as_content()),
         };
@@ -191,7 +190,7 @@ impl ResolveFilter for CenterFilter {
             .expect("missing argument in context should already have raised");
         let arg_size = arg.to_usize();
         let argument_size;
-
+        
         match arg_size {
             Some(size) => {
                 argument_size = size;
