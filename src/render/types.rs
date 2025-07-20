@@ -132,7 +132,7 @@ impl<'t, 'py> Content<'t, 'py> {
             },
         }
     }
-    
+
     pub fn to_bigint(&self) -> Option<BigInt> {
         match self {
             Self::Int(left) => Some(left.clone()),
