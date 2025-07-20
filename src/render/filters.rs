@@ -13,12 +13,9 @@ use crate::filters::{
 use crate::parse::Filter;
 use crate::render::types::{Content, ContentString, Context};
 use crate::render::{Resolve, ResolveFailures, ResolveResult};
-use crate::render::PyRenderError;
 use crate::types::TemplateString;
 use regex::Regex;
 use unicode_normalization::UnicodeNormalization;
-use num_bigint::BigInt;
-use num_traits::ToPrimitive;
 
 // Used for replacing all non-word and non-spaces with an empty string
 static NON_WORD_RE: LazyLock<Regex> =
