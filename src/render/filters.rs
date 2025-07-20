@@ -196,8 +196,7 @@ impl ResolveFilter for CenterFilter {
             Some(size) => {
                 argument_size = size;
                 if size <= content.len() {
-                    let data = content.into_content();
-                    return Ok(data);
+                    return Ok(content.into_content());
                 }
                 right = (size - content.len()) / 2;
                 left = size - content.len() - right;
