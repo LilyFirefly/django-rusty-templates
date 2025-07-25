@@ -2,7 +2,8 @@ use std::borrow::Cow;
 use std::sync::LazyLock;
 
 use html_escape::encode_quoted_attribute_to_string;
-use pyo3::{prelude::*, IntoPyObjectExt};
+
+use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
 use pyo3::types::PyType;
 
@@ -177,7 +178,7 @@ impl ResolveFilter for CenterFilter {
         let right: usize;
         let content = match variable {
             Some(content) => {
-                content.render(context)?.into_owned()
+                content.render(context)?
             },
             None => return Ok("".as_content()),
         };
@@ -185,24 +186,20 @@ impl ResolveFilter for CenterFilter {
             .argument
             .resolve(py, template, context, ResolveFailures::Raise)?
             .expect("missing argument in context should already have raised");
-        let arg_size = arg.to_usize();
-        let argument_size;
+        let size = arg.to_usize()?;
         
-        match arg_size {
-            Some(size) => {
-                argument_size = size;
-                if size <= content.len() {
-                    return Ok(content.into_content());
-                }
-                right = (size - content.len()) / 2;
-                left = size - content.len() - right;
-            },
-            None => {
-                return Ok("center filter argument must be an integer".as_content());
-            }
+        if size <= content.len() {
+            return Ok(Some(Content::String(ContentString::String((content)))));
         }
-        // let centered = format!("{0:^1$}", content, arg_size);
-        let mut centered = String::with_capacity(argument_size);
+        if size % 2 == 0 && content.len() % 2 != 0 {
+            // If the size is even and the content length is odd, we need to adjust the centering
+            right = (size - content.len() + 1) / 2;
+            left = size - content.len() - right;
+        } else {
+            right = (size - content.len()) / 2;
+            left = size - content.len() - right;
+        }
+        let mut centered = String::with_capacity(size);
 
         centered.push_str(&" ".repeat(left));
         centered.push_str(&content);
@@ -745,10 +742,10 @@ mod tests {
             let context = PyDict::new(py);
             context.set_item("var", "hello").unwrap();
             let template = Template::new_from_string(py, template_string, &engine).unwrap();
-            let error = template.render(py, Some(context), None).unwrap();
-            // let error_string = format!("{error}");
+            let error = template.render(py, Some(context), None).unwrap_err();
+            let error_string = format!("{error}");
 
-            assert_eq!(error, "center filter argument must be an integer");
+            assert!(error_string.contains("invalid literal for int() with base 10"));
         })
     }
 

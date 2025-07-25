@@ -2,13 +2,14 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 
 use html_escape::encode_quoted_attribute;
-use num_bigint::{BigInt, ToBigInt};
+use num_bigint::{BigInt, Sign, ToBigInt};
 use num_traits::ToPrimitive;
-use pyo3::exceptions::PyAttributeError;
+use pyo3::exceptions::{PyAttributeError, PyValueError};
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyInt, PyString, PyType};
 
+use crate::error::PyRenderError;
 use crate::utils::PyResultMethods;
 
 pub struct Context {
@@ -109,24 +110,32 @@ impl<'t, 'py> Content<'t, 'py> {
         })
     }
 
-    pub fn to_usize(&self) -> Option<usize> {
+    pub fn to_usize(&self) -> Result<usize, PyRenderError> {
         match self {
-            Self::Int(left) => left.to_usize(),
-            Self::String(left) => match left.as_raw().parse::<usize>() {
-                Ok(left) => Some(left),
-                Err(_) => None,
+            Self::Int(left) => { //Ok(left.to_usize().ok_or(
+                match left.sign() {
+                    Sign::Minus => Ok(0),
+                    Sign::Plus => Ok(left.to_usize().expect("Int can always be converted to usize")),
+                    Sign::NoSign => Ok(left.to_usize().expect("Int can always be converted to usize")),
+                }
             },
-            Self::Float(left) => left.trunc().to_usize(),
+            Self::String(left) => match left.as_raw().parse::<usize>() {
+                Ok(left) => Ok(left),
+                Err(_) => Err(PyRenderError::PyErr(
+                    // TODO: check the error
+                    PyValueError::new_err(format!("invalid literal for int() with base 10: '{}'", left.as_raw(),
+                )))),
+            },
+            Self::Float(left) => Ok(left.trunc().to_usize().expect("f64 can always be converted to usize")),
             Self::Py(left) => match left.extract::<usize>() {
-                Ok(left) => Some(left),
+                Ok(left) => Ok(left),
                 Err(_) => {
                     let int = PyType::new::<PyInt>(left.py());
                     match int.call1((left,)) {
-                        Ok(left) => Some(
-                            left.extract::<usize>()
-                                .expect("Python integers are usize compatible"),
-                        ),
-                        Err(_) => None,
+                        Ok(left) => Ok(left.extract::<usize>()?),
+                        Err(_) => Err(PyRenderError::PyErr(
+                            PyValueError::new_err(format!("number is too large for usize conversion: '{}'", left),
+                        ))),
                     }
                 }
             },
