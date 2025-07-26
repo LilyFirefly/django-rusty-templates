@@ -226,3 +226,18 @@ class TestFirstFilter:
             rusty_engine.from_string(template).render(context)
         with pytest.raises(TypeError):
             django_engine.from_string(template).render(context)
+
+    def test_first_with_float(self):
+        """Test first filter with float value."""
+        # Django's first filter raises TypeError for floats
+        rusty_engine = engines["rusty"]
+        django_engine = engines["django"]
+
+        template = "{{ num|first }}"
+        context = {"num": 42.5}
+
+        # Both should raise TypeError
+        with pytest.raises(TypeError):
+            rusty_engine.from_string(template).render(context)
+        with pytest.raises(TypeError):
+            django_engine.from_string(template).render(context)
