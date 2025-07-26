@@ -112,11 +112,17 @@ impl<'t, 'py> Content<'t, 'py> {
 
     pub fn to_usize(&self) -> Result<usize, PyRenderError> {
         match self {
-            Self::Int(left) => { //Ok(left.to_usize().ok_or(
+            Self::Int(left) => {
                 match left.sign() {
                     Sign::Minus => Ok(0),
-                    Sign::Plus => Ok(left.to_usize().expect("Int can always be converted to usize")),
-                    Sign::NoSign => Ok(left.to_usize().expect("Int can always be converted to usize")),
+                    Sign::Plus => {
+                        let result = left.to_usize().expect("Int can always be converted to usize");
+                        Ok(result)
+                    },
+                    Sign::NoSign => {
+                        let result = left.to_usize().expect("Int can always be converted to usize");
+                        Ok(result)
+                    },
                 }
             },
             Self::String(left) => match left.as_raw().parse::<usize>() {
@@ -134,7 +140,7 @@ impl<'t, 'py> Content<'t, 'py> {
                     match int.call1((left,)) {
                         Ok(left) => Ok(left.extract::<usize>()?),
                         Err(_) => Err(PyRenderError::PyErr(
-                            PyValueError::new_err(format!("number is too large for usize conversion: '{}'", left),
+                            PyValueError::new_err(format!("invalid literal for int() with base 10: '{}'", left),
                         ))),
                     }
                 }
