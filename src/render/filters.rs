@@ -187,7 +187,7 @@ impl ResolveFilter for CenterFilter {
             .resolve(py, template, context, ResolveFailures::Raise)?
             .expect("missing argument in context should already have raised");
         let size = arg.to_usize()?;
-        
+
         if size <= content.len() {
             return Ok(Some(Content::String(ContentString::String((content)))));
         }
