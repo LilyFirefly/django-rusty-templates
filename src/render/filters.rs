@@ -705,7 +705,7 @@ mod tests {
 
             let context = PyDict::new(py);
             context.set_item("var", "django").unwrap();
-            let template_string = "{{ var|center:'1' }}".to_string();
+            let template_string = "{{ var|center:1 }}".to_string();
             let template = Template::new_from_string(py, template_string, &engine).unwrap();
             let result = template.render(py, Some(context), None).unwrap();
 
@@ -759,6 +759,22 @@ mod tests {
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "");
+        })
+    }
+
+    #[test]
+    fn test_render_filter_center_on_0() {
+        pyo3::prepare_freethreaded_python();
+
+        Python::with_gil(|py| {
+            let engine = EngineData::empty();
+            let template_string = "{{ var|center:0 }}".to_string();
+            let context = PyDict::new(py);
+            context.set_item("var", "hello").unwrap();
+            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let result = template.render(py, Some(context), None).unwrap();
+
+            assert_eq!(result, "hello");
         })
     }
 

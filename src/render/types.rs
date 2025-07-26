@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use html_escape::encode_quoted_attribute;
 use num_bigint::{BigInt, Sign, ToBigInt};
-use num_traits::ToPrimitive;
+use num_traits::{Float, ToPrimitive};
 use pyo3::exceptions::{PyAttributeError, PyValueError};
 use pyo3::intern;
 use pyo3::prelude::*;
@@ -114,14 +114,13 @@ impl<'t, 'py> Content<'t, 'py> {
         match self {
             Self::Int(left) => {
                 match left.sign() {
-                    Sign::Minus => Ok(0),
+                    Sign::Minus | Sign::NoSign => Ok(0),
                     Sign::Plus => {
-                        let result = left.to_usize().expect("Int can always be converted to usize");
-                        Ok(result)
-                    },
-                    Sign::NoSign => {
-                        let result = left.to_usize().expect("Int can always be converted to usize");
-                        Ok(result)
+                        let result = left.to_usize();
+                        match result {
+                            Some(res) => Ok(res),
+                            None => return Err(PyRenderError::PyErr(PyValueError::new_err("integer is too big")))
+                        }
                     },
                 }
             },
@@ -132,7 +131,19 @@ impl<'t, 'py> Content<'t, 'py> {
                     PyValueError::new_err(format!("invalid literal for int() with base 10: '{}'", left.as_raw(),
                 )))),
             },
-            Self::Float(left) => Ok(left.trunc().to_usize().expect("f64 can always be converted to usize")),
+            Self::Float(left) => {
+                let result = left.trunc();
+                if result <= 0f64 {
+                    return Ok(0)
+                }
+                if result.is_infinite() {
+                    return Err(PyRenderError::PyErr(PyValueError::new_err("float is infinite")))
+                }
+                match left.to_usize() {
+                    Some(left) => Ok(left),
+                    None => Err(PyRenderError::PyErr(PyValueError::new_err("float is NaN")))
+                }
+            },
             Self::Py(left) => match left.extract::<usize>() {
                 Ok(left) => Ok(left),
                 Err(_) => {
@@ -140,7 +151,7 @@ impl<'t, 'py> Content<'t, 'py> {
                     match int.call1((left,)) {
                         Ok(left) => Ok(left.extract::<usize>()?),
                         Err(_) => Err(PyRenderError::PyErr(
-                            PyValueError::new_err(format!("invalid literal for int() with base 10: '{}'", left),
+                            PyValueError::new_err(format!("literal for int() with base 10: '{}'", left),
                         ))),
                     }
                 }

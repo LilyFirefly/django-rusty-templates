@@ -93,3 +93,25 @@ def test_center_argument_negative(assert_render):
     expected = "test"  # No padding since the width is negative
 
     assert_render(template, context, expected)
+
+
+def test_center_argument_negative_float(assert_render):
+    template = "{{ foo|center:-5.5 }}"
+    context = {"foo": "test"}
+    expected = "test"  # No padding since the width is negative
+
+    assert_render(template, context, expected)
+
+
+def test_center_argument_is_inf(assert_render):
+    template = "{{ foo|center:bar }}"
+    expected = "float is infinite"
+    with pytest.raises(OverflowError) as exc_info:
+        engines["django"].from_string(template).render({"foo": "test", "bar": 1.0e310})
+
+    assert str(exc_info.value) == 'cannot convert float infinity to integer'
+
+    with pytest.raises(ValueError) as exc_info:
+        engines["rusty"].from_string(template).render({"foo": "test", "bar": 1.0e310})
+
+    assert str(exc_info.value) == expected
