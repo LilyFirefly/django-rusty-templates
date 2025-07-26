@@ -401,7 +401,6 @@ mod tests {
     use crate::template::django_rusty_templates::{EngineData, Template};
     use crate::types::{Argument, ArgumentType, Text, Variable};
 
-    use pyo3::panic;
     use pyo3::types::{PyDict, PyString};
     static MARK_SAFE: GILOnceCell<Py<PyAny>> = GILOnceCell::new();
 
@@ -419,7 +418,6 @@ mod tests {
         Ok(safe_string)
     }
 
-    use core::error;
     use std::collections::HashMap;
 
     #[test]
