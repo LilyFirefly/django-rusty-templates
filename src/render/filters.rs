@@ -2,10 +2,12 @@ use std::borrow::Cow;
 use std::sync::LazyLock;
 
 use html_escape::encode_quoted_attribute_to_string;
+use pyo3::exceptions::PyIndexError;
 use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
 use pyo3::types::PyType;
 
+use crate::error::RenderError;
 use crate::filters::{
     AddFilter, AddSlashesFilter, CapfirstFilter, DefaultFilter, EscapeFilter, ExternalFilter,
     FilterType, FirstFilter, LowerFilter, SafeFilter, SlugifyFilter, UpperFilter,
@@ -243,59 +245,51 @@ impl ResolveFilter for FirstFilter {
         _template: TemplateString<'t>,
         _context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
+        use self::IntoOwnedContent;
         let content = match variable {
-            Some(content) => {
-                // Try to get the first item from the content
-                match content {
-                    Content::Py(obj) => {
-                        // Try to get the first item using Python's indexing
-                        // Django only catches IndexError, not TypeError
-                        match obj.get_item(0) {
-                            Ok(first) => Some(Content::Py(first)),
-                            Err(e) => {
-                                // Check if it's an IndexError
-                                if e.is_instance_of::<pyo3::exceptions::PyIndexError>(py) {
-                                    // IndexError -> return empty string
-                                    "".as_content()
-                                } else {
-                                    // Other errors (like TypeError) -> propagate
-                                    return Err(e.into());
-                                }
-                            }
-                        }
-                    }
-                    Content::String(s) => {
-                        // For strings, get the first character
-                        let s_raw = s.as_raw();
-                        if s_raw.is_empty() {
-                            "".as_content()
-                        } else {
-                            // Get the first character
-                            let first_char = s_raw.chars().next().unwrap();
-                            first_char.to_string().into_content()
-                        }
-                    }
-                    Content::Int(_) => {
-                        // Numbers are not sequences, should raise TypeError
-                        // Match Django's behavior exactly
-                        return Err(pyo3::exceptions::PyTypeError::new_err(
-                            "'int' object is not subscriptable",
-                        )
-                        .into());
-                    }
-                    Content::Float(_) => {
-                        // Floats are not sequences, should raise TypeError
-                        // Match Django's behavior exactly
-                        return Err(pyo3::exceptions::PyTypeError::new_err(
-                            "'float' object is not subscriptable",
-                        )
-                        .into());
-                    }
+            Some(content) => content,
+            None => return Ok("".as_content()),
+        };
+
+        match content {
+            Content::Py(obj) => {
+                // Try to get the first item using Python's indexing
+                // Django only catches IndexError, not TypeError
+                match obj.get_item(0) {
+                    Ok(first) => Ok(Some(Content::Py(first))),
+                    Err(e) if e.is_instance_of::<PyIndexError>(py) => Ok("".as_content()),
+                    Err(e) => Err(e.into()),
                 }
             }
-            None => "".as_content(),
-        };
-        Ok(content)
+            Content::String(s) => {
+                // For strings, get the first character
+                let s_raw = s.as_raw();
+                // Skip the empty string always present at the start after splitting
+                let mut chars = s_raw.split("").skip(1);
+                match chars.next() {
+                    None => Ok("".as_content()),
+                    Some(c) => Ok(c.to_string().into_content()),
+                }
+            }
+            Content::Int(_) => {
+                // Numbers are not sequences, should raise TypeError
+                // Match Django's behavior exactly
+                Err(RenderError::NotSubscriptable {
+                    type_name: "int".to_string(),
+                    at: (0, 0).into(),
+                }
+                .into())
+            }
+            Content::Float(_) => {
+                // Floats are not sequences, should raise TypeError
+                // Match Django's behavior exactly
+                Err(RenderError::NotSubscriptable {
+                    type_name: "float".to_string(),
+                    at: (0, 0).into(),
+                }
+                .into())
+            }
+        }
     }
 }
 
