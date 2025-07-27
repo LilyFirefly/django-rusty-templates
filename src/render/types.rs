@@ -110,54 +110,54 @@ impl<'t, 'py> Content<'t, 'py> {
         })
     }
 
-    pub fn to_usize(&self) -> Result<usize, PyRenderError> {
-        match self {
-            Self::Int(left) => {
-                match left.sign() {
-                    Sign::Minus | Sign::NoSign => Ok(0),
-                    Sign::Plus => {
-                        let result = left.to_usize();
-                        match result {
-                            Some(res) => Ok(res),
-                            None => return Err(PyRenderError::PyErr(PyValueError::new_err("integer is too big")))
-                        }
-                    },
-                }
-            },
-            Self::String(left) => match left.as_raw().parse::<usize>() {
-                Ok(left) => Ok(left),
-                Err(_) => Err(PyRenderError::PyErr(
-                    // TODO: check the error
-                    PyValueError::new_err(format!("invalid literal for int() with base 10: '{}'", left.as_raw(),
-                )))),
-            },
-            Self::Float(left) => {
-                let result = left.trunc();
-                if result <= 0f64 {
-                    return Ok(0)
-                }
-                if result.is_infinite() {
-                    return Err(PyRenderError::PyErr(PyValueError::new_err("float is infinite")))
-                }
-                match left.to_usize() {
-                    Some(left) => Ok(left),
-                    None => Err(PyRenderError::PyErr(PyValueError::new_err("float is NaN")))
-                }
-            },
-            Self::Py(left) => match left.extract::<usize>() {
-                Ok(left) => Ok(left),
-                Err(_) => {
-                    let int = PyType::new::<PyInt>(left.py());
-                    match int.call1((left,)) {
-                        Ok(left) => Ok(left.extract::<usize>()?),
-                        Err(_) => Err(PyRenderError::PyErr(
-                            PyValueError::new_err(format!("literal for int() with base 10: '{}'", left),
-                        ))),
-                    }
-                }
-            },
-        }
-    }
+    // pub fn to_usize(&self) -> Result<usize, PyRenderError> {
+    //     match self {
+    //         Self::Int(left) => {
+    //             match left.sign() {
+    //                 Sign::Minus | Sign::NoSign => Ok(0),
+    //                 Sign::Plus => {
+    //                     let result = left.to_usize();
+    //                     match result {
+    //                         Some(res) => Ok(res),
+    //                         None => return Err(PyRenderError::PyErr(PyValueError::new_err("integer is too big")))
+    //                     }
+    //                 },
+    //             }
+    //         },
+    //         Self::String(left) => match left.as_raw().parse::<usize>() {
+    //             Ok(left) => Ok(left),
+    //             Err(_) => Err(PyRenderError::PyErr(
+    //                 // TODO: check the error
+    //                 PyValueError::new_err(format!("invalid literal for int() with base 10: '{}'", left.as_raw(),
+    //             )))),
+    //         },
+    //         Self::Float(left) => {
+    //             let result = left.trunc();
+    //             if result <= 0f64 {
+    //                 return Ok(0)
+    //             }
+    //             if result.is_infinite() {
+    //                 return Err(PyRenderError::PyErr(PyValueError::new_err("float is infinite")))
+    //             }
+    //             match left.to_usize() {
+    //                 Some(left) => Ok(left),
+    //                 None => Err(PyRenderError::PyErr(PyValueError::new_err("float is NaN")))
+    //             }
+    //         },
+    //         Self::Py(left) => match left.extract::<usize>() {
+    //             Ok(left) => Ok(left),
+    //             Err(_) => {
+    //                 let int = PyType::new::<PyInt>(left.py());
+    //                 match int.call1((left,)) {
+    //                     Ok(left) => Ok(left.extract::<usize>()?),
+    //                     Err(_) => Err(PyRenderError::PyErr(
+    //                         PyValueError::new_err(format!("literal for int() with base 10: '{}'", left),
+    //                     ))),
+    //                 }
+    //             }
+    //         },
+    //     }
+    // }
 
     pub fn to_bigint(&self) -> Option<BigInt> {
         match self {

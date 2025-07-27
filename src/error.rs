@@ -1,5 +1,6 @@
 use miette::{Diagnostic, SourceSpan};
 use pyo3::prelude::*;
+use pyo3::types::PyInt;
 use thiserror::Error;
 
 #[derive(Error, Debug)]

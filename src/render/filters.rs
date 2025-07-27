@@ -1,11 +1,14 @@
 use std::borrow::Cow;
 use std::sync::LazyLock;
 
-use html_escape::encode_quoted_attribute_to_string;
+use num_bigint::Sign;
 
+use html_escape::encode_quoted_attribute_to_string;
+use num_traits::ToPrimitive;
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
-use pyo3::types::PyType;
+use pyo3::types::{PyInt, PyType};
 
 use crate::filters::{
     AddFilter, AddSlashesFilter, CapfirstFilter, CenterFilter, DefaultFilter, EscapeFilter, ExternalFilter,
@@ -17,6 +20,7 @@ use crate::render::{Resolve, ResolveFailures, ResolveResult};
 use crate::types::TemplateString;
 use regex::Regex;
 use unicode_normalization::UnicodeNormalization;
+use crate::error::{PyRenderError, RenderError};
 
 // Used for replacing all non-word and non-spaces with an empty string
 static NON_WORD_RE: LazyLock<Regex> =
@@ -186,7 +190,57 @@ impl ResolveFilter for CenterFilter {
             .argument
             .resolve(py, template, context, ResolveFailures::Raise)?
             .expect("missing argument in context should already have raised");
-        let size = arg.to_usize()?;
+
+        let arg_size = match arg {
+            Content::Int(left) => {
+                match left.sign() {
+                    Sign::Minus | Sign::NoSign => Ok(0),
+                    Sign::Plus => {
+                        let result = left.to_usize();
+                        match result {
+                            Some(res) => Ok(res),
+                            None => return Err(PyRenderError::PyErr(PyValueError::new_err("integer is too big")))
+                        }
+                    },
+                }
+            },
+            Content::String(left) => match left.as_raw().parse::<usize>() {
+                Ok(left) => Ok(left),
+                Err(_) => Err(PyRenderError::PyErr(
+                    // TODO: check the error
+                    PyValueError::new_err(format!("invalid literal for int() with base 10: '{}'", left.as_raw(),
+                )))),
+            },
+            Content::Float(left) => {
+                let result = left.trunc();
+                if result <= 0f64 {
+                    return Ok(content.to_string().into_content());
+                }
+                if result.is_infinite() {
+                    return Err(PyRenderError::PyErr(PyValueError::new_err("float is infinite")))
+                }
+                match left.to_usize() {
+                    Some(left) => Ok(left),
+                    None => Err(PyRenderError::PyErr(PyValueError::new_err("float is NaN")))
+                }
+            },
+            Content::Py(left) => match left.extract::<usize>() {
+                Ok(left) => Ok(left),
+                Err(_) => {
+                    let int = PyType::new::<PyInt>(left.py());
+                    match int.call1((left.clone(),)) {
+                        Ok(left) => Ok(left.extract::<usize>()?),
+                        Err(_) => {
+                            Err(RenderError::InvalidArgumentInteger {
+                                argument: left.to_string(),
+                                argument_at: self.argument.at.into()
+                            }.into())
+                        },
+                    }
+                }
+            },
+        };
+        let size = arg_size?;
 
         if size <= content.len() {
             return Ok(Some(Content::String(ContentString::String((content)))));

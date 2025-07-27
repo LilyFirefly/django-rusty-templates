@@ -65,10 +65,10 @@ def test_argument_not_integer():
 
     assert str(exc_info.value) == expected
 
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(VariableDoesNotExist) as exc_info:
         engines["rusty"].from_string(template).render({"foo": "test", "bar": "not an integer"})
 
-    assert str(exc_info.value) == expected
+    assert "Couldn't convert argument not an integer to integer" in str(exc_info.value)
 
 
 def test_center_argument_less_than_string_length(assert_render):
@@ -111,7 +111,37 @@ def test_center_argument_is_inf(assert_render):
 
     assert str(exc_info.value) == 'cannot convert float infinity to integer'
 
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(VariableDoesNotExist) as exc_info:
         engines["rusty"].from_string(template).render({"foo": "test", "bar": 1.0e310})
 
-    assert str(exc_info.value) == expected
+    assert "Couldn't convert argument inf to integer" in str(exc_info.value)
+
+    expected = """  × Couldn't convert argument inf to integer
+   ╭────
+ 1 │ {{ foo|center:bar }}
+   ·               ─┬─
+   ·                ╰── argument
+   ╰────
+"""
+    assert expected in str(exc_info.value)
+
+
+def test_center_argument_is_negative_inf(assert_render):
+    template = "{{ foo|center:bar }}"
+    expected = "float is infinite"
+    with pytest.raises(OverflowError) as exc_info:
+        engines["django"].from_string(template).render({"foo": "test", "bar": -1.0e310})
+
+    assert str(exc_info.value) == 'cannot convert float infinity to integer'
+
+    with pytest.raises(VariableDoesNotExist) as exc_info:
+        engines["rusty"].from_string(template).render({"foo": "test", "bar": -1.0e310})
+
+    expected = """  × Couldn't convert argument -inf to integer
+   ╭────
+ 1 │ {{ foo|center:bar }}
+   ·               ─┬─
+   ·                ╰── argument
+   ╰────
+"""
+    assert expected in str(exc_info.value)
