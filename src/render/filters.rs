@@ -217,7 +217,10 @@ impl ResolveFilter for CenterFilter {
                     return Ok(content.to_string().into_content());
                 }
                 if result.is_infinite() {
-                    return Err(PyRenderError::PyErr(PyValueError::new_err("float is infinite")))
+                    return Err(RenderError::InvalidArgumentInteger {
+                        argument: left.to_string(),
+                        argument_at: self.argument.at.into()
+                    }.into())
                 }
                 match left.to_usize() {
                     Some(left) => Ok(left),
