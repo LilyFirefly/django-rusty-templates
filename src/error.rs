@@ -1,6 +1,5 @@
 use miette::{Diagnostic, SourceSpan};
 use pyo3::prelude::*;
-use pyo3::types::PyInt;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -22,7 +21,7 @@ impl PyRenderError {
 
 #[derive(Error, Debug, Diagnostic, PartialEq, Eq)]
 pub enum RenderError {
-    #[error("Couldn't convert argument {argument} to integer")]
+    #[error("Couldn't convert argument ({argument}) to integer")]
     InvalidArgumentInteger {
         argument: String,
         #[label("argument")]

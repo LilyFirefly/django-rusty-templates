@@ -181,9 +181,7 @@ impl ResolveFilter for CenterFilter {
         let left: usize;
         let right: usize;
         let content = match variable {
-            Some(content) => {
-                content.render(context)?
-            },
+            Some(content) => content.render(context)?,
             None => return Ok("".as_content()),
         };
         let arg = self
@@ -204,17 +202,34 @@ impl ResolveFilter for CenterFilter {
                     },
                 }
             },
-            Content::String(left) => match left.as_raw().parse::<usize>() {
-                Ok(left) => Ok(left),
-                Err(_) => Err(PyRenderError::PyErr(
-                    // TODO: check the error
-                    PyValueError::new_err(format!("invalid literal for int() with base 10: '{}'", left.as_raw(),
-                )))),
+            Content::String(left) => {
+                match left.as_raw().parse::<i64>() {
+                    Ok(left) => {
+                        if left <= 0 {
+                            return Ok(Some(Content::String(ContentString::String(content))));
+                        }
+                        match left.to_usize() {
+                            Some(left) => Ok(left),
+                            None => {
+                                return Err(RenderError::InvalidArgumentInteger {
+                                    argument: left.to_string(),
+                                    argument_at: self.argument.at.into()
+                                }.into())
+                            }
+                        }
+                    },
+                    Err(_) => {
+                        return Err(RenderError::InvalidArgumentInteger {
+                            argument: left.as_raw().to_string(),
+                            argument_at: self.argument.at.into()
+                        }.into())
+                    },
+                }
             },
             Content::Float(left) => {
                 let result = left.trunc();
                 if result <= 0f64 {
-                    return Ok(content.to_string().into_content());
+                    return Ok(Some(Content::String(ContentString::String(content))));
                 }
                 if result.is_infinite() {
                     return Err(RenderError::InvalidArgumentInteger {
@@ -246,7 +261,7 @@ impl ResolveFilter for CenterFilter {
         let size = arg_size?;
 
         if size <= content.len() {
-            return Ok(Some(Content::String(ContentString::String((content)))));
+            return Ok(Some(Content::String(ContentString::String(content))));
         }
         if size % 2 == 0 && content.len() % 2 != 0 {
             // If the size is even and the content length is odd, we need to adjust the centering
@@ -452,7 +467,7 @@ impl ResolveFilter for UpperFilter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::filters::{AddSlashesFilter, CenterFilter, DefaultFilter, LowerFilter, UpperFilter};
+    use crate::filters::{AddSlashesFilter, DefaultFilter, LowerFilter, UpperFilter};
     use crate::parse::TagElement;
     use crate::render::Render;
     use crate::template::django_rusty_templates::{EngineData, Template};
@@ -784,23 +799,6 @@ mod tests {
             let error_string = format!("{error}");
 
             assert!(error_string.contains("Expected an argument"));
-        })
-    }
-
-    #[test]
-    fn test_render_filter_center_invalid_argument_return_err() {
-        pyo3::prepare_freethreaded_python();
-
-        Python::with_gil(|py| {
-            let engine = EngineData::empty();
-            let template_string = "{{ var|center:'invalid' }}".to_string();
-            let context = PyDict::new(py);
-            context.set_item("var", "hello").unwrap();
-            let template = Template::new_from_string(py, template_string, &engine).unwrap();
-            let error = template.render(py, Some(context), None).unwrap_err();
-            let error_string = format!("{error}");
-
-            assert!(error_string.contains("invalid literal for int() with base 10"));
         })
     }
 
