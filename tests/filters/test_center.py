@@ -65,7 +65,7 @@ def test_argument_not_integer():
 
     assert str(exc_info.value) == expected
 
-    with pytest.raises(TypeError) as exc_info:
+    with pytest.raises(ValueError) as exc_info:
         engines["rusty"].from_string(template).render({"foo": "test", "bar": "not an integer"})
 
     assert "Couldn't convert argument (not an integer) to integer" in str(exc_info.value)
@@ -111,7 +111,7 @@ def test_center_argument_is_inf(assert_render):
 
     assert str(exc_info.value) == 'cannot convert float infinity to integer'
 
-    with pytest.raises(TypeError) as exc_info:
+    with pytest.raises(ValueError) as exc_info:
         engines["rusty"].from_string(template).render({"foo": "test", "bar": 1.0e310})
 
     assert "Couldn't convert argument (inf) to integer" in str(exc_info.value)
@@ -125,7 +125,7 @@ def test_center_argument_is_negative_inf(assert_render):
 
     assert str(exc_info.value) == 'cannot convert float infinity to integer'
 
-    with pytest.raises(TypeError) as exc_info:
+    with pytest.raises(ValueError) as exc_info:
         engines["rusty"].from_string(template).render({"foo": "test", "bar": -1.0e310})
 
     expected = "Couldn't convert argument (-inf) to integer"
@@ -148,7 +148,7 @@ def test_center_argument_is_negative_float_as_string():
 
     assert str(exc_info.value) == "invalid literal for int() with base 10: '-5.5'"
 
-    with pytest.raises(TypeError) as exc_info:
+    with pytest.raises(ValueError) as exc_info:
         engines["rusty"].from_string(template).render({"foo": "test", "bar": '-5.5'})
 
     expected = "Couldn't convert argument (-5.5) to integer"
