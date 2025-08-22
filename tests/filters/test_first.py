@@ -218,6 +218,31 @@ def test_first_with_float():
     assert "'float' object is not subscriptable" in str(rusty_exc.value)
 
 
+def test_first_with_boolean():
+    """Test first filter with boolean value."""
+    template = "{{ value|first }}"
+
+    # Test with True
+    context = {"value": True}
+    with pytest.raises(TypeError) as django_exc:
+        engines["django"].from_string(template).render(context)
+    with pytest.raises(TypeError) as rusty_exc:
+        engines["rusty"].from_string(template).render(context)
+
+    assert "'bool' object is not subscriptable" in str(django_exc.value)
+    assert "'bool' object is not subscriptable" in str(rusty_exc.value)
+
+    # Test with False
+    context = {"value": False}
+    with pytest.raises(TypeError) as django_exc:
+        engines["django"].from_string(template).render(context)
+    with pytest.raises(TypeError) as rusty_exc:
+        engines["rusty"].from_string(template).render(context)
+
+    assert "'bool' object is not subscriptable" in str(django_exc.value)
+    assert "'bool' object is not subscriptable" in str(rusty_exc.value)
+
+
 def test_first_with_custom_object_type_error():
     """Test first filter with custom object that raises TypeError on indexing."""
 
