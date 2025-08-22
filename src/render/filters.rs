@@ -335,9 +335,8 @@ impl ResolveFilter for FirstFilter {
             }
             Content::String(s) => {
                 // For strings, get the first character
-                let s_raw = s.as_raw();
                 // Skip the empty string always present at the start after splitting
-                let mut chars = s_raw.split("").skip(1);
+                let mut chars = s.as_raw().split("").skip(1);
                 match chars.next() {
                     None => Ok(Some("".as_content())),
                     Some(c) => Ok(Some(c.to_string().into_content())),
