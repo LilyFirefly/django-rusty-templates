@@ -276,7 +276,7 @@ impl ResolveFilter for FirstFilter {
                 // Match Django's behavior exactly
                 Err(RenderError::NotSubscriptable {
                     type_name: "int".to_string(),
-                    at: (0, 0).into(),
+                    at: self.at,
                 }
                 .into())
             }
@@ -285,7 +285,7 @@ impl ResolveFilter for FirstFilter {
                 // Match Django's behavior exactly
                 Err(RenderError::NotSubscriptable {
                     type_name: "float".to_string(),
-                    at: (0, 0).into(),
+                    at: self.at,
                 }
                 .into())
             }

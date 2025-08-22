@@ -116,7 +116,7 @@ impl Filter {
             },
             "first" => match right {
                 Some(right) => return Err(unexpected_argument("first", right)),
-                None => FilterType::First(FirstFilter),
+                None => FilterType::First(FirstFilter::new(at.into())),
             },
             "lower" => match right {
                 Some(right) => return Err(unexpected_argument("lower", right)),

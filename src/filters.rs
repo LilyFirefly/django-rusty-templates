@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use miette::SourceSpan;
 use pyo3::prelude::*;
 
 use crate::types::Argument;
@@ -57,7 +58,15 @@ pub struct ExternalFilter {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct FirstFilter;
+pub struct FirstFilter {
+    pub at: SourceSpan,
+}
+
+impl FirstFilter {
+    pub fn new(at: SourceSpan) -> Self {
+        Self { at }
+    }
+}
 
 impl ExternalFilter {
     pub fn new(filter: Py<PyAny>, argument: Option<Argument>) -> Self {
