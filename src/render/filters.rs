@@ -330,6 +330,26 @@ impl ResolveFilter for FirstFilter {
                 match obj.get_item(0) {
                     Ok(first) => Ok(Some(Content::Py(first))),
                     Err(e) if e.is_instance_of::<PyIndexError>(py) => Ok(Some("".as_content())),
+                    Err(e) if e.is_instance_of::<pyo3::exceptions::PyTypeError>(py) => {
+                        // Check if this is the standard "'type' object is not subscriptable" error
+                        let error_msg = e.to_string();
+                        if error_msg.contains("is not subscriptable") {
+                            // Standard not subscriptable error - provide better formatting
+                            let type_name = obj
+                                .get_type()
+                                .name()
+                                .map(|n| n.to_string())
+                                .unwrap_or_else(|_| "unknown".to_string());
+                            Err(RenderError::NotSubscriptable {
+                                type_name,
+                                at: self.at,
+                            }
+                            .into())
+                        } else {
+                            // Custom TypeError - preserve the original message
+                            Err(e.into())
+                        }
+                    }
                     Err(e) => Err(e.into()),
                 }
             }
