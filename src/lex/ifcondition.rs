@@ -1,5 +1,5 @@
 use crate::lex::common::{
-    LexerError, lex_numeric, lex_text, lex_translated, lex_variable, text_content_at,
+    LexerError, NextChar, lex_numeric, lex_text, lex_translated, lex_variable, text_content_at,
     translated_text_content_at,
 };
 use crate::lex::tag::TagParts;
@@ -148,11 +148,7 @@ impl<'t> IfConditionLexer<'t> {
     }
 
     fn lex_remainder(&mut self) -> Result<(), LexerError> {
-        let remainder = self
-            .rest
-            .find(char::is_whitespace)
-            .unwrap_or(self.rest.len());
-        match remainder {
+        match self.rest.next_whitespace() {
             0 => {
                 let rest = self.rest.trim_start();
                 self.byte += self.rest.len() - rest.len();
@@ -176,10 +172,7 @@ impl Iterator for IfConditionLexer<'_> {
             return None;
         }
 
-        let index = self
-            .rest
-            .find(char::is_whitespace)
-            .unwrap_or(self.rest.len());
+        let index = self.rest.next_whitespace();
         let (token_type, index) = match &self.rest[..index] {
             "and" => (
                 IfConditionTokenType::Operator(IfConditionOperator::And),
@@ -191,11 +184,9 @@ impl Iterator for IfConditionLexer<'_> {
             ),
             "not" => {
                 let rest = &self.rest[index..];
-                let whitespace_index = rest
-                    .find(|c: char| !c.is_whitespace())
-                    .unwrap_or(rest.len());
+                let whitespace_index = rest.next_non_whitespace();
                 let rest = &rest[whitespace_index..];
-                let next_index = rest.find(char::is_whitespace).unwrap_or(rest.len());
+                let next_index = rest.next_whitespace();
                 match &rest[..next_index] {
                     "in" => (
                         IfConditionTokenType::Operator(IfConditionOperator::NotIn),
@@ -234,11 +225,9 @@ impl Iterator for IfConditionLexer<'_> {
             ),
             "is" => {
                 let rest = &self.rest[index..];
-                let whitespace_index = rest
-                    .find(|c: char| !c.is_whitespace())
-                    .unwrap_or(rest.len());
+                let whitespace_index = rest.next_non_whitespace();
                 let rest = &rest[whitespace_index..];
-                let next_index = rest.find(char::is_whitespace).unwrap_or(rest.len());
+                let next_index = rest.next_whitespace();
                 match &rest[..next_index] {
                     "not" => (
                         IfConditionTokenType::Operator(IfConditionOperator::IsNot),
@@ -255,9 +244,7 @@ impl Iterator for IfConditionLexer<'_> {
         let at = (self.byte, index);
 
         let rest = &self.rest[index..];
-        let next_index = rest
-            .find(|c: char| !c.is_whitespace())
-            .unwrap_or(rest.len());
+        let next_index = rest.next_non_whitespace();
         self.byte += index + next_index;
         self.rest = &rest[next_index..];
 

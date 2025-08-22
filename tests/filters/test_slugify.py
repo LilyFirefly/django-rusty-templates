@@ -47,6 +47,11 @@ def test_non_string_input(assert_render):
     assert_render(template, context, expected)
 
 
+def test_slugify_bool(assert_render):
+    template = "{% for x in 'xy' %}{{ forloop.first|slugify }}{% endfor %}"
+    assert_render(template, {}, "truefalse")
+
+
 def test_slugify_lazy_string(assert_render):
     lazy_str = lazy(lambda string: string, str)
     template = "{{ test|slugify }}"

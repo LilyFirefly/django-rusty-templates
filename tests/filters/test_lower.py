@@ -17,3 +17,12 @@ def test_lower_float():
 
     assert django_template.render({}) == "3.7"
     assert rust_template.render({}) == "3.7"
+
+
+def test_lower_bool():
+    template = "{% for x in 'ab' %}{{ forloop.first|lower }}{% endfor %}"
+    django_template = engines["django"].from_string(template)
+    rust_template = engines["rusty"].from_string(template)
+
+    assert django_template.render({}) == "truefalse"
+    assert rust_template.render({}) == "truefalse"

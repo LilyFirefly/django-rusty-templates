@@ -169,3 +169,12 @@ def test_add_strings_autoescape_off():
 
     assert django_template.render({"foo": "abc"}) == "abcdef"
     assert rust_template.render({"foo": "abc"}) == "abcdef"
+
+
+def test_add_bool():
+    template = "{% for x in 'abc' %}{{ forloop.first|add:forloop.last }}{% endfor %}"
+    django_template = engines["django"].from_string(template)
+    rust_template = engines["rusty"].from_string(template)
+
+    assert django_template.render({}) == "101"
+    assert rust_template.render({}) == "101"

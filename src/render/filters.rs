@@ -2,6 +2,8 @@ use std::borrow::Cow;
 use std::sync::LazyLock;
 
 use html_escape::encode_quoted_attribute_to_string;
+use num_bigint::{BigInt, ToBigInt};
+use num_traits::ToPrimitive;
 use pyo3::exceptions::PyIndexError;
 use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
@@ -9,11 +11,11 @@ use pyo3::types::PyType;
 
 use crate::error::RenderError;
 use crate::filters::{
-    AddFilter, AddSlashesFilter, CapfirstFilter, DefaultFilter, EscapeFilter, ExternalFilter,
-    FilterType, FirstFilter, LowerFilter, SafeFilter, SlugifyFilter, UpperFilter,
+    AddFilter, AddSlashesFilter, CapfirstFilter, CenterFilter, DefaultFilter, EscapeFilter,
+    ExternalFilter, FilterType, FirstFilter, LowerFilter, SafeFilter, SlugifyFilter, UpperFilter,
 };
 use crate::parse::Filter;
-use crate::render::types::{Content, ContentString, Context};
+use crate::render::types::{AsBorrowedContent, Content, ContentString, Context, IntoOwnedContent};
 use crate::render::{Resolve, ResolveFailures, ResolveResult};
 use crate::types::TemplateString;
 use regex::Regex;
@@ -29,32 +31,6 @@ static WHITESPACE_RE: LazyLock<Regex> =
 
 static SAFEDATA: GILOnceCell<Py<PyType>> = GILOnceCell::new();
 
-trait IntoOwnedContent<'t, 'py> {
-    fn into_content(self) -> Option<Content<'t, 'py>>;
-}
-
-trait AsBorrowedContent<'a, 't, 'py>
-where
-    'a: 't,
-{
-    fn as_content(&'a self) -> Option<Content<'t, 'py>>;
-}
-
-impl<'a, 't, 'py> AsBorrowedContent<'a, 't, 'py> for str
-where
-    'a: 't,
-{
-    fn as_content(&'a self) -> Option<Content<'t, 'py>> {
-        Some(Content::String(ContentString::String(Cow::Borrowed(self))))
-    }
-}
-
-impl<'t, 'py> IntoOwnedContent<'t, 'py> for String {
-    fn into_content(self) -> Option<Content<'t, 'py>> {
-        Some(Content::String(ContentString::String(Cow::Owned(self))))
-    }
-}
-
 impl Resolve for Filter {
     fn resolve<'t, 'py>(
         &self,
@@ -68,6 +44,7 @@ impl Resolve for Filter {
             FilterType::Add(filter) => filter.resolve(left, py, template, context),
             FilterType::AddSlashes(filter) => filter.resolve(left, py, template, context),
             FilterType::Capfirst(filter) => filter.resolve(left, py, template, context),
+            FilterType::Center(filter) => filter.resolve(left, py, template, context),
             FilterType::Default(filter) => filter.resolve(left, py, template, context),
             FilterType::Escape(filter) => filter.resolve(left, py, template, context),
             FilterType::External(filter) => filter.resolve(left, py, template, context),
@@ -107,7 +84,7 @@ impl ResolveFilter for AddSlashesFilter {
                 .into_content(),
             None => "".as_content(),
         };
-        Ok(content)
+        Ok(Some(content))
     }
 }
 
@@ -155,14 +132,108 @@ impl ResolveFilter for CapfirstFilter {
                 let mut chars = content_string.chars();
                 let first_char = match chars.next() {
                     Some(c) => c.to_uppercase(),
-                    None => return Ok("".as_content()),
+                    None => return Ok(Some("".as_content())),
                 };
                 let string: String = first_char.chain(chars).collect();
                 string.into_content()
             }
             None => "".as_content(),
         };
-        Ok(content)
+        Ok(Some(content))
+    }
+}
+
+fn resolve_bigint(bigint: BigInt, at: (usize, usize)) -> Result<usize, RenderError> {
+    match bigint.to_isize() {
+        Some(n) => Ok(n.max(0) as usize),
+        None => Err(RenderError::OverflowError {
+            argument: bigint.to_string(),
+            argument_at: at.into(),
+        }),
+    }
+}
+
+impl ResolveFilter for CenterFilter {
+    fn resolve<'t, 'py>(
+        &self,
+        variable: Option<Content<'t, 'py>>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> ResolveResult<'t, 'py> {
+        let left: usize;
+        let right: usize;
+        let content = match variable {
+            Some(content) => content.render(context)?,
+            None => return Ok(Some("".as_content())),
+        };
+        let arg = self
+            .argument
+            .resolve(py, template, context, ResolveFailures::Raise)?
+            .expect("missing argument in context should already have raised");
+
+        let size = match arg {
+            Content::Int(left) => resolve_bigint(left, self.argument.at)?,
+            Content::String(left) => match left.as_raw().parse::<BigInt>() {
+                Ok(n) => resolve_bigint(n, self.argument.at)?,
+                Err(_) => {
+                    return Err(RenderError::InvalidArgumentInteger {
+                        argument: format!("'{}'", left.as_raw()),
+                        argument_at: self.argument.at.into(),
+                    }
+                    .into());
+                }
+            },
+            Content::Float(left) => match left.trunc().to_bigint() {
+                Some(n) => resolve_bigint(n, self.argument.at)?,
+                None => {
+                    return Err(RenderError::InvalidArgumentFloat {
+                        argument: left.to_string(),
+                        argument_at: self.argument.at.into(),
+                    }
+                    .into());
+                }
+            },
+            Content::Py(left) => match left.extract::<BigInt>() {
+                Ok(left) => resolve_bigint(left, self.argument.at)?,
+                Err(_) => {
+                    let argument = left.to_string();
+                    let argument_at = self.argument.at.into();
+                    let err = match left.extract::<f64>() {
+                        Ok(_) => RenderError::InvalidArgumentFloat {
+                            argument,
+                            argument_at,
+                        },
+                        Err(_) => RenderError::InvalidArgumentInteger {
+                            argument,
+                            argument_at,
+                        },
+                    };
+                    return Err(err.into());
+                }
+            },
+            Content::Bool(true) if content.is_empty() => return Ok(Some(" ".as_content())),
+            Content::Bool(_) => return Ok(Some(content.into_content())),
+        };
+
+        if size <= content.len() {
+            return Ok(Some(content.into_content()));
+        }
+        if size % 2 == 0 && content.len() % 2 != 0 {
+            // If the size is even and the content length is odd, we need to adjust the centering
+            right = (size - content.len()).div_ceil(2);
+            left = size - content.len() - right;
+        } else {
+            right = (size - content.len()) / 2;
+            left = size - content.len() - right;
+        }
+        let mut centered = String::with_capacity(size);
+
+        centered.push_str(&" ".repeat(left));
+        centered.push_str(&content);
+        centered.push_str(&" ".repeat(right));
+
+        Ok(Some(centered.into_content()))
     }
 }
 
@@ -209,6 +280,8 @@ impl ResolveFilter for EscapeFilter {
                         encode_quoted_attribute_to_string(&content, &mut encoded);
                         Cow::Owned(encoded)
                     }
+                    Content::Bool(true) => Cow::Borrowed("True"),
+                    Content::Bool(false) => Cow::Borrowed("False"),
                 },
                 None => Cow::Borrowed(""),
             },
@@ -302,14 +375,12 @@ impl ResolveFilter for LowerFilter {
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
-            Some(content) => Some(
-                content
-                    .resolve_string(context)?
-                    .map_content(|content| Cow::Owned(content.to_lowercase())),
-            ),
+            Some(content) => content
+                .resolve_string(context)?
+                .map_content(|content| Cow::Owned(content.to_lowercase())),
             None => "".as_content(),
         };
-        Ok(content)
+        Ok(Some(content))
     }
 }
 
@@ -331,6 +402,8 @@ impl ResolveFilter for SafeFilter {
                         let content = object.str()?.extract::<String>()?;
                         Cow::Owned(content)
                     }
+                    Content::Bool(true) => Cow::Borrowed("True"),
+                    Content::Bool(false) => Cow::Borrowed("False"),
                 },
                 None => Cow::Borrowed(""),
             },
@@ -367,22 +440,20 @@ impl ResolveFilter for SlugifyFilter {
                     #[allow(non_snake_case)]
                     let SafeData = SAFEDATA.import(py, "django.utils.safestring", "SafeData")?;
                     match content.is_instance(SafeData)? {
-                        true => Some(Content::String(ContentString::HtmlSafe(slug))),
-                        false => Some(Content::String(ContentString::HtmlUnsafe(slug))),
+                        true => Content::String(ContentString::HtmlSafe(slug)),
+                        false => Content::String(ContentString::HtmlUnsafe(slug)),
                     }
                 }
                 // Int and Float requires no slugify, we only need to turn it into a string.
-                Content::Int(content) => Some(Content::String(ContentString::String(Cow::Owned(
-                    content.to_string(),
-                )))),
-                Content::Float(content) => Some(Content::String(ContentString::String(
-                    Cow::Owned(content.to_string()),
-                ))),
-                Content::String(content) => Some(content.map_content(slugify)),
+                Content::Int(content) => content.to_string().into_content(),
+                Content::Float(content) => content.to_string().into_content(),
+                Content::String(content) => content.map_content(slugify),
+                Content::Bool(true) => "true".as_content(),
+                Content::Bool(false) => "false".as_content(),
             },
             None => "".as_content(),
         };
-        Ok(content)
+        Ok(Some(content))
     }
 }
 
@@ -397,11 +468,11 @@ impl ResolveFilter for UpperFilter {
         let content = match variable {
             Some(content) => {
                 let content = content.resolve_string(context)?;
-                Some(content.map_content(|content| Cow::Owned(content.to_uppercase())))
+                content.map_content(|content| Cow::Owned(content.to_uppercase()))
             }
             None => "".as_content(),
         };
-        Ok(content)
+        Ok(Some(content))
     }
 }
 
@@ -440,11 +511,7 @@ mod tests {
         Python::with_gil(|py| {
             let name = PyString::new(py, "Lily").into_any();
             let context = HashMap::from([("name".to_string(), name.unbind())]);
-            let mut context = Context {
-                context,
-                request: None,
-                autoescape: false,
-            };
+            let mut context = Context::new(context, None, false);
             let template = TemplateString("{{ name|default:'Bryony' }}");
             let variable = Variable::new((3, 4));
             let filter = Filter {
@@ -638,11 +705,7 @@ mod tests {
         Python::with_gil(|py| {
             let name = PyString::new(py, "'hello'").into_any();
             let context = HashMap::from([("quotes".to_string(), name.unbind())]);
-            let mut context = Context {
-                context,
-                request: None,
-                autoescape: false,
-            };
+            let mut context = Context::new(context, None, false);
             let template = TemplateString("{{ quotes|addslashes }}");
             let variable = Variable::new((3, 6));
             let filter = Filter {
@@ -695,16 +758,92 @@ mod tests {
     }
 
     #[test]
+    fn test_render_filter_center() {
+        pyo3::prepare_freethreaded_python();
+
+        Python::with_gil(|py| {
+            let engine = EngineData::empty();
+            let template_string = "{{ var|center:'11' }}".to_string();
+            let context = PyDict::new(py);
+            context.set_item("var", "hello").unwrap();
+            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let result = template.render(py, Some(context), None).unwrap();
+
+            assert_eq!(result, "   hello   ");
+
+            let context = PyDict::new(py);
+            context.set_item("var", "django").unwrap();
+            let template_string = "{{ var|center:'15' }}".to_string();
+            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let result = template.render(py, Some(context), None).unwrap();
+
+            assert_eq!(result, "     django    ");
+
+            let context = PyDict::new(py);
+            context.set_item("var", "django").unwrap();
+            let template_string = "{{ var|center:1 }}".to_string();
+            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let result = template.render(py, Some(context), None).unwrap();
+
+            assert_eq!(result, "django");
+        })
+    }
+
+    #[test]
+    fn test_render_filter_center_no_argument_return_err() {
+        pyo3::prepare_freethreaded_python();
+
+        Python::with_gil(|py| {
+            let engine = EngineData::empty();
+            let template_string = "{{ var|center }}".to_string();
+            let context = PyDict::new(py);
+            context.set_item("var", "hello").unwrap();
+            let error = Template::new_from_string(py, template_string, &engine).unwrap_err();
+
+            let error_string = format!("{error}");
+
+            assert!(error_string.contains("Expected an argument"));
+        })
+    }
+
+    #[test]
+    fn test_render_filter_center_no_variable() {
+        pyo3::prepare_freethreaded_python();
+
+        Python::with_gil(|py| {
+            let engine = EngineData::empty();
+            let template_string = "{{ var|center:'11' }}".to_string();
+            let context = PyDict::new(py);
+            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let result = template.render(py, Some(context), None).unwrap();
+
+            assert_eq!(result, "");
+        })
+    }
+
+    #[test]
+    fn test_render_filter_center_on_0() {
+        pyo3::prepare_freethreaded_python();
+
+        Python::with_gil(|py| {
+            let engine = EngineData::empty();
+            let template_string = "{{ var|center:0 }}".to_string();
+            let context = PyDict::new(py);
+            context.set_item("var", "hello").unwrap();
+            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let result = template.render(py, Some(context), None).unwrap();
+
+            assert_eq!(result, "hello");
+        })
+    }
+
+    #[test]
     fn test_render_filter_default() {
         pyo3::prepare_freethreaded_python();
 
         Python::with_gil(|py| {
             let context = HashMap::new();
-            let mut context = Context {
-                context,
-                request: None,
-                autoescape: false,
-            };
+            let mut context = Context::new(context, None, false);
             let template = TemplateString("{{ name|default:'Bryony' }}");
             let variable = Variable::new((3, 4));
             let filter = Filter {
@@ -727,11 +866,7 @@ mod tests {
 
         Python::with_gil(|py| {
             let context = HashMap::new();
-            let mut context = Context {
-                context,
-                request: None,
-                autoescape: false,
-            };
+            let mut context = Context::new(context, None, false);
             let template = TemplateString("{{ count|default:12}}");
             let variable = Variable::new((3, 5));
             let filter = Filter {
@@ -754,11 +889,7 @@ mod tests {
 
         Python::with_gil(|py| {
             let context = HashMap::new();
-            let mut context = Context {
-                context,
-                request: None,
-                autoescape: false,
-            };
+            let mut context = Context::new(context, None, false);
             let template = TemplateString("{{ count|default:3.5}}");
             let variable = Variable::new((3, 5));
             let filter = Filter {
@@ -782,11 +913,7 @@ mod tests {
         Python::with_gil(|py| {
             let me = PyString::new(py, "Lily").into_any();
             let context = HashMap::from([("me".to_string(), me.unbind())]);
-            let mut context = Context {
-                context,
-                request: None,
-                autoescape: false,
-            };
+            let mut context = Context::new(context, None, false);
             let template = TemplateString("{{ name|default:me}}");
             let variable = Variable::new((3, 4));
             let filter = Filter {
@@ -810,11 +937,7 @@ mod tests {
         Python::with_gil(|py| {
             let name = PyString::new(py, "Lily").into_any();
             let context = HashMap::from([("name".to_string(), name.unbind())]);
-            let mut context = Context {
-                context,
-                request: None,
-                autoescape: false,
-            };
+            let mut context = Context::new(context, None, false);
             let template = TemplateString("{{ name|lower }}");
             let variable = Variable::new((3, 4));
             let filter = Filter {
@@ -834,11 +957,7 @@ mod tests {
 
         Python::with_gil(|py| {
             let context = HashMap::new();
-            let mut context = Context {
-                context,
-                request: None,
-                autoescape: false,
-            };
+            let mut context = Context::new(context, None, false);
             let template = TemplateString("{{ name|lower }}");
             let variable = Variable::new((3, 4));
             let filter = Filter {
@@ -858,11 +977,7 @@ mod tests {
 
         Python::with_gil(|py| {
             let context = HashMap::new();
-            let mut context = Context {
-                context,
-                request: None,
-                autoescape: false,
-            };
+            let mut context = Context::new(context, None, false);
             let template = TemplateString("{{ name|default:'Bryony'|lower }}");
             let variable = Variable::new((3, 4));
             let default = Filter {
@@ -891,11 +1006,7 @@ mod tests {
         Python::with_gil(|py| {
             let name = PyString::new(py, "Foo").into_any();
             let context = HashMap::from([("name".to_string(), name.unbind())]);
-            let mut context = Context {
-                context,
-                request: None,
-                autoescape: false,
-            };
+            let mut context = Context::new(context, None, false);
             let template = TemplateString("{{ name|upper }}");
             let variable = Variable::new((3, 4));
             let filter = Filter {
@@ -915,11 +1026,7 @@ mod tests {
 
         Python::with_gil(|py| {
             let context = HashMap::new();
-            let mut context = Context {
-                context,
-                request: None,
-                autoescape: false,
-            };
+            let mut context = Context::new(context, None, false);
             let template = TemplateString("{{ name|upper }}");
             let variable = Variable::new((3, 4));
             let filter = Filter {

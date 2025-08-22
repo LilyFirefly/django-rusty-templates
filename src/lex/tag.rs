@@ -2,6 +2,8 @@ use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 use unicode_xid::UnicodeXID;
 
+use crate::lex::common::NextChar;
+
 #[derive(Error, Debug, Diagnostic, Eq, PartialEq)]
 pub enum TagLexerError {
     #[error("Invalid block tag name")]
@@ -40,10 +42,7 @@ pub fn lex_tag(tag: &str, start: usize) -> Result<Option<(TagToken, TagParts)>, 
             return Ok(Some((token, parts)));
         }
     };
-    let index = match tag.find(char::is_whitespace) {
-        Some(index) => index,
-        None => tag.len(),
-    };
+    let index = tag.next_whitespace();
     if index > tag_len {
         let at = (start, index);
         return Err(TagLexerError::InvalidTagName { at: at.into() });

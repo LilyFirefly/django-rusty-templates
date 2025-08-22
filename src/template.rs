@@ -6,7 +6,7 @@ pub mod django_rusty_templates {
     use std::path::PathBuf;
 
     use encoding_rs::Encoding;
-    use pyo3::exceptions::{PyAttributeError, PyImportError};
+    use pyo3::exceptions::{PyAttributeError, PyImportError, PyOverflowError, PyValueError};
     use pyo3::import_exception_bound;
     use pyo3::intern;
     use pyo3::prelude::*;
@@ -27,7 +27,14 @@ pub mod django_rusty_templates {
     import_exception_bound!(django.template.library, InvalidTemplateLibrary);
     import_exception_bound!(django.urls, NoReverseMatch);
 
-    impl TemplateSyntaxError {
+    trait WithSourceCode {
+        fn with_source_code(
+            err: miette::Report,
+            source: impl miette::SourceCode + 'static,
+        ) -> PyErr;
+    }
+
+    impl WithSourceCode for TemplateSyntaxError {
         fn with_source_code(
             err: miette::Report,
             source: impl miette::SourceCode + 'static,
@@ -37,7 +44,7 @@ pub mod django_rusty_templates {
         }
     }
 
-    impl VariableDoesNotExist {
+    impl WithSourceCode for VariableDoesNotExist {
         fn with_source_code(
             err: miette::Report,
             source: impl miette::SourceCode + 'static,
@@ -47,6 +54,26 @@ pub mod django_rusty_templates {
             // Work around old-style Python formatting in VariableDoesNotExist.__str__
             let report = report.replace("%", "%%");
             Self::new_err(report)
+        }
+    }
+
+    impl WithSourceCode for PyOverflowError {
+        fn with_source_code(
+            err: miette::Report,
+            source: impl miette::SourceCode + 'static,
+        ) -> PyErr {
+            let miette_err = err.with_source_code(source);
+            Self::new_err(format!("{miette_err:?}"))
+        }
+    }
+
+    impl WithSourceCode for PyValueError {
+        fn with_source_code(
+            err: miette::Report,
+            source: impl miette::SourceCode + 'static,
+        ) -> PyErr {
+            let miette_err = err.with_source_code(source);
+            Self::new_err(format!("{miette_err:?}"))
         }
     }
 
@@ -293,8 +320,28 @@ pub mod django_rusty_templates {
                                     format!("'{type_name}' object is not subscriptable")
                                 ));
                             }
-                            _ => {
+                            RenderError::VariableDoesNotExist { .. }
+                            | RenderError::ArgumentDoesNotExist { .. } => {
                                 return Err(VariableDoesNotExist::with_source_code(
+                                    err.into(),
+                                    self.template.clone(),
+                                ));
+                            }
+                            RenderError::InvalidArgumentInteger { .. } => {
+                                return Err(PyValueError::with_source_code(
+                                    err.into(),
+                                    self.template.clone(),
+                                ));
+                            }
+                            RenderError::OverflowError { .. }
+                            | RenderError::InvalidArgumentFloat { .. } => {
+                                return Err(PyOverflowError::with_source_code(
+                                    err.into(),
+                                    self.template.clone(),
+                                ));
+                            }
+                            RenderError::TupleUnpackError { .. } => {
+                                return Err(PyValueError::with_source_code(
                                     err.into(),
                                     self.template.clone(),
                                 ));
@@ -329,11 +376,7 @@ pub mod django_rusty_templates {
                 base_context.extend(new_context);
             };
             let request = request.map(|request| request.unbind());
-            let mut context = Context {
-                request,
-                context: base_context,
-                autoescape: self.autoescape,
-            };
+            let mut context = Context::new(base_context, request, self.autoescape);
             self._render(py, &mut context)
         }
     }
@@ -520,7 +563,7 @@ user = User(["Lily"])
             let cwd = std::env::current_dir().unwrap();
             let sys_path = py.import("sys").unwrap().getattr("path").unwrap();
             let sys_path = sys_path.downcast().unwrap();
-            sys_path.append(cwd).unwrap();
+            sys_path.append(cwd.to_string_lossy()).unwrap();
             let mut engine = Engine::new(
                 py,
                 Some(vec!["tests/templates"].into_pyobject(py).unwrap()),

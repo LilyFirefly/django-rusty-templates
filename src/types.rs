@@ -91,6 +91,7 @@ impl<'t> Variable {
 #[derive(Clone, Debug, PartialEq)]
 pub enum ArgumentType {
     Variable(Variable),
+    ForVariable(ForVariable),
     Text(Text),
     TranslatedText(TranslatedText),
     Int(BigInt),
@@ -101,4 +102,21 @@ pub enum ArgumentType {
 pub struct Argument {
     pub at: (usize, usize),
     pub argument_type: ArgumentType,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum ForVariableName {
+    Counter,
+    Counter0,
+    RevCounter,
+    RevCounter0,
+    First,
+    Last,
+    Object,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ForVariable {
+    pub variant: ForVariableName,
+    pub parent_count: usize,
 }

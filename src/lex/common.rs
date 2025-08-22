@@ -7,6 +7,22 @@ use super::QUOTE_LEN;
 const START_TRANSLATE_LEN: usize = 2;
 const END_TRANSLATE_LEN: usize = 1;
 
+pub trait NextChar {
+    fn next_whitespace(&self) -> usize;
+    fn next_non_whitespace(&self) -> usize;
+}
+
+impl NextChar for str {
+    fn next_whitespace(&self) -> usize {
+        self.find(char::is_whitespace).unwrap_or(self.len())
+    }
+
+    fn next_non_whitespace(&self) -> usize {
+        self.find(|c: char| !c.is_whitespace())
+            .unwrap_or(self.len())
+    }
+}
+
 #[derive(Clone, Error, Debug, Diagnostic, PartialEq, Eq)]
 pub enum LexerError {
     #[error("Expected a complete string literal")]
@@ -147,7 +163,7 @@ pub fn lex_numeric(byte: usize, rest: &str) -> ((usize, usize), usize, &str) {
 }
 
 pub fn trim_variable(variable: &str) -> &str {
-    match variable.find(|c: char| !c.is_xid_continue() && c != '.') {
+    match variable.find(|c: char| !c.is_xid_continue() && c != '.' && c != '-') {
         Some(end) => &variable[..end],
         None => variable,
     }
@@ -155,7 +171,19 @@ pub fn trim_variable(variable: &str) -> &str {
 
 pub fn check_variable_attrs(variable: &str, start: usize) -> Result<(), LexerError> {
     let mut offset = 0;
-    for var in variable.split('.') {
+    for (i, var) in variable.split('.').enumerate() {
+        if i == 0 {
+            let mut chars = var.chars();
+            chars.next();
+            if chars.any(|c| c == '-') {
+                let at = (start + offset, var.len());
+                return Err(LexerError::InvalidVariableName { at: at.into() });
+            }
+        } else if var.find('-').is_some() {
+            let at = (start + offset, var.len());
+            return Err(LexerError::InvalidVariableName { at: at.into() });
+        }
+
         match var.chars().next() {
             Some(c) if c != '_' => {
                 offset += var.len() + 1;

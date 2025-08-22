@@ -1136,6 +1136,15 @@ def test_missing_in_value(value):
     assert rust_template.render({"foo": "foo"}) == "falsey"
 
 
+def test_value_in_missing():
+    template = "{% if foo in missing %}truthy{% else %}falsey{% endif %}"
+    django_template = engines["django"].from_string(template)
+    rust_template = engines["rusty"].from_string(template)
+
+    assert django_template.render({"foo": "foo"}) == "falsey"
+    assert rust_template.render({"foo": "foo"}) == "falsey"
+
+
 def test_int_in_string():
     template = "{% if 1 in 'foo' %}truthy{% else %}falsey{% endif %}"
     django_template = engines["django"].from_string(template)
@@ -1289,3 +1298,186 @@ def test_not_inf_or_not_none():
 
     assert django_template.render({}) == "truthy"
     assert rust_template.render({}) == "truthy"
+
+
+def test_if_forloop_first():
+    template = "{% for x in y %}{% if forloop.first %}truthy{% else %}falsey{% endif %}{% endfor %}"
+    django_template = engines["django"].from_string(template)
+    rust_template = engines["rusty"].from_string(template)
+
+    assert django_template.render({"y": "12"}) == "truthyfalsey"
+    assert rust_template.render({"y": "12"}) == "truthyfalsey"
+
+
+def test_if_not_bool():
+    template = "{% for x in y %}{% if not forloop.first %}truthy{% else %}falsey{% endif %}{% endfor %}"
+    django_template = engines["django"].from_string(template)
+    rust_template = engines["rusty"].from_string(template)
+
+    assert django_template.render({"y": "12"}) == "falseytruthy"
+    assert rust_template.render({"y": "12"}) == "falseytruthy"
+
+
+@pytest.mark.parametrize("first,second,expected", [
+    ("forloop.first", "forloop.first", "tt"),
+    ("forloop.first", "forloop.last", "ff"),
+    ("forloop.first", True, "tf"),
+    ("forloop.first", False, "ft"),
+    ("forloop.first", 1, "tf"),
+    ("forloop.first", 0, "ft"),
+    ("forloop.first", 1.0, "tf"),
+    ("forloop.first", 0.0, "ft"),
+    ("forloop.first", 2, "ff"),
+    ("forloop.first", -1, "ff"),
+    ("forloop.first", 2.0, "ff"),
+    ("forloop.first", -1.0, "ff"),
+    (True, "forloop.first", "tf"),
+    (False, "forloop.first", "ft"),
+    (1, "forloop.first", "tf"),
+    (0, "forloop.first", "ft"),
+    (1.0, "forloop.first", "tf"),
+    (0.0, "forloop.first", "ft"),
+    (2, "forloop.first", "ff"),
+    (-1, "forloop.first", "ff"),
+    (2.0, "forloop.first", "ff"),
+    (-1.0, "forloop.first", "ff"),
+])
+def test_if_eq_bool(first, second, expected):
+    template = "{%% for x in y %%}{%% if %s == %s %%}t{%% else %%}f{%% endif %%}{%% endfor %%}" % (first, second)
+    django_template = engines["django"].from_string(template)
+    rust_template = engines["rusty"].from_string(template)
+
+    assert django_template.render({"y": "12"}) == expected
+    assert rust_template.render({"y": "12"}) == expected
+
+
+@pytest.mark.parametrize("first,second,expected", [
+    ("forloop.first", "forloop.first", "ff"),
+    ("forloop.first", "forloop.last", "ft"),
+    ("forloop.first", True, "ft"),
+    ("forloop.first", False, "ff"),
+    ("forloop.first", 1, "ft"),
+    ("forloop.first", 0, "ff"),
+    ("forloop.first", 1.0, "ft"),
+    ("forloop.first", 0.0, "ff"),
+    ("forloop.first", 256, "tt"),
+    ("forloop.first", -1, "ff"),
+    ("forloop.first", 256.0, "tt"),
+    ("forloop.first", -1.0, "ff"),
+    (True, "forloop.first", "ff"),
+    (False, "forloop.first", "tf"),
+    (1, "forloop.first", "ff"),
+    (0, "forloop.first", "tf"),
+    (1.0, "forloop.first", "ff"),
+    (0.0, "forloop.first", "tf"),
+    (256, "forloop.first", "ff"),
+    (-1, "forloop.first", "tt"),
+    (256.0, "forloop.first", "ff"),
+    (-1.0, "forloop.first", "tt"),
+])
+def test_if_lt_bool(first, second, expected):
+    template = "{%% for x in y %%}{%% if %s < %s %%}t{%% else %%}f{%% endif %%}{%% endfor %%}" % (first, second)
+    django_template = engines["django"].from_string(template)
+    rust_template = engines["rusty"].from_string(template)
+
+    assert django_template.render({"y": "12"}) == expected
+    assert rust_template.render({"y": "12"}) == expected
+
+
+@pytest.mark.parametrize("first,second,expected", [
+    ("forloop.first", "forloop.first", "tt"),
+    ("forloop.first", "forloop.last", "ft"),
+    ("forloop.first", True, "tt"),
+    ("forloop.first", False, "ft"),
+    ("forloop.first", 1, "tt"),
+    ("forloop.first", 0, "ft"),
+    ("forloop.first", 1.0, "tt"),
+    ("forloop.first", 0.0, "ft"),
+    ("forloop.first", 256, "tt"),
+    ("forloop.first", -1, "ff"),
+    ("forloop.first", 256.0, "tt"),
+    ("forloop.first", -1.0, "ff"),
+    (True, "forloop.first", "tf"),
+    (False, "forloop.first", "tt"),
+    (1, "forloop.first", "tf"),
+    (0, "forloop.first", "tt"),
+    (1.0, "forloop.first", "tf"),
+    (0.0, "forloop.first", "tt"),
+    (256, "forloop.first", "ff"),
+    (-1, "forloop.first", "tt"),
+    (256.0, "forloop.first", "ff"),
+    (-1.0, "forloop.first", "tt"),
+])
+def test_if_lte_bool(first, second, expected):
+    template = "{%% for x in y %%}{%% if %s <= %s %%}t{%% else %%}f{%% endif %%}{%% endfor %%}" % (first, second)
+    django_template = engines["django"].from_string(template)
+    rust_template = engines["rusty"].from_string(template)
+
+    assert django_template.render({"y": "12"}) == expected
+    assert rust_template.render({"y": "12"}) == expected
+
+
+@pytest.mark.parametrize("first,second,expected", [
+    ("forloop.first", "forloop.first", "ff"),
+    ("forloop.first", "forloop.last", "tf"),
+    ("forloop.first", True, "ff"),
+    ("forloop.first", False, "tf"),
+    ("forloop.first", 1, "ff"),
+    ("forloop.first", 0, "tf"),
+    ("forloop.first", 1.0, "ff"),
+    ("forloop.first", 0.0, "tf"),
+    ("forloop.first", 256, "ff"),
+    ("forloop.first", -1, "tt"),
+    ("forloop.first", 256.0, "ff"),
+    ("forloop.first", -1.0, "tt"),
+    (True, "forloop.first", "ft"),
+    (False, "forloop.first", "ff"),
+    (1, "forloop.first", "ft"),
+    (0, "forloop.first", "ff"),
+    (1.0, "forloop.first", "ft"),
+    (0.0, "forloop.first", "ff"),
+    (256, "forloop.first", "tt"),
+    (-1, "forloop.first", "ff"),
+    (256.0, "forloop.first", "tt"),
+    (-1.0, "forloop.first", "ff"),
+])
+def test_if_gt_bool(first, second, expected):
+    template = "{%% for x in y %%}{%% if %s > %s %%}t{%% else %%}f{%% endif %%}{%% endfor %%}" % (first, second)
+    django_template = engines["django"].from_string(template)
+    rust_template = engines["rusty"].from_string(template)
+
+    assert django_template.render({"y": "12"}) == expected
+    assert rust_template.render({"y": "12"}) == expected
+
+
+@pytest.mark.parametrize("first,second,expected", [
+    ("forloop.first", "forloop.first", "tt"),
+    ("forloop.first", "forloop.last", "tf"),
+    ("forloop.first", True, "tf"),
+    ("forloop.first", False, "tt"),
+    ("forloop.first", 1, "tf"),
+    ("forloop.first", 0, "tt"),
+    ("forloop.first", 1.0, "tf"),
+    ("forloop.first", 0.0, "tt"),
+    ("forloop.first", 256, "ff"),
+    ("forloop.first", -1, "tt"),
+    ("forloop.first", 256.0, "ff"),
+    ("forloop.first", -1.0, "tt"),
+    (True, "forloop.first", "tt"),
+    (False, "forloop.first", "ft"),
+    (1, "forloop.first", "tt"),
+    (0, "forloop.first", "ft"),
+    (1.0, "forloop.first", "tt"),
+    (0.0, "forloop.first", "ft"),
+    (256, "forloop.first", "tt"),
+    (-1, "forloop.first", "ff"),
+    (256.0, "forloop.first", "tt"),
+    (-1.0, "forloop.first", "ff"),
+])
+def test_if_gte_bool(first, second, expected):
+    template = "{%% for x in y %%}{%% if %s >= %s %%}t{%% else %%}f{%% endif %%}{%% endfor %%}" % (first, second)
+    django_template = engines["django"].from_string(template)
+    rust_template = engines["rusty"].from_string(template)
+
+    assert django_template.render({"y": "12"}) == expected
+    assert rust_template.render({"y": "12"}) == expected

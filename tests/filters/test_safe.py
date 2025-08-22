@@ -83,6 +83,15 @@ def test_safe_escaped():
     assert rust_template.render({"html": html}) == escaped
 
 
+def test_safe_bool():
+    template = "{% for x in 'xy' %}{{ forloop.first|safe }}{% endfor %}"
+    django_template = engines["django"].from_string(template)
+    rust_template = engines["rusty"].from_string(template)
+
+    assert django_template.render({}) == "TrueFalse"
+    assert rust_template.render({}) == "TrueFalse"
+
+
 def test_safe_autoescape_off():
     template = "{% autoescape off %}{{ html|safe }}{% endautoescape %}"
     django_template = engines["django"].from_string(template)

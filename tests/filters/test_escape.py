@@ -74,6 +74,15 @@ def test_escape_float():
     assert rust_template.render({}) == "1.6"
 
 
+def test_escape_bool():
+    template = "{% for x in 'xy' %}{{ forloop.first|escape }}{% endfor %}"
+    django_template = engines["django"].from_string(template)
+    rust_template = engines["rusty"].from_string(template)
+
+    assert django_template.render({}) == "TrueFalse"
+    assert rust_template.render({}) == "TrueFalse"
+
+
 def test_escape_autoescape_off():
     template = "{% autoescape off %}{{ html|escape }}{% endautoescape %}"
     django_template = engines["django"].from_string(template)

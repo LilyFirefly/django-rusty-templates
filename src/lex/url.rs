@@ -3,7 +3,7 @@ use thiserror::Error;
 use unicode_xid::UnicodeXID;
 
 use crate::lex::common::{
-    LexerError, lex_numeric, lex_text, lex_translated, lex_variable, text_content_at,
+    LexerError, NextChar, lex_numeric, lex_text, lex_translated, lex_variable, text_content_at,
     translated_text_content_at,
 };
 use crate::lex::tag::TagParts;
@@ -146,10 +146,7 @@ impl<'t> UrlLexer<'t> {
         &mut self,
         token: Result<UrlToken, UrlLexerError>,
     ) -> Result<UrlToken, UrlLexerError> {
-        let remainder = self
-            .rest
-            .find(char::is_whitespace)
-            .unwrap_or(self.rest.len());
+        let remainder = self.rest.next_whitespace();
         match remainder {
             0 => {
                 let rest = self.rest.trim_start();

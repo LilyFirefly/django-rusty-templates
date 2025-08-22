@@ -1,3 +1,4 @@
+use crate::lex::common::NextChar;
 use crate::lex::tag::TagParts;
 use crate::types::TemplateString;
 
@@ -29,15 +30,9 @@ impl Iterator for LoadLexer<'_> {
         }
 
         let start = self.byte;
-        let len = self
-            .rest
-            .find(char::is_whitespace)
-            .unwrap_or(self.rest.len());
-
+        let len = self.rest.next_whitespace();
         let rest = &self.rest[len..];
-        let next = rest
-            .find(|c: char| !c.is_whitespace())
-            .unwrap_or(rest.len());
+        let next = rest.next_non_whitespace();
         self.rest = &rest[next..];
         self.byte = self.byte + len + next;
 
