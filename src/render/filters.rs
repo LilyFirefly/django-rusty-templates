@@ -318,7 +318,6 @@ impl ResolveFilter for FirstFilter {
         _template: TemplateString<'t>,
         _context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
-        use self::IntoOwnedContent;
         let content = match variable {
             Some(content) => content,
             None => return Ok(Some("".as_content())),
