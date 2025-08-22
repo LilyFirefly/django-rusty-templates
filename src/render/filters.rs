@@ -321,7 +321,7 @@ impl ResolveFilter for FirstFilter {
         use self::IntoOwnedContent;
         let content = match variable {
             Some(content) => content,
-            None => return Ok("".as_content()),
+            None => return Ok(Some("".as_content())),
         };
 
         match content {
@@ -330,7 +330,7 @@ impl ResolveFilter for FirstFilter {
                 // Django only catches IndexError, not TypeError
                 match obj.get_item(0) {
                     Ok(first) => Ok(Some(Content::Py(first))),
-                    Err(e) if e.is_instance_of::<PyIndexError>(py) => Ok("".as_content()),
+                    Err(e) if e.is_instance_of::<PyIndexError>(py) => Ok(Some("".as_content())),
                     Err(e) => Err(e.into()),
                 }
             }
@@ -340,8 +340,8 @@ impl ResolveFilter for FirstFilter {
                 // Skip the empty string always present at the start after splitting
                 let mut chars = s_raw.split("").skip(1);
                 match chars.next() {
-                    None => Ok("".as_content()),
-                    Some(c) => Ok(c.to_string().into_content()),
+                    None => Ok(Some("".as_content())),
+                    Some(c) => Ok(Some(c.to_string().into_content())),
                 }
             }
             Content::Int(_) => {
@@ -358,6 +358,15 @@ impl ResolveFilter for FirstFilter {
                 // Match Django's behavior exactly
                 Err(RenderError::NotSubscriptable {
                     type_name: "float".to_string(),
+                    at: self.at,
+                }
+                .into())
+            }
+            Content::Bool(_) => {
+                // Booleans are not sequences, should raise TypeError
+                // Match Django's behavior exactly
+                Err(RenderError::NotSubscriptable {
+                    type_name: "bool".to_string(),
                     at: self.at,
                 }
                 .into())
