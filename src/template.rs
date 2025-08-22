@@ -12,6 +12,7 @@ pub mod django_rusty_templates {
     use pyo3::prelude::*;
     use pyo3::types::{PyBool, PyDict, PyString};
 
+    use crate::error::RenderError;
     use crate::loaders::{AppDirsLoader, CachedLoader, FileSystemLoader, Loader};
     use crate::parse::{Parser, TokenTree};
     use crate::render::Render;
@@ -286,7 +287,6 @@ pub mod django_rusty_templates {
                     Ok(content) => rendered.push_str(&content),
                     Err(err) => {
                         let err = err.try_into_render_error()?;
-                        use crate::error::RenderError;
                         match err {
                             RenderError::NotSubscriptable { type_name, .. } => {
                                 return Err(pyo3::exceptions::PyTypeError::new_err(
