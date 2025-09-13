@@ -655,6 +655,7 @@ pub enum Tag {
     SimpleTag(SimpleTag),
     SimpleBlockTag(SimpleBlockTag),
     Url(Url),
+    CsrfToken,
     Lorem(Lorem),
     Comment(Comment),
     Now(Now),
@@ -1414,6 +1415,7 @@ impl<'t, 'py> Parser<'t, 'py> {
 
         Ok(match tag.content(self.template) {
             "url" => Either::Left(self.parse_url(at, tag.parts)?),
+            "csrf_token" => Either::Left(TokenTree::Tag(Tag::CsrfToken)),
             "load" => Either::Left(self.parse_load(at, tag.parts)?),
             "autoescape" => Either::Left(self.parse_autoescape(at, tag.parts)?),
             "endautoescape" => Either::Right(EndTag {
