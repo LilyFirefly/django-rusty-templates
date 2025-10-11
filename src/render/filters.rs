@@ -11,7 +11,8 @@ use pyo3::types::PyType;
 use crate::error::RenderError;
 use crate::filters::{
     AddFilter, AddSlashesFilter, CapfirstFilter, CenterFilter, DefaultFilter, EscapeFilter,
-    ExternalFilter, FilterType, LowerFilter, SafeFilter, SlugifyFilter, UpperFilter,
+    EscapejsFilter, ExternalFilter, FilterType, LowerFilter, SafeFilter, SlugifyFilter,
+    UpperFilter,
 };
 use crate::parse::Filter;
 use crate::render::types::{AsBorrowedContent, Content, ContentString, Context, IntoOwnedContent};
@@ -46,6 +47,7 @@ impl Resolve for Filter {
             FilterType::Center(filter) => filter.resolve(left, py, template, context),
             FilterType::Default(filter) => filter.resolve(left, py, template, context),
             FilterType::Escape(filter) => filter.resolve(left, py, template, context),
+            FilterType::Escapejs(filter) => filter.resolve(left, py, template, context),
             FilterType::External(filter) => filter.resolve(left, py, template, context),
             FilterType::Lower(filter) => filter.resolve(left, py, template, context),
             FilterType::Safe(filter) => filter.resolve(left, py, template, context),
@@ -283,6 +285,49 @@ impl ResolveFilter for EscapeFilter {
                 None => Cow::Borrowed(""),
             },
         ))))
+    }
+}
+
+fn escapejs(value: &str) -> String {
+    let mut result = String::with_capacity(value.len());
+    for ch in value.chars() {
+        match ch {
+            '\\' => result.push_str(r"\u005C"),
+            '\'' => result.push_str(r"\u0027"),
+            '"' => result.push_str(r"\u0022"),
+            '>' => result.push_str(r"\u003E"),
+            '<' => result.push_str(r"\u003C"),
+            '&' => result.push_str(r"\u0026"),
+            '=' => result.push_str(r"\u003D"),
+            '-' => result.push_str(r"\u002D"),
+            ';' => result.push_str(r"\u003B"),
+            '`' => result.push_str(r"\u0060"),
+            '\u{2028}' => result.push_str(r"\u2028"),
+            '\u{2029}' => result.push_str(r"\u2029"),
+            c if (c as u32) < 32 => {
+                result.push_str(&format!("\\u{:04X}", c as u32));
+            }
+            c => result.push(c),
+        }
+    }
+    result
+}
+
+impl ResolveFilter for EscapejsFilter {
+    fn resolve<'t, 'py>(
+        &self,
+        variable: Option<Content<'t, 'py>>,
+        _py: Python<'py>,
+        _template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> ResolveResult<'t, 'py> {
+        let content = match variable {
+            Some(content) => content
+                .resolve_string(context)?
+                .map_content(|content| Cow::Owned(escapejs(&content))),
+            None => "".as_content(),
+        };
+        Ok(Some(content))
     }
 }
 
