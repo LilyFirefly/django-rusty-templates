@@ -15,7 +15,7 @@ encoding_rs = "0.8.35"
 html-escape = "0.2.13"
 miette = { version = "7.6.0", features = ["fancy"] }
 num-bigint = "0.4.6"
-pyo3 = { version = "0.26.0", features = ["num-bigint"] }
+pyo3 = { version = "0.27.0", features = ["num-bigint"] }
 sugar_path = "1.2.0"
 thiserror = "2.0.16"
 unicode-xid = "0.2.6"
