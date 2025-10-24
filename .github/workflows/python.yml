@@ -85,3 +85,71 @@ jobs:
       with:
         files: coverage.xml,codecov.json
         fail_ci_if_error: true
+
+  django-test-suite:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' }}
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+    - name: Set up Python
+      uses: actions/setup-python@v6
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Checkout main
+      uses: actions/checkout@v5
+      # TODO: switch to main later but for now the script does not exist on main
+#      with:
+#        ref: main
+
+    - name: Run Django test suite (main)
+      run: uv run scripts/run_django_test_suite.py --parsed-output main_test_output
+
+    - name: Checkout current branch
+      uses: actions/checkout@v5
+      with:
+        clean: false
+
+    - name: Run Django test suite (current branch)
+      run: uv run scripts/run_django_test_suite.py --parsed-output branch_test_output
+
+    - name: Compare test suites & generate comment
+      id: generate-comment
+      run: |
+        echo '<!-- generated-comment ecosystem -->' >> test-diff-result
+        printf "### \`pr\` vs \`main\` Django test suite diff\n" >> test-diff-result
+
+        diff --unified main_test_output branch_test_output >> diff_result || true
+        if [ "$(cat diff_result | wc -l)" -gt 0 ]; then
+          {
+            echo "<details><summary>"
+            echo "ℹ️ <b>changes detected</b> running Django test suite. (+$(cat diff_result | grep "^+" | wc -l) -$(cat diff_result | grep "^-" | wc -l))"
+            echo "</summary>"
+            printf '\n```diff\n'
+            cat diff_result
+            printf '```\n'
+            echo "</details>"
+          } >> test-diff-result
+        else
+          echo "✅ no changes detected running Django test suite." >> test-diff-result
+        fi
+        cat test-diff-result
+
+    - name: Upload test diff result
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-diff-result
+        path: test-diff-result
+
+    - name: Store pr-number
+      run: |
+        echo ${{ github.event.number }} > pr-number
+
+    - name: Upload pr-number
+      uses: actions/upload-artifact@v4
+      with:
+        name: pr-number
+        path: pr-number

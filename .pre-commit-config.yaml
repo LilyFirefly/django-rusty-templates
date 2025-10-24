@@ -1,7 +1,12 @@
 ci:
   autoupdate_schedule: monthly
 
-exclude: "tests/templates/invalid.txt"
+# cf https://pre-commit.com/#regular-expressions
+exclude: |
+  (?x)^(
+      tests/templates/invalid.txt|
+      scripts/django_tests_use_rusty_templates.patch
+  )$
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
