@@ -1718,7 +1718,7 @@ mod tests {
 
         Python::attach(|py| {
             let libraries = HashMap::new();
-            let template = "{# A commment #}";
+            let template = "{# A comment #}";
             let mut parser = Parser::new(py, template.into(), &libraries);
             let nodes = parser.parse().unwrap();
             assert_eq!(nodes, vec![]);

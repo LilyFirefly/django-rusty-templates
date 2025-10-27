@@ -56,8 +56,8 @@ def test_upper_html_safe(assert_render):
 
 def test_upper_add_strings(assert_render):
     template = "{{ var|upper|add:'bar' }}"
-    var = "foo"
-    uppered = "FOObar"
+    var = "var"
+    uppered = "VARbar"
     assert_render(template=template, context={"var": var}, expected=uppered)
 
 
