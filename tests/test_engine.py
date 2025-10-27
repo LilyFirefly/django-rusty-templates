@@ -364,3 +364,34 @@ def test_invalid_file_charset():
         )
 
     assert "Unknown encoding: 'not-a-real-encoding'" == str(exc_info.value)
+
+
+def test_render_to_string_success():
+    rusty_engine = engines["rusty"]
+
+    # Test with single template name
+    result = rusty_engine.engine.render_to_string("basic.txt", {"user": "Alice"})
+    assert result == "Hello Alice!\n"
+
+    # Test with template list/tuple
+    result = rusty_engine.engine.render_to_string(
+        ["nonexistent.html", "basic.txt"], {"user": "Bob"}
+    )
+    assert result == "Hello Bob!\n"
+    result = rusty_engine.engine.render_to_string(
+        ("nonexistent.html", "basic.txt"), {"user": "Bob"}
+    )
+    assert result == "Hello Bob!\n"
+
+    # Test with no context
+    result = rusty_engine.engine.render_to_string("basic.txt")
+    assert result == "Hello !\n"
+
+
+def test_render_to_string_failure():
+    rusty_engine = engines["rusty"]
+
+    with pytest.raises(TypeError, match="'set' object cannot be cast as 'str'"):
+        rusty_engine.engine.render_to_string(
+            {"nonexistent.html", "basic.txt"}, {"user": "Bob"}
+        )

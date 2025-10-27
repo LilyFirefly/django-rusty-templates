@@ -10,7 +10,7 @@ pub mod django_rusty_templates {
     use pyo3::import_exception;
     use pyo3::intern;
     use pyo3::prelude::*;
-    use pyo3::types::{PyBool, PyDict, PyIterator, PyString};
+    use pyo3::types::{PyBool, PyDict, PyIterator, PyList, PyString, PyTuple};
 
     use crate::error::RenderError;
     use crate::loaders::{AppDirsLoader, CachedLoader, FileSystemLoader, Loader, LocMemLoader};
@@ -370,7 +370,25 @@ pub mod django_rusty_templates {
             Template::new_from_string(template_code.py(), template_code.extract()?, &self.data)
         }
 
-        // TODO render_to_string needs implementation.
+        /// Render the template specified by template_name with the given context.
+        /// For use in Django's test suite.
+        #[pyo3(signature = (template_name, context=None))]
+        pub fn render_to_string(
+            &mut self,
+            py: Python<'_>,
+            template_name: Bound<'_, PyAny>,
+            context: Option<Bound<'_, PyDict>>,
+        ) -> PyResult<String> {
+            let template = if template_name.is_instance_of::<PyList>()
+                || template_name.is_instance_of::<PyTuple>()
+            {
+                self.select_template(py, template_name.extract()?)?
+            } else {
+                self.get_template(py, template_name.extract()?)?
+            };
+
+            template.render(py, context, None)
+        }
 
         #[getter]
         pub fn dirs(&self) -> Vec<String> {
