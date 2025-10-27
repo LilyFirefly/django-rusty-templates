@@ -3,7 +3,7 @@
 # See also https://github.com/peter-evans/create-pull-request/blob/main/docs/concepts-guidelines.md#restrictions-on-repository-forks
 name: Django Test Suite PR comment
 
-on: # zizmor: ignore[dangerous-triggers] # We mitigate potential issues in `Skip symlinks` steps
+on: # zizmor: ignore[dangerous-triggers] # We mitigate potential issues in `Skip symlinks` step
   workflow_run:
     workflows: [Python]
     types: [completed]
