@@ -273,7 +273,11 @@ pub mod django_rusty_templates {
             };
             let encoding = match Encoding::for_label(file_charset.as_bytes()) {
                 Some(encoding) => encoding,
-                None => todo!(),
+                None => {
+                    return Err(PyValueError::new_err(format!(
+                        "Unknown encoding: '{file_charset}'"
+                    )));
+                }
             };
             let template_loaders = match loaders {
                 Some(_) if app_dirs => {

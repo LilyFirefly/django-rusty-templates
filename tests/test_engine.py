@@ -339,3 +339,28 @@ def test_invalid_loader_configurations(loaders, error_message):
         )
 
     assert error_message == str(exc_info.value)
+
+
+def test_valid_file_charset():
+    RustyTemplates(
+        {
+            "OPTIONS": {"file_charset": "utf-8"},
+            "NAME": "rust",
+            "DIRS": [],
+            "APP_DIRS": False,
+        }
+    )
+
+
+def test_invalid_file_charset():
+    with pytest.raises(ValueError) as exc_info:
+        RustyTemplates(
+            {
+                "OPTIONS": {"file_charset": "not-a-real-encoding"},
+                "NAME": "rust",
+                "DIRS": [],
+                "APP_DIRS": False,
+            }
+        )
+
+    assert "Unknown encoding: 'not-a-real-encoding'" == str(exc_info.value)

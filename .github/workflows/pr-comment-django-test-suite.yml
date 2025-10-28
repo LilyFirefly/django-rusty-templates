@@ -41,7 +41,7 @@ jobs:
         if: steps.pr-number.outputs.pr-number
         with:
           name: test-diff-result
-          workflow: python.yaml
+          workflow: python.yml
           pr: ${{ steps.pr-number.outputs.pr-number }}
           workflow_conclusion: completed
           if_no_artifact_found: ignore

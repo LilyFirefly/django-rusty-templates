@@ -43,3 +43,6 @@ ignore = []
 # Allow fix for all enabled rules (when `--fix`) is provided.
 fixable = ["ALL"]
 unfixable = []
+
+[tool.typos.default.extend-identifiers]
+Nd = "Nd" # This is a valid identifier for `hypothesis.strategies.characters.categories`
