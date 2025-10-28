@@ -3,7 +3,7 @@
 # See also https://github.com/peter-evans/create-pull-request/blob/main/docs/concepts-guidelines.md#restrictions-on-repository-forks
 name: Django Test Suite PR comment
 
-on:
+on: # zizmor: ignore[dangerous-triggers] # We mitigate potential issues in `Skip symlinks` step
   workflow_run:
     workflows: [Python]
     types: [completed]
@@ -19,7 +19,7 @@ jobs:
     permissions:
       pull-requests: write
     steps:
-      - uses: dawidd6/action-download-artifact@v11
+      - uses: dawidd6/action-download-artifact@ac66b43f0e6a346234dd65d4d0c8fbb31cb316e5 # v11
         name: Download pull request number
         with:
           name: pr-number
@@ -35,7 +35,7 @@ jobs:
             echo "pr-number=$(<pr-number)" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: dawidd6/action-download-artifact@v11
+      - uses: dawidd6/action-download-artifact@ac66b43f0e6a346234dd65d4d0c8fbb31cb316e5 # v11
         name: "Download Django test suite results"
         id: download-ecosystem-result
         if: steps.pr-number.outputs.pr-number
@@ -59,7 +59,7 @@ jobs:
           fi
 
       - name: Find existing comment
-        uses: peter-evans/find-comment@v4
+        uses: peter-evans/find-comment@b30e6a3c0ed37e7c023ccd3f1db5c6c0b0c23aad # v4.0.0
         if: steps.generate-comment.outcome == 'success'
         id: find-comment
         with:
@@ -69,7 +69,7 @@ jobs:
 
       - name: Create or update comment
         if: steps.find-comment.outcome == 'success'
-        uses: peter-evans/create-or-update-comment@v5
+        uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9 # v5.0.0
         with:
           comment-id: ${{ steps.find-comment.outputs.comment-id }}
           issue-number: ${{ steps.pr-number.outputs.pr-number }}

@@ -35,6 +35,10 @@ repos:
     rev: 80fe261104b5578bc533ff3a10efb10449677b90 # frozen: v0.8.19
     hooks:
       - id: uv-lock
+  - repo: https://github.com/woodruffw/zizmor-pre-commit
+    rev: 3c10df247c55cf21f75003105b879f145096bd4a  # frozen: v1.14.2
+    hooks:
+      - id: zizmor
   - repo: https://github.com/crate-ci/typos
     rev: a078fb205d445ce8d249ddb64fa61de0f4381759  # frozen: v1.37.3
     hooks:
