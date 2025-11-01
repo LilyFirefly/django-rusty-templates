@@ -35,7 +35,7 @@ jobs:
       env:
         UV_PROJECT_ENVIRONMENT: ${{ env.pythonLocation }}
     - name: Install cargo-llvm-cov
-      uses: taiki-e/install-action@ab447118c8d4ca5f33111a28109bed3c1aeff11b
+      uses: taiki-e/install-action@83d4502be07871356519ebc151e6d3588806ce53
     - name: Run tests
       run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
     - name: Upload coverage to Codecov
