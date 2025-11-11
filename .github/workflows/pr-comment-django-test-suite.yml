@@ -50,8 +50,8 @@ jobs:
       - name: Skip symlinks
         if: steps.download-ecosystem-result.outputs.found_artifact == 'true'
         run: |
-          // Guard against malicious ecosystem results that symlink to a secret
-          // file on this runner
+          # Guard against malicious ecosystem results that symlink to a secret
+          # file on this runner
           if [[ -L test-diff-result ]]
           then
               echo "Error: test-diff-result cannot be a symlink"
