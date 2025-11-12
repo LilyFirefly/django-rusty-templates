@@ -61,6 +61,8 @@ jobs:
 
     - name: Install cargo-llvm-cov
       uses: taiki-e/install-action@ab447118c8d4ca5f33111a28109bed3c1aeff11b
+      with:
+        tool: cargo-llvm-cov
 
     - name: Install Django Rusty Templates
       run: |
