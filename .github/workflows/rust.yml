@@ -35,7 +35,7 @@ jobs:
       env:
         UV_PROJECT_ENVIRONMENT: ${{ env.pythonLocation }}
     - name: Install cargo-llvm-cov
-      uses: taiki-e/install-action@ab447118c8d4ca5f33111a28109bed3c1aeff11b
+      uses: taiki-e/install-action@6cc14f7f2f4b3129aff07a8b071d2d4f2733465d
       with:
         tool: cargo-llvm-cov
     - name: Run tests
