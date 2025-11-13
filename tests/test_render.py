@@ -37,7 +37,7 @@ class TestUserFacingTemplateRenderSuccess:
 
         request = RequestFactory().get("/")
         template = template_engine.from_string(
-            "{{ request.path }} {{ request.method }} -> {{ foo }}"
+            "{{ request.method }} {{ request.path }} -> {{ foo }}"
         )
         context = {"foo": "bar"}
 
