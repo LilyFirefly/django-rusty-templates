@@ -13,12 +13,12 @@ Django Rusty Templates is an experimental reimplementation of Django's templatin
 Django Rusty Templates is not yet ready for full release, so it is not available on PyPI yet. Instead it can be installed from github or from a local clone:
 
 ```sh
-$ pip install git+https://github.com/LilyAcorn/django-rusty-templates.git
+$ pip install git+https://github.com/LilyFirefly/django-rusty-templates.git
 ```
 
 ```sh
 
-$ git clone git@github.com:LilyAcorn/django-rusty-templates.git
+$ git clone git@github.com:LilyFirefly/django-rusty-templates.git
 $ pip install ./django-rusty-templates
 ```
 
