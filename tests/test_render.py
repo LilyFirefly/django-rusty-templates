@@ -32,19 +32,24 @@ class TestUserFacingTemplateRenderSuccess:
 
         See https://docs.djangoproject.com/en/stable/ref/template-response/#templateresponse-objects
         """
+        if template_engine.name == "rusty":
+            pytest.skip("Rusty engine need to support context processor first")
+
         request = RequestFactory().get("/")
-        template = template_engine.from_string("{{ foo }}")
+        template = template_engine.from_string(
+            "{{ request.path }} {{ request.method }} -> {{ foo }}"
+        )
         context = {"foo": "bar"}
 
         response = TemplateResponse(request, template, context)
         response.render()
 
         assert response.is_rendered
-        assert response.rendered_content == "bar"
+        assert response.rendered_content == "GET / -> bar"
 
     def test_simple_template_response_rendered_content(self, template_engine):
         """
-        `TemplateResponse` -- a "lazy" way to render a template
+        `SimpleTemplateResponse` -- a "lazy" way to render a template
 
         See https://docs.djangoproject.com/en/stable/ref/template-response/#simpletemplateresponse-objects
         """

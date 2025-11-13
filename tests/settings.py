@@ -18,6 +18,9 @@ TEMPLATES = [
                 "no_filters": "tests.templatetags.no_filters",
                 "no_tags": "tests.templatetags.no_tags",
             },
+            "context_processors": [
+                "django.template.context_processors.request",
+            ],
         },
     },
     {
@@ -32,6 +35,9 @@ TEMPLATES = [
                 "no_filters": "tests.templatetags.no_filters",
                 "no_tags": "tests.templatetags.no_tags",
             },
+            "context_processors": [
+                "django.template.context_processors.request",
+            ],
         },
     },
 ]
