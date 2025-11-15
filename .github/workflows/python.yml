@@ -120,6 +120,9 @@ jobs:
         clean: false
         persist-credentials: false
 
+    - name: Re-build django-rusty-templates (current branch)
+      run: uv run maturin develop
+
     - name: Run Django test suite (current branch)
       run: uv run scripts/run_django_test_suite.py --parsed-output branch_test_output
 
