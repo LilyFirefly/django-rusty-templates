@@ -5,6 +5,8 @@ The escapejs filter escapes characters for use in JavaScript strings.
 
 import pytest
 
+from tests.utils import BrokenDunderStr
+
 
 @pytest.mark.parametrize(
     "value,expected",
@@ -109,4 +111,15 @@ def test_escapejs_with_argument(assert_parse_error):
 """
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_escapejs_invalid_str_method(assert_render_error):
+    broken = BrokenDunderStr()
+    assert_render_error(
+        template="{{ broken|escapejs }}",
+        context={"broken": broken},
+        exception=ZeroDivisionError,
+        django_message="division by zero",
+        rusty_message="division by zero",
     )
