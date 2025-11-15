@@ -364,3 +364,52 @@ def test_invalid_file_charset():
         )
 
     assert "Unknown encoding: 'not-a-real-encoding'" == str(exc_info.value)
+
+
+def test_render_to_string_success():
+    rusty_engine = engines["rusty"]
+
+    # Test with single template name
+    result = rusty_engine.engine.render_to_string("basic.txt", {"user": "Alice"})
+    assert result == "Hello Alice!\n"
+
+    # Test with template list/tuple
+    result = rusty_engine.engine.render_to_string(
+        ["nonexistent.html", "basic.txt"], {"user": "Bob"}
+    )
+    assert result == "Hello Bob!\n"
+    result = rusty_engine.engine.render_to_string(
+        ("nonexistent.html", "basic.txt"), {"user": "Bob"}
+    )
+    assert result == "Hello Bob!\n"
+
+    # Test with no context
+    result = rusty_engine.engine.render_to_string("basic.txt")
+    assert result == "Hello !\n"
+
+
+@pytest.mark.parametrize(
+    "template_name,message",
+    [
+        ({"nonexistent.html", "basic.txt"}, "'set' object cannot be cast as 'str'"),
+        ([1, 2], "'int' object cannot be cast as 'str'"),
+        (None, "'NoneType' object cannot be cast as 'str'"),
+    ],
+)
+def test_render_to_string_invalid_template_name(template_name, message):
+    rusty_engine = engines["rusty"]
+    with pytest.raises(TypeError) as exc_info:
+        rusty_engine.engine.render_to_string(template_name, {"user": "Bob"})
+
+    assert str(exc_info.value) == message
+
+
+def test_render_to_string_no_valid_template():
+    rusty_engine = engines["rusty"]
+    with pytest.raises(TemplateDoesNotExist):
+        rusty_engine.engine.render_to_string(
+            ("nonexistent.html", "nonexistent2.html"), {"user": "Bob"}
+        )
+
+    with pytest.raises(TemplateDoesNotExist):
+        rusty_engine.engine.render_to_string("nonexistent.html", {"user": "Bob"})
