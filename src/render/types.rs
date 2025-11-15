@@ -448,6 +448,16 @@ impl<'t, 'py> Content<'t, 'py> {
         }
     }
 
+    pub fn to_bool(&self) -> PyResult<bool> {
+        Ok(match self {
+            Self::Bool(b) => *b,
+            Self::Int(n) => n != &BigInt::from(0),
+            Self::Float(f) => *f != 0.0,
+            Self::String(s) => !s.as_raw().is_empty(),
+            Self::Py(obj) => obj.is_truthy()?,
+        })
+    }
+
     pub fn to_py(&self, py: Python<'py>) -> Bound<'py, PyAny> {
         match self {
             Self::Py(object) => object.clone(),

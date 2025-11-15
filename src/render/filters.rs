@@ -12,7 +12,7 @@ use crate::error::RenderError;
 use crate::filters::{
     AddFilter, AddSlashesFilter, CapfirstFilter, CenterFilter, DefaultFilter, EscapeFilter,
     EscapejsFilter, ExternalFilter, FilterType, LowerFilter, SafeFilter, SlugifyFilter,
-    UpperFilter,
+    UpperFilter, YesnoFilter
 };
 use crate::parse::Filter;
 use crate::render::types::{AsBorrowedContent, Content, ContentString, Context, IntoOwnedContent};
@@ -53,6 +53,7 @@ impl Resolve for Filter {
             FilterType::Safe(filter) => filter.resolve(left, py, template, context),
             FilterType::Slugify(filter) => filter.resolve(left, py, template, context),
             FilterType::Upper(filter) => filter.resolve(left, py, template, context),
+            FilterType::Yesno(filter) => filter.resolve(left, py, template, context),
         }
     }
 }
@@ -464,6 +465,44 @@ impl ResolveFilter for UpperFilter {
             None => "".as_content(),
         };
         Ok(Some(content))
+    }
+}
+
+impl ResolveFilter for YesnoFilter {
+    fn resolve<'t, 'py>(
+        &self,
+        variable: Option<Content<'t, 'py>>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> ResolveResult<'t, 'py> {
+        let arg_string = match &self.argument {
+            Some(arg) => {
+                let arg_content = arg
+                    .resolve(py, template, context, ResolveFailures::Raise)?
+                    .expect("missing argument in context should already have raised");
+                arg_content.resolve_string(context)?.into_raw()
+            }
+            // TODO: this should be translated with gettext
+            //       https://github.com/django/django/blob/5c60763561c67924eff1069e1516b60a59d068d5/django/template/defaultfilters.py#L878
+            None => Cow::from("yes,no,maybe"),
+        };
+
+        let bits: Vec<&str> = arg_string.split(',').collect();
+        let (yes, no, maybe) = match bits.as_slice() {
+            // If less than 2 values, return the original value
+            [] | [_] => return Ok(variable),
+            [yes, no] => (yes, no, no),
+            [yes, no, maybe, ..] => (yes, no, maybe),
+        };
+
+        let result = match variable {
+            Some(content) if matches!(content, Content::Py(ref obj) if obj.is_none()) => maybe,
+            Some(content) if content.to_bool()? => yes,
+            _ => no,
+        };
+
+        Ok(Some(result.to_string().into_content()))
     }
 }
 
