@@ -388,10 +388,22 @@ def test_render_to_string_success():
     assert result == "Hello !\n"
 
 
-def test_render_to_string_failure():
+@pytest.mark.parametrize(
+    "template_name", [{"nonexistent.html", "basic.txt"}, [1, 2], None]
+)
+def test_render_to_string_invalid_template_name(template_name):
     rusty_engine = engines["rusty"]
 
-    with pytest.raises(TypeError, match="'set' object cannot be cast as 'str'"):
+    with pytest.raises(TypeError, match="object cannot be cast as 'str'"):
+        rusty_engine.engine.render_to_string(template_name, {"user": "Bob"})
+
+
+def test_render_to_string_no_valid_template():
+    rusty_engine = engines["rusty"]
+    with pytest.raises(TemplateDoesNotExist):
         rusty_engine.engine.render_to_string(
-            {"nonexistent.html", "basic.txt"}, {"user": "Bob"}
+            ("nonexistent.html", "nonexistent.html"), {"user": "Bob"}
         )
+
+    with pytest.raises(TemplateDoesNotExist):
+        rusty_engine.engine.render_to_string("nonexistent.html", {"user": "Bob"})
