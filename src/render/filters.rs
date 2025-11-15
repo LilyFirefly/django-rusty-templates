@@ -288,6 +288,7 @@ impl ResolveFilter for EscapeFilter {
     }
 }
 
+/// Hex encode characters for use in JavaScript strings.
 fn escapejs(value: &str) -> String {
     let mut result = String::with_capacity(value.len());
     for ch in value.chars() {
@@ -304,8 +305,10 @@ fn escapejs(value: &str) -> String {
             '`' => result.push_str(r"\u0060"),
             '\u{2028}' => result.push_str(r"\u2028"),
             '\u{2029}' => result.push_str(r"\u2029"),
-            c if (c as u32) < 32 => {
-                result.push_str(&format!("\\u{:04X}", c as u32));
+            // c as u32 is safe because all chars are valid u32
+            // See https://doc.rust-lang.org/std/primitive.char.html#method.from_u32
+            c if c.is_control() => {
+                result.push_str(&format!(r"\u{:04X}", c as u32));
             }
             c => result.push(c),
         }

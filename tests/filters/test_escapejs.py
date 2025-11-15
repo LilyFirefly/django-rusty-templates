@@ -43,6 +43,8 @@ import pytest
         ),
         pytest.param("\x00", r"\u0000", id="null_character"),
         pytest.param("\x1f", r"\u001F", id="control_character"),
+        pytest.param("\x01", r"\u0001", id="control_soh"),
+        pytest.param("\x1b", r"\u001B", id="control_escape"),
         pytest.param(
             "<script>alert('XSS')</script>",
             r"\u003Cscript\u003Ealert(\u0027XSS\u0027)\u003C/script\u003E",
@@ -71,6 +73,27 @@ def test_escapejs_chained_with_lower(assert_render):
     template = "{{ value|lower|escapejs }}"
     context = {"value": "HELLO<WORLD>"}
     assert_render(template, context, r"hello\u003Cworld\u003E")
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        pytest.param("\x7f", r"\u007F", id="del_not_escaped"),
+        pytest.param("\x80", r"\u0080", id="c1_control_not_escaped"),
+    ],
+)
+def test_escapejs_c1_control_characters(
+    assert_render, template_engine, value, expected
+):
+    if template_engine.name == "django":
+        pytest.skip(
+            "Django escapejs only escape C0 controls, not C1 controls"
+            "See https://en.wikipedia.org/wiki/C0_and_C1_control_codes#C1_controls"
+        )
+
+    template = "{{ value|escapejs }}"
+    context = {"value": value}
+    assert_render(template, context, expected)
 
 
 def test_escapejs_with_argument(assert_parse_error):
