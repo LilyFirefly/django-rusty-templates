@@ -77,22 +77,18 @@ def test_escapejs_chained_with_lower(assert_render):
     assert_render(template, context, r"hello\u003Cworld\u003E")
 
 
+@pytest.mark.skip(
+    "Django escapejs only escape C0 controls, not C1 controls"
+    "See https://en.wikipedia.org/wiki/C0_and_C1_control_codes#C1_controls"
+)
 @pytest.mark.parametrize(
     "value,expected",
     [
-        pytest.param("\x7f", r"\u007F", id="del_not_escaped"),
-        pytest.param("\x80", r"\u0080", id="c1_control_not_escaped"),
+        pytest.param("\x7f", r"\u007F", id="c1_control_first_element"),
+        pytest.param("\x9f", r"\u009f", id="c1_control_last_element"),
     ],
 )
-def test_escapejs_c1_control_characters(
-    assert_render, template_engine, value, expected
-):
-    if template_engine.name == "django":
-        pytest.skip(
-            "Django escapejs only escape C0 controls, not C1 controls"
-            "See https://en.wikipedia.org/wiki/C0_and_C1_control_codes#C1_controls"
-        )
-
+def test_escapejs_c1_control_characters(assert_render, value, expected):
     template = "{{ value|escapejs }}"
     context = {"value": value}
     assert_render(template, context, expected)

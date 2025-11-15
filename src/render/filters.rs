@@ -303,11 +303,13 @@ fn escapejs(value: &str) -> String {
             '-' => result.push_str(r"\u002D"),
             ';' => result.push_str(r"\u003B"),
             '`' => result.push_str(r"\u0060"),
+            // Line separator
             '\u{2028}' => result.push_str(r"\u2028"),
+            // Paragraph Separator
             '\u{2029}' => result.push_str(r"\u2029"),
             // c as u32 is safe because all chars are valid u32
             // See https://doc.rust-lang.org/std/primitive.char.html#method.from_u32
-            c if c.is_control() => {
+            c if matches!(c, '\0'..='\x1f') => {
                 result.push_str(&format!(r"\u{:04X}", c as u32));
             }
             c => result.push(c),
