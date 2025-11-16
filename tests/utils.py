@@ -9,3 +9,13 @@ def render(template, context, *, using):
 class BrokenDunderStr:
     def __str__(self):
         1 / 0
+
+
+class BrokenDunderHtml(str):
+    def __html__(self):
+        1 / 0
+
+
+class BrokenDunderBool:
+    def __bool__(self):
+        1 / 0
