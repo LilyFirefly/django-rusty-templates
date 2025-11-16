@@ -16,7 +16,8 @@ dynamic = ["version"]
 features = ["pyo3/extension-module"]
 python-source = "python"
 
-[tool.pytest.ini_options]
+[tool.pytest]
+strict_xfail = true
 DJANGO_SETTINGS_MODULE = "tests.settings"
 
 [dependency-groups]
