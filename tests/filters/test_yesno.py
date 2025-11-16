@@ -1,5 +1,8 @@
 import pytest
+from django.template import engines
 from django.utils.translation import override
+
+from tests.utils import BrokenDunderHtml, BrokenDunderBool
 
 
 @pytest.mark.parametrize(
@@ -150,3 +153,22 @@ def test_yesno_with_wrong_arg_type(assert_render_error):
         django_message=django_message,
         rusty_message=rusty_message,
     )
+
+
+def test_yesno_with_wrong_broken_value_type(assert_render_error):
+    assert_render_error(
+        template="{{ broken|yesno }}",
+        context={"broken": BrokenDunderBool()},
+        exception=ZeroDivisionError,
+        django_message="division by zero",
+        rusty_message="division by zero",
+    )
+
+
+def test_yesno_invalid_html_method():
+    template = engines["rusty"].from_string("{{ value|yesno:broken }}")
+    context = {"broken": BrokenDunderHtml("yes,no,maybe"), "value": True}
+    with pytest.raises(ZeroDivisionError) as exc_info:
+        template.render(context=context)
+
+    assert str(exc_info.value) == "division by zero"

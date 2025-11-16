@@ -6,7 +6,7 @@ use num_bigint::{BigInt, ToBigInt};
 use num_traits::ToPrimitive;
 use pyo3::prelude::*;
 use pyo3::sync::PyOnceLock;
-use pyo3::types::{PyString, PyType};
+use pyo3::types::PyType;
 
 use crate::error::RenderError;
 use crate::filters::{
@@ -498,7 +498,7 @@ impl ResolveFilter for YesnoFilter {
         };
 
         let result = match variable {
-            Some(content) if matches!(content, Content::Py(ref obj) if obj.is_none()) => maybe,
+            Some(Content::Py(ref obj)) if obj.is_none() => maybe,
             Some(content) if content.to_bool()? => yes,
             _ => no,
         };
