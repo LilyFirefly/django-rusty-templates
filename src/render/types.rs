@@ -7,6 +7,7 @@ use std::sync::{Arc, Mutex};
 
 use html_escape::encode_quoted_attribute;
 use num_bigint::{BigInt, ToBigInt};
+use num_traits::Zero;
 use pyo3::exceptions::{PyAttributeError, PyKeyError, PyTypeError};
 use pyo3::intern;
 use pyo3::prelude::*;
@@ -451,8 +452,8 @@ impl<'t, 'py> Content<'t, 'py> {
     pub fn to_bool(&self) -> PyResult<bool> {
         Ok(match self {
             Self::Bool(b) => *b,
-            Self::Int(n) => n != &BigInt::from(0),
-            Self::Float(f) => *f != 0.0,
+            Self::Int(n) => !n.is_zero(),
+            Self::Float(f) => !f.is_zero(),
             Self::String(s) => !s.as_raw().is_empty(),
             Self::Py(obj) => obj.is_truthy()?,
         })

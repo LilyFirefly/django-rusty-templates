@@ -71,6 +71,41 @@ def test_yesno_chained_with_other_filters(assert_render):
     assert_render("{{ value|default:True|yesno:'yes,no' }}", {}, "yes")
 
 
+def test_yesno_chained_with_safe_filter(assert_render):
+    assert_render("{{ value|safe|yesno:'yes,no' }}", {"value": 12}, "yes")
+
+
+def test_yesno_chained_with_bool(assert_render):
+    template = "{% for x in 'abc' %}{{ forloop.first|yesno }}! {% endfor %}"
+    assert_render(template=template, context={}, expected="yes! no! no! ")
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        (-1.1, "yes"),
+        (0.0, "no"),
+        (2.2, "yes"),
+    ],
+)
+def test_yesno_chained_with_float(assert_render, value, expected):
+    template = f"{{{{ foo|default:{value}|yesno }}}}"
+    assert_render(template=template, context={}, expected=expected)
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        (-1, "yes"),
+        (0, "no"),
+        (2, "yes"),
+    ],
+)
+def test_yesno_chained_with_integer(assert_render, value, expected):
+    template = "{{ foo|add:0|yesno }}"
+    assert_render(template=template, context={"foo": value}, expected=expected)
+
+
 def test_yesno_with_empty_values(assert_render):
     assert_render("{{ value|yesno:',,' }}", {"value": True}, "")
 
