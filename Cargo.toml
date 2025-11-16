@@ -6,7 +6,9 @@ edition = "2024"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
 name = "django_rusty_templates"
-crate-type = ["cdylib"]
+# rlib is required for benchmarks
+# See https://bheisler.github.io/criterion.rs/book/user_guide/known_limitations.html#known-limitations
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 cached = "0.56.0"
@@ -28,3 +30,8 @@ num-traits = "0.2.19"
 quickcheck = "1.0.3"
 temp-env = "0.3.6"
 cargo-llvm-cov = "0.6.18"
+criterion = "0.7"
+
+[[bench]]
+name = "slugify_bench"
+harness = false
