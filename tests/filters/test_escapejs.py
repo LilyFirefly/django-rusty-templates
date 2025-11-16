@@ -78,7 +78,7 @@ def test_escapejs_chained_with_lower(assert_render):
 
 
 @pytest.mark.xfail(
-    reason="Django escapejs only escape C0 controls, not C1 controls"
+    reason="Django escapejs only escapes C0 controls, not C1 controls"
     "See https://en.wikipedia.org/wiki/C0_and_C1_control_codes#C1_controls"
 )
 @pytest.mark.parametrize(
