@@ -25,6 +25,6 @@ jobs:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           persist-credentials: false
-      - uses: cargo-bins/cargo-binstall@8aac5aa2bf0dfaa2863eccad9f43c68fe40e5ec8 # v1.14.1
+      - uses: cargo-bins/cargo-binstall@ac8496113671719ef3f12282bc9f41d86322e0d7 # v1.16.0
       - run: cargo binstall --no-confirm cargo-shear
       - run: cargo shear
