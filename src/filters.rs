@@ -12,6 +12,7 @@ pub enum FilterType {
     Center(CenterFilter),
     Default(DefaultFilter),
     Escape(EscapeFilter),
+    Escapejs(EscapejsFilter),
     External(ExternalFilter),
     Lower(LowerFilter),
     Safe(SafeFilter),
@@ -60,6 +61,9 @@ impl DefaultFilter {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct EscapeFilter;
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct EscapejsFilter;
 
 #[derive(Clone, Debug)]
 pub struct ExternalFilter {

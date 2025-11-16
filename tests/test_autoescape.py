@@ -1,5 +1,7 @@
 from django.utils.safestring import mark_safe
 
+from tests.utils import BrokenDunderStr
+
 
 def test_mark_safe(assert_render):
     html = mark_safe("<p>Hello World!</p>")
@@ -30,11 +32,7 @@ def test_autoescape_not_string(assert_render):
 
 
 def test_autoescape_invalid_str_method(assert_render_error):
-    class Broken:
-        def __str__(self):
-            1 / 0
-
-    broken = Broken()
+    broken = BrokenDunderStr()
     assert_render_error(
         template="{{ broken }}",
         context={"broken": broken},
