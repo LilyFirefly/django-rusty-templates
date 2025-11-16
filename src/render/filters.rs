@@ -6,7 +6,7 @@ use num_bigint::{BigInt, ToBigInt};
 use num_traits::ToPrimitive;
 use pyo3::prelude::*;
 use pyo3::sync::PyOnceLock;
-use pyo3::types::PyType;
+use pyo3::types::{PyString, PyType};
 
 use crate::error::RenderError;
 use crate::filters::{
@@ -482,7 +482,9 @@ impl ResolveFilter for YesnoFilter {
                 let arg_content = arg
                     .resolve(py, template, context, ResolveFailures::Raise)?
                     .expect("missing argument in context should already have raised");
-                arg_content.resolve_string(context)?.into_raw()
+                arg_content
+                    .resolve_string_strict(context, arg.at.into())?
+                    .into_raw()
             }
             None => Cow::Owned(gettext(py, "yes,no,maybe")?),
         };

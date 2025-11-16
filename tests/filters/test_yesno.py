@@ -130,3 +130,23 @@ def test_yesno_translation(assert_render, value, expected):
     """Test that the default 'yes,no,maybe' string is translated using gettext."""
     with override("de"):
         assert_render("{{ value|yesno }}", {"value": value}, expected)
+
+
+def test_yesno_with_wrong_arg_type(assert_render_error):
+    django_message = "'int' object has no attribute 'split'"
+    rusty_message = """\
+  × String argument expected
+   ╭────
+ 1 │ {{ value|yesno:1000 }}
+   ·                ──┬─
+   ·                  ╰── here
+   ╰────
+"""
+    assert_render_error(
+        template="{{ value|yesno:1000 }}",
+        context={},
+        exception=AttributeError,
+        rusty_exception=ValueError,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )

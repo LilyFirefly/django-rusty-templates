@@ -6,6 +6,7 @@ use std::iter::zip;
 use std::sync::{Arc, Mutex};
 
 use html_escape::encode_quoted_attribute;
+use miette::SourceSpan;
 use num_bigint::{BigInt, ToBigInt};
 use num_traits::Zero;
 use pyo3::exceptions::{PyAttributeError, PyKeyError, PyTypeError};
@@ -427,6 +428,20 @@ impl<'t, 'py> Content<'t, 'py> {
             Self::Bool(false) => ContentString::String(Cow::Borrowed("False")),
         })
     }
+    /// Resolve to a string, raising an error if the content is not a string or a string-like Python object
+    pub fn resolve_string_strict(
+        self,
+        context: &Context,
+        argument_at: SourceSpan,
+    ) -> Result<ContentString<'t>, PyRenderError> {
+        match self {
+            Self::String(content) => Ok(content),
+            Self::Py(content) if content.is_instance_of::<PyString>() => {
+                Ok(resolve_python(content, context)?)
+            }
+            _ => Err(RenderError::InvalidArgumentString { argument_at }.into()),
+        }
+    }
 
     pub fn to_bigint(&self) -> Option<BigInt> {
         match self {
@@ -498,7 +513,6 @@ impl<'t, 'py> Content<'t, 'py> {
         }
     }
 }
-
 pub trait IntoOwnedContent<'t, 'py> {
     fn into_content(self) -> Content<'t, 'py>;
 }

@@ -488,7 +488,8 @@ pub mod django_rusty_templates {
                                     self.template.clone(),
                                 ));
                             }
-                            RenderError::InvalidArgumentInteger { .. } => {
+                            RenderError::InvalidArgumentInteger { .. }
+                            | RenderError::InvalidArgumentString { .. } => {
                                 return Err(PyValueError::with_source_code(
                                     err.into(),
                                     self.template.clone(),

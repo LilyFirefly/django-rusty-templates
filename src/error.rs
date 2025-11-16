@@ -36,6 +36,11 @@ pub enum RenderError {
         #[label("here")]
         argument_at: SourceSpan,
     },
+    #[error("String argument expected")]
+    InvalidArgumentString {
+        #[label("here")]
+        argument_at: SourceSpan,
+    },
     #[error("Integer {argument} is too large")]
     OverflowError {
         argument: String,
