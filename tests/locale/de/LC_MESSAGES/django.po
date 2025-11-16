@@ -29,3 +29,6 @@ msgstr "Willkommen"
 #: tests/templates/translation.txt:3
 msgid "Goodbye"
 msgstr "Auf Wiedersehen"
+
+msgid "yes,no,maybe"
+msgstr "ja,nein,vielleicht"

@@ -12,9 +12,10 @@ use crate::error::RenderError;
 use crate::filters::{
     AddFilter, AddSlashesFilter, CapfirstFilter, CenterFilter, DefaultFilter, EscapeFilter,
     EscapejsFilter, ExternalFilter, FilterType, LowerFilter, SafeFilter, SlugifyFilter,
-    UpperFilter, YesnoFilter
+    UpperFilter, YesnoFilter,
 };
 use crate::parse::Filter;
+use crate::render::common::gettext;
 use crate::render::types::{AsBorrowedContent, Content, ContentString, Context, IntoOwnedContent};
 use crate::render::{Resolve, ResolveFailures, ResolveResult};
 use crate::types::TemplateString;
@@ -483,9 +484,7 @@ impl ResolveFilter for YesnoFilter {
                     .expect("missing argument in context should already have raised");
                 arg_content.resolve_string(context)?.into_raw()
             }
-            // TODO: this should be translated with gettext
-            //       https://github.com/django/django/blob/5c60763561c67924eff1069e1516b60a59d068d5/django/template/defaultfilters.py#L878
-            None => Cow::from("yes,no,maybe"),
+            None => Cow::Owned(gettext(py, "yes,no,maybe")?),
         };
 
         let bits: Vec<&str> = arg_string.split(',').collect();

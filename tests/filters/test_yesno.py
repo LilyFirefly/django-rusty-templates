@@ -1,4 +1,5 @@
 import pytest
+from django.utils.translation import override
 
 
 @pytest.mark.parametrize(
@@ -80,3 +81,17 @@ def test_yesno_invalid_single_argument(assert_render):
 
 def test_yesno_with_extra_commas(assert_render):
     assert_render("{{ value|yesno:'a,b,c,d' }}", {"value": True}, "a")
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        (True, "ja"),
+        (False, "nein"),
+        (None, "vielleicht"),
+    ],
+)
+def test_yesno_translation(assert_render, value, expected):
+    """Test that the default 'yes,no,maybe' string is translated using gettext."""
+    with override("de"):
+        assert_render("{{ value|yesno }}", {"value": value}, expected)

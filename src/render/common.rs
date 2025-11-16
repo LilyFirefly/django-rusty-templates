@@ -17,6 +17,13 @@ use crate::types::Text;
 use crate::types::TranslatedText;
 use crate::types::Variable;
 
+/// Helper function to translate a string using Django's gettext
+pub fn gettext<'py>(py: Python<'py>, text: &str) -> PyResult<String> {
+    let django_translation = py.import("django.utils.translation")?;
+    let get_text = django_translation.getattr("gettext")?;
+    get_text.call1((text,))?.extract::<String>()
+}
+
 fn has_truthy_attr(variable: &Bound<'_, PyAny>, attr: &Bound<'_, PyString>) -> PyResult<bool> {
     match variable.getattr(attr) {
         Ok(attr) if attr.is_truthy()? => Ok(true),
@@ -144,10 +151,8 @@ impl Resolve for TranslatedText {
         context: &mut Context,
         _failures: ResolveFailures,
     ) -> ResolveResult<'t, 'py> {
-        let resolved = Cow::Borrowed(template.content(self.at));
-        let django_translation = py.import("django.utils.translation")?;
-        let get_text = django_translation.getattr("gettext")?;
-        let resolved = get_text.call1((resolved,))?.extract::<String>()?;
+        let text = template.content(self.at);
+        let resolved = gettext(py, text)?;
         Ok(Some(Content::String(match context.autoescape {
             false => ContentString::String(Cow::Owned(resolved)),
             true => ContentString::HtmlSafe(Cow::Owned(resolved)),
