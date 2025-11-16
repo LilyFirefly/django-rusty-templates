@@ -156,12 +156,20 @@ def test_yesno_with_wrong_arg_type(assert_render_error):
 
 
 def test_yesno_with_wrong_broken_value_type(assert_render_error):
+    rusty_message = """\
+  × division by zero
+   ╭────
+ 1 │ {{ broken|yesno }}
+   ·           ──┬──
+   ·             ╰── when calling __bool__ here
+   ╰────
+"""
     assert_render_error(
         template="{{ broken|yesno }}",
         context={"broken": BrokenDunderBool()},
         exception=ZeroDivisionError,
         django_message="division by zero",
-        rusty_message="division by zero",
+        rusty_message=rusty_message,
     )
 
 

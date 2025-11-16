@@ -8,7 +8,7 @@ use pyo3::prelude::*;
 use pyo3::sync::PyOnceLock;
 use pyo3::types::PyType;
 
-use crate::error::RenderError;
+use crate::error::{AnnotatePyErr, RenderError};
 use crate::filters::{
     AddFilter, AddSlashesFilter, CapfirstFilter, CenterFilter, DefaultFilter, EscapeFilter,
     EscapejsFilter, ExternalFilter, FilterType, LowerFilter, SafeFilter, SlugifyFilter,
@@ -499,8 +499,15 @@ impl ResolveFilter for YesnoFilter {
 
         let result = match variable {
             Some(Content::Py(ref obj)) if obj.is_none() => maybe,
-            Some(content) if content.to_bool()? => yes,
-            _ => no,
+            Some(content) => match content.to_bool() {
+                Ok(true) => yes,
+                Ok(false) => no,
+                Err(error) => {
+                    let error = error.annotate(py, self.at, "when calling __bool__ here", template);
+                    return Err(error.into());
+                }
+            },
+            None => no,
         };
 
         Ok(Some(result.to_string().into_content()))

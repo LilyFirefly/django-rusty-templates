@@ -105,11 +105,12 @@ pub struct UpperFilter;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct YesnoFilter {
+    pub at: (usize, usize),
     pub argument: Option<Argument>,
 }
 
 impl YesnoFilter {
-    pub fn new(argument: Option<Argument>) -> Self {
-        Self { argument }
+    pub fn new(at: (usize, usize), argument: Option<Argument>) -> Self {
+        Self { at, argument }
     }
 }
