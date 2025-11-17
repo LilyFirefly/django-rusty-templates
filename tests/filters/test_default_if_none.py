@@ -55,6 +55,45 @@ def test_default_if_none_preserves_html_safe_value(assert_render):
     )
 
 
+@pytest.mark.parametrize(
+    "template,context,expected",
+    [
+        pytest.param(
+            "{% autoescape on %}{{ value|default_if_none:'default' }}{% endautoescape %}",
+            {"value": "<b>html</b>"},
+            "&lt;b&gt;html&lt;/b&gt;",
+            id="autoescape_html_value",
+        ),
+        pytest.param(
+            "{% autoescape on %}{{ value|default_if_none:default }}{% endautoescape %}",
+            {"value": None, "default": "<b>default</b>"},
+            "&lt;b&gt;default&lt;/b&gt;",
+            id="autoescape_html_default_variable",
+        ),
+        pytest.param(
+            "{{ value|default_if_none:'<b>default</b>'|escape }}",
+            {"value": None},
+            "<b>default</b>",
+            id="explicit_default_str_literal_never_escaped",
+        ),
+        pytest.param(
+            "{{ value|default_if_none:default|escape }}",
+            {"value": None, "default": "<b>default</b>"},
+            "&lt;b&gt;default&lt;/b&gt;",
+            id="explicit_escape_html_default_variable",
+        ),
+        pytest.param(
+            "{% autoescape on %}{{ value|default_if_none:default|safe }}{% endautoescape %}",
+            {"value": None, "default": "<b>default</b>"},
+            "<b>default</b>",
+            id="safe_prevents_escape_default",
+        ),
+    ],
+)
+def test_default_if_none_html_escaping(assert_render, template, context, expected):
+    assert_render(template=template, context=context, expected=expected)
+
+
 def test_default_if_none_with_forloop_variable(assert_render):
     template = "{% for x in items %}{{ x|default_if_none:forloop.counter }}{% endfor %}"
     assert_render(
