@@ -20,6 +20,7 @@ pub enum FilterType {
     Slugify(SlugifyFilter),
     Title(TitleFilter),
     Upper(UpperFilter),
+    Wordcount(WordcountFilter),
     Yesno(YesnoFilter),
 }
 
@@ -118,6 +119,9 @@ pub struct TitleFilter;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct UpperFilter;
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct WordcountFilter;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct YesnoFilter {

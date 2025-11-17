@@ -12,7 +12,7 @@ use crate::error::{AnnotatePyErr, RenderError};
 use crate::filters::{
     AddFilter, AddSlashesFilter, CapfirstFilter, CenterFilter, DefaultFilter, DefaultIfNoneFilter,
     EscapeFilter, EscapejsFilter, ExternalFilter, FilterType, LowerFilter, SafeFilter,
-    SlugifyFilter, TitleFilter, UpperFilter, YesnoFilter,
+    SlugifyFilter, TitleFilter, UpperFilter, WordcountFilter, YesnoFilter,
 };
 use crate::parse::Filter;
 use crate::render::common::gettext;
@@ -56,6 +56,7 @@ impl Resolve for Filter {
             FilterType::Slugify(filter) => filter.resolve(left, py, template, context),
             FilterType::Title(filter) => filter.resolve(left, py, template, context),
             FilterType::Upper(filter) => filter.resolve(left, py, template, context),
+            FilterType::Wordcount(filter) => filter.resolve(left, py, template, context),
             FilterType::Yesno(filter) => filter.resolve(left, py, template, context),
         }
     }
@@ -530,6 +531,26 @@ impl ResolveFilter for UpperFilter {
                 content.map_content(|content| Cow::Owned(content.to_uppercase()))
             }
             None => "".as_content(),
+        };
+        Ok(Some(content))
+    }
+}
+
+impl ResolveFilter for WordcountFilter {
+    fn resolve<'t, 'py>(
+        &self,
+        variable: Option<Content<'t, 'py>>,
+        _py: Python<'py>,
+        _template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> ResolveResult<'t, 'py> {
+        let content = match variable {
+            Some(content) => {
+                let content_string = content.resolve_string(context)?;
+                let word_count = content_string.as_raw().split_whitespace().count();
+                Content::Int(word_count.into())
+            }
+            None => Content::Int(0.into()),
         };
         Ok(Some(content))
     }
