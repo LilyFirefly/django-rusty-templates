@@ -23,6 +23,7 @@ use crate::filters::FilterType;
 use crate::filters::LowerFilter;
 use crate::filters::SafeFilter;
 use crate::filters::SlugifyFilter;
+use crate::filters::TitleFilter;
 use crate::filters::UpperFilter;
 use crate::filters::YesnoFilter;
 use crate::lex::START_TAG_LEN;
@@ -151,6 +152,10 @@ impl Filter {
             "slugify" => match right {
                 Some(right) => return Err(unexpected_argument("slugify", right)),
                 None => FilterType::Slugify(SlugifyFilter),
+            },
+            "title" => match right {
+                Some(right) => return Err(unexpected_argument("title", right)),
+                None => FilterType::Title(TitleFilter),
             },
             "upper" => match right {
                 Some(right) => return Err(unexpected_argument("upper", right)),
