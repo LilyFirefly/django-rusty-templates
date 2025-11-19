@@ -12,7 +12,7 @@ use crate::error::{AnnotatePyErr, RenderError};
 use crate::filters::{
     AddFilter, AddSlashesFilter, CapfirstFilter, CenterFilter, DefaultFilter, DefaultIfNoneFilter,
     EscapeFilter, EscapejsFilter, ExternalFilter, FilterType, LowerFilter, SafeFilter,
-    SlugifyFilter, UpperFilter, YesnoFilter,
+    SlugifyFilter, TitleFilter, UpperFilter, YesnoFilter,
 };
 use crate::parse::Filter;
 use crate::render::common::gettext;
@@ -54,6 +54,7 @@ impl Resolve for Filter {
             FilterType::Lower(filter) => filter.resolve(left, py, template, context),
             FilterType::Safe(filter) => filter.resolve(left, py, template, context),
             FilterType::Slugify(filter) => filter.resolve(left, py, template, context),
+            FilterType::Title(filter) => filter.resolve(left, py, template, context),
             FilterType::Upper(filter) => filter.resolve(left, py, template, context),
             FilterType::Yesno(filter) => filter.resolve(left, py, template, context),
         }
@@ -467,6 +468,51 @@ impl ResolveFilter for SlugifyFilter {
             None => "".as_content(),
         };
         Ok(Some(content))
+    }
+}
+
+impl ResolveFilter for TitleFilter {
+    fn resolve<'t, 'py>(
+        &self,
+        variable: Option<Content<'t, 'py>>,
+        _py: Python<'py>,
+        _template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> ResolveResult<'t, 'py> {
+        let Some(content) = variable else {
+            return Ok(Some("".as_content()));
+        };
+        let content_string = content.resolve_string(context)?;
+
+        Ok(Some(content_string.map_content(|content| {
+            let mut result = String::with_capacity(content.len());
+            let mut prev = None;
+            let mut prev_letter_was_lowercased = false;
+
+            for ch in content.chars() {
+                if ch.is_alphabetic() {
+                    // Django's special cases to trigger lowercase:
+                    // 1. After apostrophe that follows a lowercased letter
+                    // 2. After a digit
+                    let should_lowercase = match prev {
+                        Some('\'') if prev_letter_was_lowercased => true,
+                        Some(c) if c.is_ascii_digit() | c.is_alphabetic() => true,
+                        _ => false,
+                    };
+
+                    if should_lowercase {
+                        result.extend(ch.to_lowercase());
+                    } else {
+                        result.extend(ch.to_uppercase());
+                    }
+                    prev_letter_was_lowercased = should_lowercase;
+                } else {
+                    result.push(ch);
+                }
+                prev = Some(ch);
+            }
+            Cow::Owned(result)
+        })))
     }
 }
 
