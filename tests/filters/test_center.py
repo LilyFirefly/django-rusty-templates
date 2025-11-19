@@ -84,6 +84,16 @@ def test_center_argument_float(assert_render):
     assert_render(template, context, expected)
 
 
+@pytest.mark.parametrize("value", [True, False])
+def test_center_argument_bool(assert_render, value):
+    """Behaves like 1 and 0"""
+    template = f"{{{{ foo|center:{value} }}}}"
+    context = {"foo": "test"}
+    expected = "test"
+
+    assert_render(template, context, expected)
+
+
 def test_center_argument_negative_integer(assert_render):
     template = "{{ foo|center:-5 }}"
     context = {"foo": "test"}
