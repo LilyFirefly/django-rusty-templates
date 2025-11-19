@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 use html_escape::encode_quoted_attribute;
 use miette::SourceSpan;
 use num_bigint::{BigInt, ToBigInt};
-use num_traits::Zero;
+use num_traits::{ToPrimitive, Zero};
 use pyo3::exceptions::{PyAttributeError, PyKeyError, PyTypeError};
 use pyo3::intern;
 use pyo3::prelude::*;
@@ -397,6 +397,17 @@ fn resolve_python<'t>(value: Bound<'_, PyAny>, context: &Context) -> PyResult<Co
     )
 }
 
+fn resolve_bigint(bigint: BigInt, at: (usize, usize)) -> Result<usize, PyRenderError> {
+    match bigint.to_isize() {
+        Some(n) => Ok(n.max(0) as usize),
+        None => Err(RenderError::OverflowError {
+            argument: bigint.to_string(),
+            argument_at: at.into(),
+        }
+        .into()),
+    }
+}
+
 #[derive(Debug, IntoPyObject)]
 pub enum Content<'t, 'py> {
     Py(Bound<'py, PyAny>),
@@ -464,6 +475,49 @@ impl<'t, 'py> Content<'t, 'py> {
         }
     }
 
+    /// Convert Content to usize, providing detailed errors if the conversion fails
+    pub fn resolve_usize(self, argument_at: (usize, usize)) -> Result<usize, PyRenderError> {
+        match self {
+            Self::Int(n) => resolve_bigint(n, argument_at),
+            Self::String(s) => match s.as_raw().parse::<BigInt>() {
+                Ok(n) => resolve_bigint(n, argument_at),
+                Err(_) => Err(RenderError::InvalidArgumentInteger {
+                    argument: format!("'{}'", s.as_raw()),
+                    argument_at: argument_at.into(),
+                }
+                .into()),
+            },
+            Self::Float(f) => match f.trunc().to_bigint() {
+                Some(n) => resolve_bigint(n, argument_at),
+                None => Err(RenderError::InvalidArgumentFloat {
+                    argument: f.to_string(),
+                    argument_at: argument_at.into(),
+                }
+                .into()),
+            },
+            Self::Py(obj) => match obj.extract::<BigInt>() {
+                Ok(n) => resolve_bigint(n, argument_at),
+                Err(_) => {
+                    let argument = obj.to_string();
+                    let argument_at = argument_at.into();
+                    match obj.extract::<f64>() {
+                        Ok(_) => Err(RenderError::InvalidArgumentFloat {
+                            argument,
+                            argument_at,
+                        }
+                        .into()),
+                        Err(_) => Err(RenderError::InvalidArgumentInteger {
+                            argument,
+                            argument_at,
+                        }
+                        .into()),
+                    }
+                }
+            },
+            Self::Bool(true) => Ok(1),
+            Self::Bool(false) => Ok(0),
+        }
+    }
     pub fn to_bool(&self) -> PyResult<bool> {
         Ok(match self {
             Self::Bool(b) => *b,

@@ -2,13 +2,11 @@ use std::borrow::Cow;
 use std::sync::LazyLock;
 
 use html_escape::encode_quoted_attribute_to_string;
-use num_bigint::{BigInt, ToBigInt};
-use num_traits::ToPrimitive;
 use pyo3::prelude::*;
 use pyo3::sync::PyOnceLock;
 use pyo3::types::PyType;
 
-use crate::error::{AnnotatePyErr, RenderError};
+use crate::error::AnnotatePyErr;
 use crate::filters::{
     AddFilter, AddSlashesFilter, CapfirstFilter, CenterFilter, DefaultFilter, DefaultIfNoneFilter,
     EscapeFilter, EscapejsFilter, ExternalFilter, FilterType, LowerFilter, SafeFilter,
@@ -147,16 +145,6 @@ impl ResolveFilter for CapfirstFilter {
     }
 }
 
-fn resolve_bigint(bigint: BigInt, at: (usize, usize)) -> Result<usize, RenderError> {
-    match bigint.to_isize() {
-        Some(n) => Ok(n.max(0) as usize),
-        None => Err(RenderError::OverflowError {
-            argument: bigint.to_string(),
-            argument_at: at.into(),
-        }),
-    }
-}
-
 impl ResolveFilter for CenterFilter {
     fn resolve<'t, 'py>(
         &self,
@@ -176,49 +164,7 @@ impl ResolveFilter for CenterFilter {
             .resolve(py, template, context, ResolveFailures::Raise)?
             .expect("missing argument in context should already have raised");
 
-        let size = match arg {
-            Content::Int(left) => resolve_bigint(left, self.argument.at)?,
-            Content::String(left) => match left.as_raw().parse::<BigInt>() {
-                Ok(n) => resolve_bigint(n, self.argument.at)?,
-                Err(_) => {
-                    return Err(RenderError::InvalidArgumentInteger {
-                        argument: format!("'{}'", left.as_raw()),
-                        argument_at: self.argument.at.into(),
-                    }
-                    .into());
-                }
-            },
-            Content::Float(left) => match left.trunc().to_bigint() {
-                Some(n) => resolve_bigint(n, self.argument.at)?,
-                None => {
-                    return Err(RenderError::InvalidArgumentFloat {
-                        argument: left.to_string(),
-                        argument_at: self.argument.at.into(),
-                    }
-                    .into());
-                }
-            },
-            Content::Py(left) => match left.extract::<BigInt>() {
-                Ok(left) => resolve_bigint(left, self.argument.at)?,
-                Err(_) => {
-                    let argument = left.to_string();
-                    let argument_at = self.argument.at.into();
-                    let err = match left.extract::<f64>() {
-                        Ok(_) => RenderError::InvalidArgumentFloat {
-                            argument,
-                            argument_at,
-                        },
-                        Err(_) => RenderError::InvalidArgumentInteger {
-                            argument,
-                            argument_at,
-                        },
-                    };
-                    return Err(err.into());
-                }
-            },
-            Content::Bool(true) if content.is_empty() => return Ok(Some(" ".as_content())),
-            Content::Bool(_) => return Ok(Some(content.into_content())),
-        };
+        let size = arg.resolve_usize(self.argument.at)?;
 
         if size <= content.len() {
             return Ok(Some(content.into_content()));
