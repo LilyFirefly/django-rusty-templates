@@ -71,6 +71,18 @@ def test_default_if_none_preserves_html_safe_value(assert_render):
             id="autoescape_html_default_variable",
         ),
         pytest.param(
+            "{% autoescape off %}{{ value|default_if_none:'default' }}{% endautoescape %}",
+            {"value": "<b>html</b>"},
+            "<b>html</b>",
+            id="autoescape_html_value",
+        ),
+        pytest.param(
+            "{% autoescape off %}{{ value|default_if_none:default }}{% endautoescape %}",
+            {"value": None, "default": "<b>default</b>"},
+            "<b>default</b>",
+            id="autoescape_html_default_variable",
+        ),
+        pytest.param(
             "{{ value|default_if_none:'<b>default</b>'|escape }}",
             {"value": None},
             "<b>default</b>",
