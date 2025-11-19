@@ -11,6 +11,7 @@ pub enum FilterType {
     Capfirst(CapfirstFilter),
     Center(CenterFilter),
     Default(DefaultFilter),
+    DefaultIfNone(DefaultIfNoneFilter),
     Escape(EscapeFilter),
     Escapejs(EscapejsFilter),
     External(ExternalFilter),
@@ -55,6 +56,17 @@ pub struct DefaultFilter {
 }
 
 impl DefaultFilter {
+    pub fn new(argument: Argument) -> Self {
+        Self { argument }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct DefaultIfNoneFilter {
+    pub argument: Argument,
+}
+
+impl DefaultIfNoneFilter {
     pub fn new(argument: Argument) -> Self {
         Self { argument }
     }

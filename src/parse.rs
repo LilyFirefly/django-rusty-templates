@@ -15,6 +15,7 @@ use crate::filters::AddSlashesFilter;
 use crate::filters::CapfirstFilter;
 use crate::filters::CenterFilter;
 use crate::filters::DefaultFilter;
+use crate::filters::DefaultIfNoneFilter;
 use crate::filters::EscapeFilter;
 use crate::filters::EscapejsFilter;
 use crate::filters::ExternalFilter;
@@ -125,6 +126,10 @@ impl Filter {
             },
             "default" => match right {
                 Some(right) => FilterType::Default(DefaultFilter::new(right)),
+                None => return Err(ParseError::MissingArgument { at: at.into() }),
+            },
+            "default_if_none" => match right {
+                Some(right) => FilterType::DefaultIfNone(DefaultIfNoneFilter::new(right)),
                 None => return Err(ParseError::MissingArgument { at: at.into() }),
             },
             "escape" => match right {

@@ -10,9 +10,9 @@ use pyo3::types::PyType;
 
 use crate::error::{AnnotatePyErr, RenderError};
 use crate::filters::{
-    AddFilter, AddSlashesFilter, CapfirstFilter, CenterFilter, DefaultFilter, EscapeFilter,
-    EscapejsFilter, ExternalFilter, FilterType, LowerFilter, SafeFilter, SlugifyFilter,
-    UpperFilter, YesnoFilter,
+    AddFilter, AddSlashesFilter, CapfirstFilter, CenterFilter, DefaultFilter, DefaultIfNoneFilter,
+    EscapeFilter, EscapejsFilter, ExternalFilter, FilterType, LowerFilter, SafeFilter,
+    SlugifyFilter, UpperFilter, YesnoFilter,
 };
 use crate::parse::Filter;
 use crate::render::common::gettext;
@@ -47,6 +47,7 @@ impl Resolve for Filter {
             FilterType::Capfirst(filter) => filter.resolve(left, py, template, context),
             FilterType::Center(filter) => filter.resolve(left, py, template, context),
             FilterType::Default(filter) => filter.resolve(left, py, template, context),
+            FilterType::DefaultIfNone(filter) => filter.resolve(left, py, template, context),
             FilterType::Escape(filter) => filter.resolve(left, py, template, context),
             FilterType::Escapejs(filter) => filter.resolve(left, py, template, context),
             FilterType::External(filter) => filter.resolve(left, py, template, context),
@@ -252,6 +253,25 @@ impl ResolveFilter for DefaultFilter {
             None => self
                 .argument
                 .resolve(py, template, context, ResolveFailures::Raise),
+        }
+    }
+}
+
+impl ResolveFilter for DefaultIfNoneFilter {
+    fn resolve<'t, 'py>(
+        &self,
+        variable: Option<Content<'t, 'py>>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> ResolveResult<'t, 'py> {
+        match variable {
+            Some(Content::Py(ref value)) if value.is_none() => {
+                self.argument
+                    .resolve(py, template, context, ResolveFailures::Raise)
+            }
+            Some(left) => Ok(Some(left)),
+            None => Ok(Some("".as_content())),
         }
     }
 }
