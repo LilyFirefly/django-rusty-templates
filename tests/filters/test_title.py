@@ -1,5 +1,7 @@
 import pytest
 
+from tests.utils import BrokenDunderStr
+
 
 @pytest.mark.parametrize(
     "var,expected",
@@ -23,12 +25,12 @@ import pytest
         # Apostrophes
         pytest.param(
             "they're bill's friends from the UK",
-            "They&#x27;re Bill&#x27;s Friends From The Uk",
+            "They're Bill's Friends From The Uk",
             id="apostrophes",
         ),
-        pytest.param("it's a nice day", "It&#x27;s A Nice Day", id="its"),
-        pytest.param("don't stop", "Don&#x27;t Stop", id="dont"),
-        pytest.param("JOE'S CRAB SHACK", "Joe&#x27;s Crab Shack", id="caps"),
+        pytest.param("it's a nice day", "It's A Nice Day", id="its"),
+        pytest.param("don't stop", "Don't Stop", id="dont"),
+        pytest.param("JOE'S CRAB SHACK", "Joe's Crab Shack", id="caps"),
         # Digits
         pytest.param("2 apples", "2 Apples", id="digit_start"),
         pytest.param("1st place", "1st Place", id="digit_with_letters"),
@@ -46,12 +48,12 @@ import pytest
         pytest.param(3.14, "3.14", id="float"),
         pytest.param(True, "True", id="bool_true"),
         pytest.param(False, "False", id="bool_false"),
-        pytest.param("<b>hello world</b>", "&lt;B&gt;Hello World&lt;/B&gt;", id="html"),
+        pytest.param("<b>hello world</b>", "<B>Hello World</B>", id="html"),
         pytest.param(None, "None", id="none"),
     ],
 )
 def test_title_basic(assert_render, var, expected):
-    template = "{{ var|title }}"
+    template = "{% autoescape off %}{{ var|title }}{% endautoescape %}"
     assert_render(template=template, context={"var": var}, expected=expected)
 
 
@@ -59,13 +61,19 @@ def test_title_basic(assert_render, var, expected):
     "var,expected",
     [
         pytest.param(
-            "they're bill's friends", "They're Bill's Friends", id="apostrophes"
+            "they're bill's friends from the UK",
+            "They&#x27;re Bill&#x27;s Friends From The Uk",
+            id="apostrophes",
         ),
-        pytest.param("<b>hello world</b>", "<B>Hello World</B>", id="weird_html"),
+        pytest.param("it's a nice day", "It&#x27;s A Nice Day", id="its"),
+        pytest.param("don't stop", "Don&#x27;t Stop", id="dont"),
+        pytest.param("JOE'S CRAB SHACK", "Joe&#x27;s Crab Shack", id="caps"),
+        pytest.param("<b>hello world</b>", "&lt;B&gt;Hello World&lt;/B&gt;", id="html"),
     ],
 )
-def test_title_apostrophes_with_safe(assert_render, var, expected):
-    template = "{{ var|title|safe }}"
+def test_title_with_autoescape(assert_render, var, expected):
+    """Test that title filter properly escapes HTML and apostrophes when autoescape is on."""
+    template = "{% autoescape on %}{{ var|title }}{% endautoescape %}"
     assert_render(template=template, context={"var": var}, expected=expected)
 
 
@@ -101,4 +109,15 @@ def test_title_with_argument_error(assert_parse_error):
 """
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_title_invalid_str_method(assert_render_error):
+    broken = BrokenDunderStr()
+    assert_render_error(
+        template="{{ broken|title }}",
+        context={"broken": broken},
+        exception=ZeroDivisionError,
+        django_message="division by zero",
+        rusty_message="division by zero",
     )
