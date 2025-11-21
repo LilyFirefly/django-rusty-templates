@@ -25,6 +25,7 @@ use crate::filters::SafeFilter;
 use crate::filters::SlugifyFilter;
 use crate::filters::TitleFilter;
 use crate::filters::UpperFilter;
+use crate::filters::WordcountFilter;
 use crate::filters::YesnoFilter;
 use crate::lex::START_TAG_LEN;
 use crate::lex::autoescape::{AutoescapeEnabled, AutoescapeError, lex_autoescape_argument};
@@ -160,6 +161,10 @@ impl Filter {
             "upper" => match right {
                 Some(right) => return Err(unexpected_argument("upper", right)),
                 None => FilterType::Upper(UpperFilter),
+            },
+            "wordcount" => match right {
+                Some(right) => return Err(unexpected_argument("wordcount", right)),
+                None => FilterType::Wordcount(WordcountFilter),
             },
             "yesno" => FilterType::Yesno(YesnoFilter::new(at, right)),
             external => {
