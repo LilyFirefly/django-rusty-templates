@@ -60,7 +60,7 @@ jobs:
       uses: astral-sh/setup-uv@1e862dfacbd1d6d858c55d9b792c756523627244 # v7.1.4
 
     - name: Install cargo-llvm-cov
-      uses: taiki-e/install-action@62da238c048aa0f865cc5a322082957d34e7fc1a # v2.62.54
+      uses: taiki-e/install-action@132c875eef0d3e3be95c2d08d74e8559cbf74bdb # v2.62.55
       with:
         tool: cargo-llvm-cov
 
