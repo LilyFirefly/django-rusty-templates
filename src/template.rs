@@ -7,7 +7,9 @@ pub mod django_rusty_templates {
     use std::sync::Arc;
 
     use encoding_rs::Encoding;
-    use pyo3::exceptions::{PyAttributeError, PyImportError, PyOverflowError, PyValueError};
+    use pyo3::exceptions::{
+        PyAttributeError, PyImportError, PyOverflowError, PyTypeError, PyValueError,
+    };
     use pyo3::import_exception;
     use pyo3::intern;
     use pyo3::prelude::*;
@@ -560,7 +562,18 @@ pub mod django_rusty_templates {
                 for processor in self.context_processors.iter() {
                     let processor = processor.bind(py);
                     let processor_context = processor.call1((request,))?;
-                    let processor_context: HashMap<_, _> = processor_context.extract()?;
+                    let processor_context: HashMap<_, _> = match processor_context.extract() {
+                        Ok(processor_context) => processor_context,
+                        Err(_) => {
+                            let processor_module = processor.getattr("__module__")?;
+                            let processor_name = processor.getattr("__qualname__")?;
+                            let message = format!(
+                                "Context processor '{processor_module}.{processor_name}' didn't return a dictionary."
+                            );
+                            let error = PyTypeError::new_err(message);
+                            return Err(error);
+                        }
+                    };
                     base_context.extend(processor_context);
                 }
             };

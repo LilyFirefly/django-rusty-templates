@@ -75,3 +75,36 @@ def test_broken_context_processor(engine_class):
 
     with pytest.raises(ZeroDivisionError):
         template.render({}, request)
+
+
+def invalid(request):
+    return 0
+
+
+@pytest.mark.parametrize(
+    "engine_class,expected",
+    (
+        (
+            RustyTemplates,
+            "Context processor 'tests.test_context_processors.invalid' didn't return a dictionary.",
+        ),
+        (DjangoTemplates, "Context processor invalid didn't return a dictionary."),
+    ),
+)
+def test_context_processor_invalid_return_type(engine_class, expected):
+    params = {
+        "APP_DIRS": False,
+        "DIRS": [],
+        "NAME": "test",
+        "OPTIONS": {
+            "context_processors": ["tests.test_context_processors.invalid"],
+        },
+    }
+    engine = engine_class(params)
+    template = engine.from_string("")
+    request = RequestFactory().get("/")
+
+    with pytest.raises(TypeError) as exc_info:
+        template.render({}, request)
+
+    assert str(exc_info.value) == expected
