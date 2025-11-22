@@ -560,13 +560,28 @@ mod tests {
             expected.push("tests/templates/missing.txt");
             #[cfg(windows)]
             expected.push("tests\\templates\\missing.txt");
+
+            let auth = py.import("django.contrib.auth").unwrap();
+            let auth: PathBuf = auth.getattr("__file__").unwrap().extract().unwrap();
+            let mut auth = auth.parent().unwrap().to_path_buf();
+            #[cfg(not(windows))]
+            auth.push("templates/missing.txt");
+            #[cfg(windows)]
+            auth.push("templates\\missing.txt");
+
             assert_eq!(
                 error,
                 LoaderError {
-                    tried: vec![(
-                        expected.display().to_string(),
-                        "Source does not exist".to_string(),
-                    )],
+                    tried: vec![
+                        (
+                            expected.display().to_string(),
+                            "Source does not exist".to_string(),
+                        ),
+                        (
+                            auth.display().to_string(),
+                            "Source does not exist".to_string(),
+                        ),
+                    ],
                 },
             );
         })
@@ -670,7 +685,7 @@ mod tests {
             setup_django(py);
 
             let dirs = get_app_template_dirs(py, "templates").unwrap();
-            assert_eq!(dirs.len(), 1);
+            assert_eq!(dirs.len(), 2);
 
             let mut expected = std::env::current_dir().unwrap();
             expected.push("tests/templates");

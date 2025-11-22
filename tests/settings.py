@@ -4,6 +4,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 INSTALLED_APPS = [
     "tests.apps.DummyAppConfig",
+    "django.contrib.contenttypes",
+    "django.contrib.auth",
 ]
 
 TEMPLATES = [
@@ -20,6 +22,7 @@ TEMPLATES = [
             },
             "context_processors": [
                 "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
             ],
         },
     },
@@ -37,6 +40,7 @@ TEMPLATES = [
             },
             "context_processors": [
                 "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
             ],
         },
     },

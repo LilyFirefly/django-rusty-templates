@@ -4,9 +4,12 @@ use pyo3::prelude::*;
 pub mod django_rusty_templates {
     use std::collections::HashMap;
     use std::path::PathBuf;
+    use std::sync::Arc;
 
     use encoding_rs::Encoding;
-    use pyo3::exceptions::{PyAttributeError, PyImportError, PyOverflowError, PyValueError};
+    use pyo3::exceptions::{
+        PyAttributeError, PyImportError, PyOverflowError, PyTypeError, PyValueError,
+    };
     use pyo3::import_exception;
     use pyo3::intern;
     use pyo3::prelude::*;
@@ -80,6 +83,7 @@ pub mod django_rusty_templates {
     #[derive(Debug)]
     pub struct EngineData {
         autoescape: bool,
+        context_processors: Arc<Vec<Py<PyAny>>>,
         libraries: HashMap<String, Py<PyAny>>,
     }
 
@@ -89,6 +93,7 @@ pub mod django_rusty_templates {
             Self {
                 autoescape: false,
                 libraries: HashMap::new(),
+                context_processors: Arc::new(Vec::new()),
             }
         }
     }
@@ -254,7 +259,7 @@ pub mod django_rusty_templates {
         #[pyo3(signature = (dirs=None, app_dirs=false, context_processors=None, debug=false, loaders=None, string_if_invalid="".to_string(), file_charset="utf-8".to_string(), libraries=None, builtins=None, autoescape=true))]
         #[allow(clippy::too_many_arguments)] // We're matching Django's Engine __init__ signature
         pub fn new(
-            _py: Python<'_>,
+            py: Python<'_>,
             dirs: Option<Bound<'_, PyAny>>,
             app_dirs: bool,
             context_processors: Option<Bound<'_, PyAny>>,
@@ -270,9 +275,21 @@ pub mod django_rusty_templates {
                 Some(dirs) => dirs.extract()?,
                 None => Vec::new(),
             };
-            let context_processors = match context_processors {
-                Some(context_processors) => context_processors.extract()?,
-                None => Vec::new(),
+            let (context_processors, loaded_context_processors) = match context_processors {
+                Some(context_processors) => {
+                    let utils = py.import("django.utils.module_loading")?;
+                    let import_string = utils.getattr("import_string")?;
+                    let loaded = context_processors
+                        .try_iter()?
+                        .map(|processor| {
+                            import_string
+                                .call1((processor?,))
+                                .map(|processor| processor.unbind())
+                        })
+                        .collect::<PyResult<Vec<Py<PyAny>>>>()?;
+                    (context_processors.extract()?, loaded)
+                }
+                None => (Vec::new(), Vec::new()),
             };
             let encoding = match Encoding::for_label(file_charset.as_bytes()) {
                 Some(encoding) => encoding,
@@ -289,7 +306,7 @@ pub mod django_rusty_templates {
                     );
                     return Err(err);
                 }
-                Some(loaders) => get_template_loaders(_py, loaders.try_iter()?, encoding)?,
+                Some(loaders) => get_template_loaders(py, loaders.try_iter()?, encoding)?,
                 None => {
                     let filesystem_loader =
                         Loader::FileSystem(FileSystemLoader::new(dirs.clone(), encoding));
@@ -310,6 +327,7 @@ pub mod django_rusty_templates {
             let builtins = vec![];
             let data = EngineData {
                 autoescape,
+                context_processors: Arc::new(loaded_context_processors),
                 libraries,
             };
             Ok(Self {
@@ -420,13 +438,14 @@ pub mod django_rusty_templates {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq)]
+    #[derive(Debug, Clone)]
     #[pyclass]
     pub struct Template {
         pub filename: Option<PathBuf>,
         pub template: String,
         pub nodes: Vec<TokenTree>,
         pub autoescape: bool,
+        context_processors: Arc<Vec<Py<PyAny>>>,
     }
 
     impl Template {
@@ -451,6 +470,7 @@ pub mod django_rusty_templates {
                 filename: Some(filename),
                 nodes,
                 autoescape: engine_data.autoescape,
+                context_processors: engine_data.context_processors.clone(),
             })
         }
 
@@ -472,6 +492,7 @@ pub mod django_rusty_templates {
                 filename: None,
                 nodes,
                 autoescape: engine_data.autoescape,
+                context_processors: engine_data.context_processors.clone(),
             })
         }
 
@@ -536,11 +557,30 @@ pub mod django_rusty_templates {
                     PyBool::new(py, false).to_owned().into(),
                 ),
             ]);
+            let request = request.map(|request| request.unbind());
+            if let Some(ref request) = request {
+                for processor in self.context_processors.iter() {
+                    let processor = processor.bind(py);
+                    let processor_context = processor.call1((request,))?;
+                    let processor_context: HashMap<_, _> = match processor_context.extract() {
+                        Ok(processor_context) => processor_context,
+                        Err(_) => {
+                            let processor_module = processor.getattr("__module__")?;
+                            let processor_name = processor.getattr("__qualname__")?;
+                            let message = format!(
+                                "Context processor '{processor_module}.{processor_name}' didn't return a dictionary."
+                            );
+                            let error = PyTypeError::new_err(message);
+                            return Err(error);
+                        }
+                    };
+                    base_context.extend(processor_context);
+                }
+            };
             if let Some(context) = context {
                 let new_context: HashMap<_, _> = context.extract()?;
                 base_context.extend(new_context);
             };
-            let request = request.map(|request| request.unbind());
             let mut context = Context::new(base_context, request, self.autoescape);
             self._render(py, &mut context)
         }
@@ -752,7 +792,10 @@ user = User(["Lily"])
                 .get_template(py, "full_example.html".to_string())
                 .unwrap();
             let cloned = template.clone();
-            assert_eq!(cloned, template);
+            assert_eq!(cloned.filename, template.filename);
+            assert_eq!(cloned.template, template.template);
+            assert_eq!(cloned.nodes, template.nodes);
+            assert_eq!(cloned.autoescape, template.autoescape);
         })
     }
 
