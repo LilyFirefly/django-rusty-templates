@@ -3,7 +3,7 @@ use crate::lex::common::{
     translated_text_content_at,
 };
 use crate::lex::tag::TagParts;
-use crate::types::TemplateString;
+use crate::lex::types::TemplateString;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum IfConditionAtom {

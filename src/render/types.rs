@@ -16,8 +16,8 @@ use pyo3::sync::MutexExt;
 use pyo3::types::{PyBool, PyDict, PyInt, PyString, PyType};
 
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
-use crate::types::TemplateString;
 use crate::utils::PyResultMethods;
+use lexer::lex::types::TemplateString;
 
 #[derive(Debug, Clone)]
 pub struct ForLoop {

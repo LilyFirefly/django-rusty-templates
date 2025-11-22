@@ -1,3 +1,13 @@
+[workspace]
+members = ["lexer"]
+resolver = "3"
+
+[workspace.dependencies]
+miette = { version = "7.6.0", features = ["fancy"] }
+thiserror = "2.0.16"
+num-bigint = "0.4.6"
+unicode-xid =  "0.2.6"
+
 [package]
 name = "django-rusty-templates"
 version = "0.1.0"
@@ -13,15 +23,16 @@ cached = "0.56.0"
 either = "1.15.0"
 encoding_rs = "0.8.35"
 html-escape = "0.2.13"
-miette = { version = "7.6.0", features = ["fancy"] }
-num-bigint = "0.4.6"
+miette = { workspace = true }
+num-bigint = { workspace = true }
 pyo3 = { version = "0.27.0", features = ["num-bigint"] }
 sugar_path = "1.2.0"
-thiserror = "2.0.16"
-unicode-xid = "0.2.6"
+thiserror =  { workspace = true }
+unicode-xid = { workspace = true }
 regex = "1.11.2"
 unicode-normalization = "0.1.24"
 num-traits = "0.2.19"
+lexer = { path = "lexer" }
 
 [dev-dependencies]
 

@@ -29,6 +29,7 @@ dev = [
     "pytest-django",
     "pytest-cov",
     "ruff",
+    "pre-commit"
 ]
 
 [tool.ruff]

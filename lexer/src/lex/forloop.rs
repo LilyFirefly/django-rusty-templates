@@ -5,7 +5,7 @@ use crate::lex::common::{
     LexerError, NextChar, lex_numeric, lex_text, lex_translated, lex_variable,
 };
 use crate::lex::tag::TagParts;
-use crate::types::TemplateString;
+use crate::lex::types::TemplateString;
 
 #[derive(Clone, Error, Debug, Diagnostic, PartialEq, Eq)]
 pub enum ForLexerError {
