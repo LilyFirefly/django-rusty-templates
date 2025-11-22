@@ -18,6 +18,14 @@ def test_auth_context_processor(assert_render, user):
     assert_render("{{ user.username }}", {}, expected, request=request)
 
 
+def test_auth_context_processor_user_in_context(assert_render):
+    request = RequestFactory().get("/")
+    request.user = User(username="Lily")
+    context = {"user": User(username="Bryony")}
+
+    assert_render("{{ user.username }}", context, "Bryony", request=request)
+
+
 @pytest.mark.parametrize("engine_class", (RustyTemplates, DjangoTemplates))
 def test_missing_context_processor(engine_class):
     params = {
