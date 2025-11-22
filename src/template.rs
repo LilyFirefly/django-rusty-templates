@@ -420,7 +420,7 @@ pub mod django_rusty_templates {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq)]
+    #[derive(Debug, Clone)]
     #[pyclass]
     pub struct Template {
         pub filename: Option<PathBuf>,
@@ -752,7 +752,10 @@ user = User(["Lily"])
                 .get_template(py, "full_example.html".to_string())
                 .unwrap();
             let cloned = template.clone();
-            assert_eq!(cloned, template);
+            assert_eq!(cloned.filename, template.filename);
+            assert_eq!(cloned.template, template.template);
+            assert_eq!(cloned.nodes, template.nodes);
+            assert_eq!(cloned.autoescape, template.autoescape);
         })
     }
 
