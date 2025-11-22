@@ -77,6 +77,7 @@ pub mod django_rusty_templates {
         }
     }
 
+    #[derive(Debug)]
     pub struct EngineData {
         autoescape: bool,
         libraries: HashMap<String, Py<PyAny>>,
@@ -225,6 +226,8 @@ pub mod django_rusty_templates {
             ))),
         }
     }
+
+    #[derive(Debug)]
     #[pyclass]
     pub struct Engine {
         #[allow(dead_code)]
@@ -549,7 +552,7 @@ mod tests {
     use super::django_rusty_templates::*;
 
     use pyo3::Python;
-    use pyo3::types::{PyDict, PyDictMethods, PyString};
+    use pyo3::types::{PyDict, PyDictMethods, PyList, PyString};
 
     #[test]
     fn test_syntax_error() {
@@ -824,6 +827,34 @@ user = User(["Lily"])
             // let loaders: Vec<String> = py_engine.getattr("loaders").unwrap().extract().unwrap();
             // assert_eq!(loaders.len(), 1);
             // assert_eq!(loaders[0], "django.template.loaders.cached.Loader");
+        })
+    }
+
+    #[test]
+    fn test_engine_app_dirs_with_loaders() {
+        Python::initialize();
+
+        Python::attach(|py| {
+            let loaders = PyList::empty(py).into_any();
+            let app_dirs = true;
+            let engine_error = Engine::new(
+                py,
+                None,
+                app_dirs,
+                None,
+                false,
+                Some(loaders),
+                "".to_string(),
+                "utf-8".to_string(),
+                None,
+                None,
+                false,
+            )
+            .unwrap_err();
+
+            assert!(engine_error.is_instance_of::<ImproperlyConfigured>(py));
+            let message = "app_dirs must not be set when loaders is defined.";
+            assert_eq!(engine_error.value(py).to_string(), message);
         })
     }
 }
