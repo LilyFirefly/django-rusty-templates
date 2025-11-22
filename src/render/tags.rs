@@ -9,12 +9,13 @@ use pyo3::prelude::*;
 use pyo3::sync::MutexExt;
 use pyo3::types::{PyBool, PyDict, PyList, PyNone, PyString, PyTuple};
 
+use dtl_lexer::types::TemplateString;
+
 use super::types::{AsBorrowedContent, Content, Context, PyContext};
 use super::{Evaluate, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
 use crate::parse::{For, IfCondition, SimpleBlockTag, SimpleTag, Tag, TagElement, Url};
 use crate::template::django_rusty_templates::NoReverseMatch;
-use crate::types::TemplateString;
 use crate::utils::PyResultMethods;
 
 fn current_app(py: Python, request: &Option<Py<PyAny>>) -> PyResult<Py<PyAny>> {

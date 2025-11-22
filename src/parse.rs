@@ -27,33 +27,38 @@ use crate::filters::TitleFilter;
 use crate::filters::UpperFilter;
 use crate::filters::WordcountFilter;
 use crate::filters::YesnoFilter;
-use crate::lex::START_TAG_LEN;
-use crate::lex::autoescape::{AutoescapeEnabled, AutoescapeError, lex_autoescape_argument};
-use crate::lex::common::{LexerError, text_content_at, translated_text_content_at};
-use crate::lex::core::{Lexer, TokenType};
-use crate::lex::custom_tag::{
+use dtl_lexer::START_TAG_LEN;
+use dtl_lexer::autoescape::{AutoescapeEnabled, AutoescapeError, lex_autoescape_argument};
+use dtl_lexer::common::{LexerError, text_content_at, translated_text_content_at};
+use dtl_lexer::core::{Lexer, TokenType};
+use dtl_lexer::custom_tag::{
     SimpleTagLexer, SimpleTagLexerError, SimpleTagToken, SimpleTagTokenType,
 };
-use crate::lex::forloop::{ForLexer, ForLexerError, ForLexerInError, ForTokenType};
-use crate::lex::ifcondition::{
+use dtl_lexer::forloop::{ForLexer, ForLexerError, ForLexerInError, ForTokenType};
+use dtl_lexer::ifcondition::{
     IfConditionAtom, IfConditionLexer, IfConditionOperator, IfConditionTokenType,
 };
-use crate::lex::load::{LoadLexer, LoadToken};
-use crate::lex::tag::{TagLexerError, TagParts, lex_tag};
-use crate::lex::variable::{
+use dtl_lexer::load::{LoadLexer, LoadToken};
+use dtl_lexer::tag::{TagLexerError, TagParts, lex_tag};
+use dtl_lexer::types::TemplateString;
+use dtl_lexer::variable::{
     Argument as ArgumentToken, ArgumentType as ArgumentTokenType, VariableLexerError,
     VariableTokenType, lex_variable,
 };
+
 use crate::types::Argument;
 use crate::types::ArgumentType;
 use crate::types::ForVariable;
 use crate::types::ForVariableName;
-use crate::types::TemplateString;
+
 use crate::types::Text;
 use crate::types::TranslatedText;
 use crate::types::Variable;
 
-impl ArgumentToken {
+trait Parse<R> {
+    fn parse(&self, parser: &Parser) -> Result<R, ParseError>;
+}
+impl Parse<Argument> for ArgumentToken {
     fn parse(&self, parser: &Parser) -> Result<Argument, ParseError> {
         Ok(Argument {
             at: self.at,
@@ -194,7 +199,7 @@ fn parse_numeric(content: &str, at: (usize, usize)) -> Result<TagElement, ParseE
     }
 }
 
-impl SimpleTagToken {
+impl Parse<TagElement> for SimpleTagToken {
     fn parse(&self, parser: &Parser) -> Result<TagElement, ParseError> {
         let content_at = self.content_at();
         let (start, _len) = content_at;
@@ -320,7 +325,12 @@ fn parse_if_binding_power(
 
 const NOT_BINDING_POWER: u8 = 8;
 
-impl IfConditionOperator {
+trait IfConditionOperatorMethods {
+    fn binding_power(&self) -> u8;
+    fn build_condition(&self, lhs: IfCondition, rhs: IfCondition) -> IfCondition;
+}
+
+impl IfConditionOperatorMethods for IfConditionOperator {
     fn binding_power(&self) -> u8 {
         match self {
             Self::Or => 6,
@@ -850,7 +860,15 @@ impl PyParseError {
     }
 }
 
-impl LoadToken {
+trait LoadLibrary {
+    fn load_library<'l, 'py>(
+        &self,
+        py: Python<'py>,
+        libraries: &'l HashMap<String, Py<PyAny>>,
+        template: TemplateString<'_>,
+    ) -> Result<&'l Bound<'py, PyAny>, ParseError>;
+}
+impl LoadLibrary for LoadToken {
     fn load_library<'l, 'py>(
         &self,
         py: Python<'py>,
@@ -1676,11 +1694,11 @@ mod tests {
     use super::*;
     use pyo3::types::{PyDict, PyDictMethods};
 
-    use crate::lex::common::LexerError;
     use crate::{
         filters::{DefaultFilter, ExternalFilter, LowerFilter},
         template::django_rusty_templates::{EngineData, Template},
     };
+    use dtl_lexer::common::LexerError;
 
     fn get_external_filter(node: &TokenTree) -> Arc<Py<PyAny>> {
         match node {

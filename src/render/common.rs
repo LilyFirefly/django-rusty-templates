@@ -4,6 +4,8 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::PyString;
 
+use dtl_lexer::types::TemplateString;
+
 use super::types::{AsBorrowedContent, Content, ContentString, Context};
 use super::{Evaluate, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
 use crate::error::RenderError;
@@ -12,7 +14,6 @@ use crate::types::Argument;
 use crate::types::ArgumentType;
 use crate::types::ForVariable;
 use crate::types::ForVariableName;
-use crate::types::TemplateString;
 use crate::types::Text;
 use crate::types::TranslatedText;
 use crate::types::Variable;

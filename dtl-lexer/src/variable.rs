@@ -3,11 +3,11 @@ use num_bigint::BigInt;
 use thiserror::Error;
 use unicode_xid::UnicodeXID;
 
-use crate::lex::common::{
+use crate::common::{
     LexerError, NextChar, check_variable_attrs, lex_numeric, lex_text, lex_translated,
     lex_variable_argument, trim_variable,
 };
-use crate::lex::{END_TRANSLATE_LEN, QUOTE_LEN, START_TRANSLATE_LEN};
+use crate::{END_TRANSLATE_LEN, QUOTE_LEN, START_TRANSLATE_LEN};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ArgumentType {
@@ -353,7 +353,7 @@ impl Iterator for FilterLexer<'_> {
 mod tests {
     use super::*;
 
-    use crate::lex::{END_TAG_LEN, START_TAG_LEN};
+    use crate::{END_TAG_LEN, START_TAG_LEN};
 
     fn contents(
         template: &str,

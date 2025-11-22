@@ -1,5 +1,5 @@
-use crate::lex::common::NextChar;
-use crate::lex::tag::TagParts;
+use crate::common::NextChar;
+use crate::tag::TagParts;
 use crate::types::TemplateString;
 
 #[derive(Debug, PartialEq)]

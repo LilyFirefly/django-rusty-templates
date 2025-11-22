@@ -17,8 +17,8 @@ pub mod django_rusty_templates {
     use crate::parse::{Parser, TokenTree};
     use crate::render::Render;
     use crate::render::types::Context;
-    use crate::types::TemplateString;
     use crate::utils::PyResultMethods;
+    use dtl_lexer::types::TemplateString;
 
     import_exception!(django.core.exceptions, ImproperlyConfigured);
     import_exception!(django.template.base, VariableDoesNotExist);
