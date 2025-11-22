@@ -4,6 +4,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 INSTALLED_APPS = [
     "tests.apps.DummyAppConfig",
+    "django.contrib.contenttypes",
+    "django.contrib.auth",
 ]
 
 TEMPLATES = [
