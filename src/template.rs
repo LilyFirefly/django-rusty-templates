@@ -254,7 +254,7 @@ pub mod django_rusty_templates {
         #[pyo3(signature = (dirs=None, app_dirs=false, context_processors=None, debug=false, loaders=None, string_if_invalid="".to_string(), file_charset="utf-8".to_string(), libraries=None, builtins=None, autoescape=true))]
         #[allow(clippy::too_many_arguments)] // We're matching Django's Engine __init__ signature
         pub fn new(
-            _py: Python<'_>,
+            py: Python<'_>,
             dirs: Option<Bound<'_, PyAny>>,
             app_dirs: bool,
             context_processors: Option<Bound<'_, PyAny>>,
@@ -289,7 +289,7 @@ pub mod django_rusty_templates {
                     );
                     return Err(err);
                 }
-                Some(loaders) => get_template_loaders(_py, loaders.try_iter()?, encoding)?,
+                Some(loaders) => get_template_loaders(py, loaders.try_iter()?, encoding)?,
                 None => {
                     let filesystem_loader =
                         Loader::FileSystem(FileSystemLoader::new(dirs.clone(), encoding));
