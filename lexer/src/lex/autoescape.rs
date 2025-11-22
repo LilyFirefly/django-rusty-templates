@@ -2,7 +2,7 @@ use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 
 use crate::lex::tag::TagParts;
-use crate::types::TemplateString;
+use crate::lex::types::TemplateString;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum AutoescapeEnabled {

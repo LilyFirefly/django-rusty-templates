@@ -1,0 +1,10 @@
+[package]
+name = "lexer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+miette = { workspace = true }
+thiserror = { workspace = true }
+num-bigint = { workspace = true }
+unicode-xid = { workspace = true }

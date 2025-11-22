@@ -1,6 +1,6 @@
 use crate::lex::common::NextChar;
 use crate::lex::tag::TagParts;
-use crate::types::TemplateString;
+use crate::lex::types::TemplateString;
 
 #[derive(Debug, PartialEq)]
 pub struct LoadToken {
