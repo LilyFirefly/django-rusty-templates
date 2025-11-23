@@ -1,5 +1,9 @@
-on: push
 name: Lint checks
+
+on:
+  push:
+    branches: main
+  pull_request:
 
 permissions: {}
 
