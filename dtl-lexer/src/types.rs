@@ -1,6 +1,3 @@
-use std::borrow::Cow;
-use std::ops::Deref;
-
 #[derive(Clone, Copy)]
 pub struct TemplateString<'t>(pub &'t str);
 
