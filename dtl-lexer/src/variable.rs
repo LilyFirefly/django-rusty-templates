@@ -7,7 +7,8 @@ use crate::common::{
     LexerError, NextChar, check_variable_attrs, lex_numeric, lex_text, lex_translated,
     lex_variable_argument, trim_variable,
 };
-use crate::{END_TRANSLATE_LEN, QUOTE_LEN, START_TRANSLATE_LEN};
+use crate::types::TemplateString;
+use crate::{END_TRANSLATE_LEN, QUOTE_LEN, START_TRANSLATE_LEN, TemplateContent};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ArgumentType {
@@ -42,11 +43,12 @@ impl Argument {
             }
         }
     }
+}
 
-    #[cfg(test)]
-    pub fn content<'t>(&self, template: &'t str) -> &'t str {
+impl<'t> TemplateContent<'t> for Argument {
+    fn content(&self, template: TemplateString<'t>) -> &'t str {
         let (start, len) = self.content_at();
-        &template[start..start + len]
+        &template.0[start..start + len]
     }
 }
 
@@ -56,11 +58,10 @@ pub struct FilterToken {
     pub argument: Option<Argument>,
 }
 
-#[cfg(test)]
-impl<'t> FilterToken {
-    pub fn content(&self, template: &'t str) -> &'t str {
+impl<'t> TemplateContent<'t> for FilterToken {
+    fn content(&self, template: TemplateString<'t>) -> &'t str {
         let (start, len) = self.at;
-        &template[start..start + len]
+        &template.0[start..start + len]
     }
 }
 
@@ -77,11 +78,10 @@ pub struct VariableToken {
     pub token_type: VariableTokenType,
 }
 
-#[cfg(test)]
-impl<'t> VariableToken {
-    pub fn content(&self, template: &'t str) -> &'t str {
+impl<'t> TemplateContent<'t> for VariableToken {
+    fn content(&self, template: TemplateString<'t>) -> &'t str {
         let (start, len) = self.at;
-        &template[start..start + len]
+        &template.0[start..start + len]
     }
 }
 
@@ -353,12 +353,14 @@ impl Iterator for FilterLexer<'_> {
 mod tests {
     use super::*;
 
+    use crate::types::IntoTemplateString;
     use crate::{END_TAG_LEN, START_TAG_LEN};
 
     fn contents(
         template: &str,
         tokens: Vec<Result<FilterToken, VariableLexerError>>,
     ) -> Vec<(&str, Option<&str>)> {
+        let template = template.into_template_string();
         tokens
             .iter()
             .map(|t| match t {
@@ -393,7 +395,7 @@ mod tests {
                 token_type: VariableTokenType::Variable
             }
         );
-        assert_eq!(token.content(template), "foo.bar");
+        assert_eq!(token.content(template.into_template_string()), "foo.bar");
         let tokens: Vec<_> = lexer.collect();
         assert_eq!(tokens, vec![]);
     }
@@ -410,7 +412,7 @@ mod tests {
                 token_type: VariableTokenType::Int(1.into())
             }
         );
-        assert_eq!(token.content(template), "1");
+        assert_eq!(token.content(template.into_template_string()), "1");
         let tokens: Vec<_> = lexer.collect();
         assert_eq!(tokens, vec![]);
     }
@@ -427,7 +429,7 @@ mod tests {
                 token_type: VariableTokenType::Int((-1).into())
             }
         );
-        assert_eq!(token.content(template), "-1");
+        assert_eq!(token.content(template.into_template_string()), "-1");
         let tokens: Vec<_> = lexer.collect();
         assert_eq!(tokens, vec![]);
     }
@@ -464,7 +466,7 @@ mod tests {
                 token_type: VariableTokenType::Variable
             }
         );
-        assert_eq!(token.content(template), "foo.1");
+        assert_eq!(token.content(template.into_template_string()), "foo.1");
         let tokens: Vec<_> = lexer.collect();
         assert_eq!(tokens, vec![]);
     }
