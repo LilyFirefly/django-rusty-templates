@@ -2,7 +2,7 @@ use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 use unicode_xid::UnicodeXID;
 
-use crate::lex::common::NextChar;
+use crate::common::NextChar;
 
 #[derive(Error, Debug, Diagnostic, Eq, PartialEq)]
 pub enum TagLexerError {
@@ -58,8 +58,8 @@ pub fn lex_tag(tag: &str, start: usize) -> Result<Option<(TagToken, TagParts)>, 
 mod tests {
     use super::*;
 
-    use crate::lex::{END_TAG_LEN, START_TAG_LEN};
     use crate::types::TemplateString;
+    use crate::{END_TAG_LEN, START_TAG_LEN};
 
     fn trim_tag(template: &str) -> &str {
         &template[START_TAG_LEN..(template.len() - END_TAG_LEN)]

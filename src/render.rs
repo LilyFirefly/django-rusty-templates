@@ -7,8 +7,9 @@ use std::borrow::Cow;
 
 use pyo3::prelude::*;
 
+use dtl_lexer::types::TemplateString;
+
 use crate::error::PyRenderError;
-use crate::types::TemplateString;
 use types::{Content, Context};
 
 pub type ResolveResult<'t, 'py> = Result<Option<Content<'t, 'py>>, PyRenderError>;

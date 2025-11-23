@@ -2,7 +2,7 @@ use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 use unicode_xid::UnicodeXID;
 
-use super::{END_TRANSLATE_LEN, QUOTE_LEN, START_TRANSLATE_LEN};
+use crate::{END_TRANSLATE_LEN, QUOTE_LEN, START_TRANSLATE_LEN};
 
 pub trait NextChar {
     fn next_whitespace(&self) -> usize;

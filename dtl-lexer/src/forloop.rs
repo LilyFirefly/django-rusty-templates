@@ -1,10 +1,8 @@
 use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 
-use crate::lex::common::{
-    LexerError, NextChar, lex_numeric, lex_text, lex_translated, lex_variable,
-};
-use crate::lex::tag::TagParts;
+use crate::common::{LexerError, NextChar, lex_numeric, lex_text, lex_translated, lex_variable};
+use crate::tag::TagParts;
 use crate::types::TemplateString;
 
 #[derive(Clone, Error, Debug, Diagnostic, PartialEq, Eq)]

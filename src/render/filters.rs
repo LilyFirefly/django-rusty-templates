@@ -16,7 +16,7 @@ use crate::parse::Filter;
 use crate::render::common::gettext;
 use crate::render::types::{AsBorrowedContent, Content, ContentString, Context, IntoOwnedContent};
 use crate::render::{Resolve, ResolveFailures, ResolveResult};
-use crate::types::TemplateString;
+use dtl_lexer::types::TemplateString;
 use regex::Regex;
 use unicode_normalization::UnicodeNormalization;
 

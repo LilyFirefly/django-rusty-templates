@@ -1,5 +1,5 @@
-use crate::lex::{END_TAG_LEN, START_TAG_LEN};
 use crate::types::TemplateString;
+use crate::{END_TAG_LEN, START_TAG_LEN};
 
 enum EndTag {
     Variable,

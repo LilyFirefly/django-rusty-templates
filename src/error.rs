@@ -3,7 +3,7 @@ use pyo3::exceptions::PyKeyError;
 use pyo3::prelude::*;
 use thiserror::Error;
 
-use crate::types::TemplateString;
+use dtl_lexer::types::TemplateString;
 
 #[derive(Error, Debug)]
 pub enum PyRenderError {

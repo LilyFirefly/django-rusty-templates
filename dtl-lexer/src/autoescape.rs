@@ -1,7 +1,7 @@
 use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 
-use crate::lex::tag::TagParts;
+use crate::tag::TagParts;
 use crate::types::TemplateString;
 
 #[derive(Clone, Debug, PartialEq)]

@@ -18,7 +18,6 @@ macro_rules! todo {
 
 mod error;
 mod filters;
-mod lex;
 mod loaders;
 mod parse;
 mod render;
