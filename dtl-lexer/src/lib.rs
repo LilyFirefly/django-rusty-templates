@@ -1,3 +1,5 @@
+use crate::types::TemplateString;
+
 pub mod autoescape;
 pub mod common;
 pub mod core;
@@ -15,3 +17,7 @@ const END_TAG_LEN: usize = 2;
 const START_TRANSLATE_LEN: usize = 2;
 const END_TRANSLATE_LEN: usize = 1;
 const QUOTE_LEN: usize = 1;
+
+pub trait TemplateContent<'t> {
+    fn content(&self, template: TemplateString<'t>) -> &'t str;
+}
