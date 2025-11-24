@@ -45,6 +45,34 @@ cargo-llvm-cov = "0.6.18"
 ignored = ["cargo-llvm-cov"]
 
 [lints.clippy]
+# See https://rust-lang.github.io/rust-clippy/rust-1.91.0/index.html
 pedantic = { level = "deny", priority = -1 }
 nursery = { level = "deny", priority = -1 }
 unwrap_used = "deny"
+
+# TODO: But require a lot of changes
+needless_pass_by_value = "allow"
+# TODO: Rename `content` variables clashing with `context` to something mre accurate in their context
+#       for ex `variable` or `node` or `part` or `element`
+similar_names = "allow"
+# Todo: We have a bunch failing I don't know how to fix (`Context` / `Filter` / `Template`)
+struct_field_names = "allow"
+
+# Not production ready for rust stable
+missing_const_for_fn = "allow" # 42
+# I find it less easy to understand (and there is a lot to fix manually)
+match_same_arms = "allow"
+# Lots of documented false positives
+must_use_candidate = "allow"
+# We are not mature enough to enable public api documentation related lints.
+missing_errors_doc = "allow"
+# Pattern matching is more compact and readable.
+single_match_else = "allow"
+match_bool = "allow"
+option_if_let_else = "allow"
+# Python convention for private methods.
+used_underscore_items = "allow"
+# We are facing the documented known issue.
+format_push_string = "allow"
+# This was only an issue for rust version < 1.82
+inefficient_to_string = "allow"
