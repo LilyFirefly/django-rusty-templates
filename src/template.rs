@@ -507,7 +507,8 @@ pub mod django_rusty_templates {
                                 ));
                             }
                             RenderError::InvalidArgumentInteger { .. }
-                            | RenderError::InvalidArgumentString { .. } => {
+                            | RenderError::InvalidArgumentString { .. }
+                            | RenderError::TupleUnpackError { .. } => {
                                 return Err(PyValueError::with_source_code(
                                     err.into(),
                                     self.template.clone(),
@@ -516,12 +517,6 @@ pub mod django_rusty_templates {
                             RenderError::OverflowError { .. }
                             | RenderError::InvalidArgumentFloat { .. } => {
                                 return Err(PyOverflowError::with_source_code(
-                                    err.into(),
-                                    self.template.clone(),
-                                ));
-                            }
-                            RenderError::TupleUnpackError { .. } => {
-                                return Err(PyValueError::with_source_code(
                                     err.into(),
                                     self.template.clone(),
                                 ));

@@ -208,8 +208,9 @@ impl Resolve for TagElement {
         failures: ResolveFailures,
     ) -> ResolveResult<'t, 'py> {
         match self {
-            Self::Text(text) => text.resolve(py, template, context, failures),
-            Self::TranslatedText(text) => text.resolve(py, template, context, failures),
+            Self::Text(text) | Self::TranslatedText(text) => {
+                text.resolve(py, template, context, failures)
+            }
             Self::Variable(variable) => variable.resolve(py, template, context, failures),
             Self::ForVariable(variable) => variable.resolve(py, template, context, failures),
             Self::Filter(filter) => filter.resolve(py, template, context, failures),

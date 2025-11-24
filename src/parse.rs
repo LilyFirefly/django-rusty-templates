@@ -335,16 +335,15 @@ impl IfConditionOperatorMethods for IfConditionOperator {
         match self {
             Self::Or => 6,
             Self::And => 7,
-            Self::In => 9,
-            Self::NotIn => 9,
-            Self::Is => 10,
-            Self::IsNot => 10,
-            Self::Equal => 10,
-            Self::NotEqual => 10,
-            Self::GreaterThan => 10,
-            Self::GreaterThanEqual => 10,
-            Self::LessThan => 10,
-            Self::LessThanEqual => 10,
+            Self::In | Self::NotIn => 9,
+            Self::Is
+            | Self::IsNot
+            | Self::Equal
+            | Self::NotEqual
+            | Self::GreaterThan
+            | Self::GreaterThanEqual
+            | Self::LessThan
+            | Self::LessThanEqual => 10,
         }
     }
 

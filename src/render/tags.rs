@@ -141,15 +141,13 @@ impl PyCmp<Content<'_, '_>> for Content<'_, '_> {
                 .unwrap_or(false),
             (Self::Float(obj), Content::Int(other)) => {
                 match other.to_f64().expect("BigInt to f64 is always possible") {
-                    f64::INFINITY => false,
-                    f64::NEG_INFINITY => false,
+                    f64::INFINITY | f64::NEG_INFINITY => false,
                     other => *obj == other,
                 }
             }
             (Self::Int(obj), Content::Float(other)) => {
                 match obj.to_f64().expect("BigInt to f64 is always possible") {
-                    f64::INFINITY => false,
-                    f64::NEG_INFINITY => false,
+                    f64::INFINITY | f64::NEG_INFINITY => false,
                     obj => obj == *other,
                 }
             }
@@ -537,8 +535,7 @@ impl Evaluate for IfCondition {
                 }
             }
             Self::Not(inner) => match inner.evaluate(py, template, context) {
-                None => false,
-                Some(true) => false,
+                None | Some(true) => false,
                 Some(false) => true,
             },
             Self::Equal(inner) => match inner.resolve(py, template, context) {
@@ -592,7 +589,6 @@ impl Evaluate for IfCondition {
                     (Some(Content::Py(obj)), None) | (None, Some(Content::Py(obj))) => {
                         obj.is(PyNone::get(py).as_any())
                     }
-                    (Some(Content::Bool(_)), None) => false,
                     (Some(Content::Bool(left)), Some(Content::Py(right))) => {
                         right.is(PyBool::new(py, left).as_any())
                     }
@@ -613,11 +609,9 @@ impl Evaluate for IfCondition {
                     (Some(Content::Bool(left)), Some(Content::Py(right))) => {
                         !right.is(PyBool::new(py, left).as_any())
                     }
-                    (Some(Content::Bool(_)), _) => true,
                     (Some(Content::Py(left)), Some(Content::Bool(right))) => {
                         !left.is(PyBool::new(py, right).as_any())
                     }
-                    (_, Some(Content::Bool(_))) => true,
                     (None, None) => false,
                     _ => true,
                 }

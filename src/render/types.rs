@@ -343,25 +343,20 @@ pub enum ContentString<'t> {
 impl<'t, 'py> ContentString<'t> {
     pub fn content(self) -> Cow<'t, str> {
         match self {
-            Self::String(content) => content,
-            Self::HtmlSafe(content) => content,
+            Self::String(content) | Self::HtmlSafe(content) => content,
             Self::HtmlUnsafe(content) => Cow::Owned(encode_quoted_attribute(&content).to_string()),
         }
     }
 
     pub fn as_raw(&self) -> &Cow<'t, str> {
         match self {
-            Self::String(content) => content,
-            Self::HtmlSafe(content) => content,
-            Self::HtmlUnsafe(content) => content,
+            Self::String(content) | Self::HtmlSafe(content) | Self::HtmlUnsafe(content) => content,
         }
     }
 
     pub fn into_raw(self) -> Cow<'t, str> {
         match self {
-            Self::String(content) => content,
-            Self::HtmlSafe(content) => content,
-            Self::HtmlUnsafe(content) => content,
+            Self::String(content) | Self::HtmlSafe(content) | Self::HtmlUnsafe(content) => content,
         }
     }
 
@@ -545,11 +540,7 @@ impl<'t, 'py> Content<'t, 'py> {
                 .expect("An f64 can always be converted to a Python float.")
                 .into_any(),
             Self::String(s) => match s {
-                ContentString::String(s) => s
-                    .into_pyobject(py)
-                    .expect("A string can always be converted to a Python str.")
-                    .into_any(),
-                ContentString::HtmlUnsafe(s) => s
+                ContentString::String(s) | ContentString::HtmlUnsafe(s) => s
                     .into_pyobject(py)
                     .expect("A string can always be converted to a Python str.")
                     .into_any(),
