@@ -1,0 +1,5 @@
+# Clippy configuration
+# See: https://doc.rust-lang.org/clippy/lint_configuration.html
+
+# Allow unwrap in test code
+allow-unwrap-in-tests = true
