@@ -226,8 +226,7 @@ pub mod django_rusty_templates {
             }
             // TODO: Return an `ExternalLoader` when it's fully implemented
             unknown => Err(ImproperlyConfigured::new_err(format!(
-                "Invalid template loader class: {}",
-                unknown
+                "Invalid template loader class: {unknown}"
             ))),
         }
     }
