@@ -581,19 +581,18 @@ impl ResolveFilter for WordwrapFilter {
             .expect("missing argument in context should already have raised");
 
         // Check for negative values before converting to usize
-        if let Some(bigint) = arg.to_bigint() {
-            if let Some(n) = bigint.to_isize() {
-                if n < 0 {
-                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                        "invalid width {} (must be > 0)",
-                        n
-                    ))
-                    .into());
-                }
-            }
+        if let Some(bigint) = arg.to_bigint()
+            && let Some(n) = bigint.to_isize()
+            && n < 0
+        {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "invalid width {} (must be > 0)",
+                n
+            ))
+            .into());
         }
 
-        let width = arg.resolve_usize(self.argument.at.into())?;
+        let width = arg.resolve_usize(self.argument.at)?;
 
         let wrapped = wordwrap(text.as_raw(), width)?;
         Ok(Some(text.map_content(|_| Cow::Owned(wrapped))))
