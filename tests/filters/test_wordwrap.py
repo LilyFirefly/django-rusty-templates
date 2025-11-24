@@ -212,7 +212,7 @@ def test_wordwrap_negative_width(assert_render_error):
    ╭────
  1 │ {{ text|wordwrap:-5 }}
    ·                  ─┬
-   ·                   ╰── argument
+   ·                   ╰── width
    ╰────
 """
     assert_render_error(
@@ -230,7 +230,7 @@ def test_wordwrap_bool_zero_width(assert_render_error):
    ╭────
  1 │ {{ text|wordwrap:False }}
    ·                  ──┬──
-   ·                    ╰── argument
+   ·                    ╰── width
    ╰────
 """
     assert_render_error(
@@ -248,7 +248,7 @@ def test_wordwrap_zero_width(assert_render_error):
    ╭────
  1 │ {{ text|wordwrap:0 }}
    ·                  ┬
-   ·                  ╰── argument
+   ·                  ╰── width
    ╰────
 """
     assert_render_error(
@@ -335,7 +335,7 @@ def test_wordwrap_missing_width_argument(assert_render_error):
     django_message = "Failed lookup for key [width] in [{'True': True, 'False': False, 'None': None}, {'text': 'hello'}]"
     rusty_message = """\
   × Failed lookup for key [width] in {"False": False, "None": None, "True":
-  │ True, "text": "hello"}
+  │ True, "text": 'hello'}
    ╭────
  1 │ {{ text|wordwrap:width }}
    ·                  ──┬──

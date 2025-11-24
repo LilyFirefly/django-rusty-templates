@@ -582,7 +582,7 @@ impl ResolveFilter for WordwrapFilter {
                 "invalid width {} (must be > 0)",
                 n
             ))
-            .annotate(py, self.argument.at, "argument", template)
+            .annotate(py, self.argument.at, "width", template)
             .into());
         }
 
