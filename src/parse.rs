@@ -1398,25 +1398,6 @@ impl<'t, 'l, 'py> Parser<'t, 'l, 'py> {
                 .map(|v| v?.getattr("cell_contents"))
                 .collect::<Result<Vec<_>, _>>()?;
 
-            fn get_defaults_count(defaults: &Bound<'_, PyAny>) -> PyResult<usize> {
-                match defaults.is_none() {
-                    true => Ok(0),
-                    false => defaults.len(),
-                }
-            }
-
-            fn get_kwonly_defaults(
-                kwonly_defaults: &Bound<'_, PyAny>,
-            ) -> PyResult<HashSet<String>> {
-                match kwonly_defaults.is_none() {
-                    true => Ok(HashSet::new()),
-                    false => kwonly_defaults
-                        .try_iter()?
-                        .map(|item| item?.extract())
-                        .collect::<PyResult<_>>(),
-                }
-            }
-
             if closure_names.contains(&"filename".to_string()) {
                 todo!("Inclusion tag")
             } else if closure_names.contains(&"end_name".to_string()) {
@@ -1685,6 +1666,23 @@ impl<'t, 'l, 'py> Parser<'t, 'l, 'py> {
             body: nodes,
             empty,
         })))
+    }
+}
+
+fn get_defaults_count(defaults: &Bound<'_, PyAny>) -> PyResult<usize> {
+    match defaults.is_none() {
+        true => Ok(0),
+        false => defaults.len(),
+    }
+}
+
+fn get_kwonly_defaults(kwonly_defaults: &Bound<'_, PyAny>) -> PyResult<HashSet<String>> {
+    match kwonly_defaults.is_none() {
+        true => Ok(HashSet::new()),
+        false => kwonly_defaults
+            .try_iter()?
+            .map(|item| item?.extract())
+            .collect::<PyResult<_>>(),
     }
 }
 

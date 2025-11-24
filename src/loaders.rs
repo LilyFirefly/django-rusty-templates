@@ -810,8 +810,6 @@ mod tests {
         ignore = "Skipping on Windows due to path character restrictions"
     )]
     fn test_safe_join_matches_django_safe_join() {
-        Python::initialize();
-
         fn matches(path: PathBuf, template_name: String) -> bool {
             Python::attach(|py| {
                 let utils_os = PyModule::import(py, "django.utils._os").unwrap();
@@ -824,6 +822,8 @@ mod tests {
                 joined == safe_join(&path, &template_name)
             })
         }
+        Python::initialize();
+
         quickcheck(matches as fn(PathBuf, String) -> bool)
     }
 }
