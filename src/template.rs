@@ -256,7 +256,7 @@ pub mod django_rusty_templates {
     #[pymethods]
     impl Engine {
         #[new]
-        #[pyo3(signature = (dirs=None, app_dirs=false, context_processors=None, debug=false, loaders=None, string_if_invalid="".to_string(), file_charset="utf-8".to_string(), libraries=None, builtins=None, autoescape=true))]
+        #[pyo3(signature = (dirs=None, app_dirs=false, context_processors=None, debug=false, loaders=None, string_if_invalid=String::new(), file_charset="utf-8".to_string(), libraries=None, builtins=None, autoescape=true))]
         #[allow(clippy::too_many_arguments)] // We're matching Django's Engine __init__ signature
         pub fn new(
             py: Python<'_>,
@@ -653,7 +653,7 @@ mod tests {
 
         Python::attach(|py| {
             let engine = EngineData::empty();
-            let template_string = "".to_string();
+            let template_string = String::new();
             let template = Template::new_from_string(py, template_string, &engine).unwrap();
             let context = PyDict::new(py);
 
@@ -737,7 +737,7 @@ user = User(["Lily"])
                 None,
                 false,
                 None,
-                "".to_string(),
+                String::new(),
                 "utf-8".to_string(),
                 None,
                 None,
@@ -773,7 +773,7 @@ user = User(["Lily"])
                 None,
                 false,
                 None,
-                "".to_string(),
+                String::new(),
                 "utf-8".to_string(),
                 Some(
                     HashMap::from([("custom_filters", "tests.templatetags.custom_filters")])
@@ -884,7 +884,7 @@ user = User(["Lily"])
                 None,
                 false,
                 Some(loaders),
-                "".to_string(),
+                String::new(),
                 "utf-8".to_string(),
                 None,
                 None,
