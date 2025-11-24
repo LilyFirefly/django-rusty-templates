@@ -291,13 +291,10 @@ pub mod django_rusty_templates {
                 }
                 None => (Vec::new(), Vec::new()),
             };
-            let encoding = match Encoding::for_label(file_charset.as_bytes()) {
-                Some(encoding) => encoding,
-                None => {
-                    return Err(PyValueError::new_err(format!(
-                        "Unknown encoding: '{file_charset}'"
-                    )));
-                }
+            let Some(encoding) = Encoding::for_label(file_charset.as_bytes()) else {
+                return Err(PyValueError::new_err(format!(
+                    "Unknown encoding: '{file_charset}'"
+                )));
             };
             let template_loaders = match loaders {
                 Some(_) if app_dirs => {
