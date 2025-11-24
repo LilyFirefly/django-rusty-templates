@@ -19,7 +19,7 @@ use crate::types::TranslatedText;
 use crate::types::Variable;
 
 /// Helper function to translate a string using Django's gettext
-pub fn gettext<'py>(py: Python<'py>, text: &str) -> PyResult<String> {
+pub fn gettext(py: Python<'_>, text: &str) -> PyResult<String> {
     let django_translation = py.import("django.utils.translation")?;
     let get_text = django_translation.getattr("gettext")?;
     get_text.call1((text,))?.extract::<String>()

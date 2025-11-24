@@ -149,8 +149,8 @@ pub mod django_rusty_templates {
         };
         Ok((loader_path, remaining_args))
     }
-    fn get_template_loaders<'py>(
-        py: Python<'py>,
+    fn get_template_loaders(
+        py: Python<'_>,
         template_loaders: Bound<'_, PyIterator>,
         encoding: &'static Encoding,
     ) -> PyResult<Vec<Loader>> {
@@ -162,8 +162,8 @@ pub mod django_rusty_templates {
             .collect()
     }
 
-    fn find_template_loader<'py>(
-        py: Python<'py>,
+    fn find_template_loader(
+        py: Python<'_>,
         loader: Bound<'_, PyAny>,
         encoding: &'static Encoding,
     ) -> PyResult<Loader> {

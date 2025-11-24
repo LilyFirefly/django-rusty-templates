@@ -301,7 +301,7 @@ impl PyContext {
         }
     }
 
-    fn __contains__<'py>(&self, py: Python<'py>, key: String) -> bool {
+    fn __contains__(&self, py: Python<'_>, key: String) -> bool {
         let guard = self
             .context
             .lock_py_attached(py)
