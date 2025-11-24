@@ -154,8 +154,6 @@ impl ResolveFilter for CenterFilter {
         template: TemplateString<'t>,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
-        let left: usize;
-        let right: usize;
         let Some(content) = variable else {
             return Ok(Some("".as_content()));
         };
@@ -170,14 +168,15 @@ impl ResolveFilter for CenterFilter {
         if size <= content.len() {
             return Ok(Some(content.into_content()));
         }
-        if size % 2 == 0 && content.len() % 2 != 0 {
+        let round_up = size % 2 == 0 && content.len() % 2 != 0;
+        let right = if round_up {
             // If the size is even and the content length is odd, we need to adjust the centering
-            right = (size - content.len()).div_ceil(2);
-            left = size - content.len() - right;
+            (size - content.len()).div_ceil(2)
         } else {
-            right = (size - content.len()) / 2;
-            left = size - content.len() - right;
-        }
+            (size - content.len()) / 2
+        };
+        let left = size - content.len() - right;
+
         let mut centered = String::with_capacity(size);
 
         centered.push_str(&" ".repeat(left));
