@@ -851,12 +851,12 @@ fn build_kwargs<'py>(
     context: &mut Context,
     kwargs: &Vec<(String, TagElement)>,
 ) -> Result<Bound<'py, PyDict>, PyRenderError> {
-    let _kwargs = PyDict::new(py);
+    let py_kwargs = PyDict::new(py);
     for (key, value) in kwargs {
         let value = value.resolve(py, template, context, ResolveFailures::Raise)?;
-        _kwargs.set_item(key, value)?;
+        py_kwargs.set_item(key, value)?;
     }
-    Ok(_kwargs)
+    Ok(py_kwargs)
 }
 
 fn store_target_var<'t>(
