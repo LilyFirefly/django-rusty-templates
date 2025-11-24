@@ -134,10 +134,10 @@ impl PyCmp<Content<'_, '_>> for Content<'_, '_> {
             (Self::Float(obj), Content::Float(other)) => obj == other,
             (Self::Int(obj), Content::Int(other)) => obj == other,
             (Self::Int(obj), Content::Bool(other)) => u8::try_from(obj)
-                .map(|o| o == *other as u8)
+                .map(|o| o == u8::from(*other))
                 .unwrap_or(false),
             (Self::Bool(obj), Content::Int(other)) => u8::try_from(other)
-                .map(|o| o == *obj as u8)
+                .map(|o| o == u8::from(*obj))
                 .unwrap_or(false),
             (Self::Float(obj), Content::Int(other)) => {
                 match other.to_f64().expect("BigInt to f64 is always possible") {
@@ -182,11 +182,15 @@ impl PyCmp<Content<'_, '_>> for Content<'_, '_> {
             (Self::Int(obj), Content::Int(other)) => obj < other,
             (Self::Int(obj), Content::Bool(other)) => match obj.sign() {
                 Sign::Minus => true,
-                _ => u8::try_from(obj).map(|o| o < *other as u8).unwrap_or(false),
+                _ => u8::try_from(obj)
+                    .map(|o| o < u8::from(*other))
+                    .unwrap_or(false),
             },
             (Self::Bool(obj), Content::Int(other)) => match other.sign() {
                 Sign::Minus => false,
-                _ => u8::try_from(other).map(|o| o > *obj as u8).unwrap_or(true),
+                _ => u8::try_from(other)
+                    .map(|o| o > u8::from(*obj))
+                    .unwrap_or(true),
             },
             (Self::Float(obj), Content::Int(other)) => {
                 match other.to_f64().expect("BigInt to f64 is always possible") {
@@ -231,11 +235,15 @@ impl PyCmp<Content<'_, '_>> for Content<'_, '_> {
             (Self::Int(obj), Content::Int(other)) => obj > other,
             (Self::Int(obj), Content::Bool(other)) => match obj.sign() {
                 Sign::Minus => false,
-                _ => u8::try_from(obj).map(|o| o > *other as u8).unwrap_or(true),
+                _ => u8::try_from(obj)
+                    .map(|o| o > u8::from(*other))
+                    .unwrap_or(true),
             },
             (Self::Bool(obj), Content::Int(other)) => match other.sign() {
                 Sign::Minus => true,
-                _ => u8::try_from(other).map(|o| o < *obj as u8).unwrap_or(false),
+                _ => u8::try_from(other)
+                    .map(|o| o < u8::from(*obj))
+                    .unwrap_or(false),
             },
             (Self::Float(obj), Content::Int(other)) => {
                 match other.to_f64().expect("BigInt to f64 is always possible") {
@@ -281,12 +289,14 @@ impl PyCmp<Content<'_, '_>> for Content<'_, '_> {
             (Self::Int(obj), Content::Bool(other)) => match obj.sign() {
                 Sign::Minus => true,
                 _ => u8::try_from(obj)
-                    .map(|o| o <= *other as u8)
+                    .map(|o| o <= u8::from(*other))
                     .unwrap_or(false),
             },
             (Self::Bool(obj), Content::Int(other)) => match other.sign() {
                 Sign::Minus => false,
-                _ => u8::try_from(other).map(|o| o >= *obj as u8).unwrap_or(true),
+                _ => u8::try_from(other)
+                    .map(|o| o >= u8::from(*obj))
+                    .unwrap_or(true),
             },
             (Self::Float(obj), Content::Int(other)) => {
                 match other.to_f64().expect("BigInt to f64 is always possible") {
@@ -331,12 +341,14 @@ impl PyCmp<Content<'_, '_>> for Content<'_, '_> {
             (Self::Int(obj), Content::Int(other)) => obj >= other,
             (Self::Int(obj), Content::Bool(other)) => match obj.sign() {
                 Sign::Minus => false,
-                _ => u8::try_from(obj).map(|o| o >= *other as u8).unwrap_or(true),
+                _ => u8::try_from(obj)
+                    .map(|o| o >= u8::from(*other))
+                    .unwrap_or(true),
             },
             (Self::Bool(obj), Content::Int(other)) => match other.sign() {
                 Sign::Minus => true,
                 _ => u8::try_from(other)
-                    .map(|o| o <= *obj as u8)
+                    .map(|o| o <= u8::from(*obj))
                     .unwrap_or(false),
             },
             (Self::Float(obj), Content::Int(other)) => {
