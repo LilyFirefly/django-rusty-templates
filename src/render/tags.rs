@@ -368,8 +368,8 @@ impl PyCmp<Content<'_, '_>> for Content<'_, '_> {
     }
 }
 
-impl PyCmp<Option<Content<'_, '_>>> for Option<Content<'_, '_>> {
-    fn eq(&self, other: &Option<Content<'_, '_>>) -> bool {
+impl PyCmp<Self> for Option<Content<'_, '_>> {
+    fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (None, None) => true,
             (Some(obj), Some(other)) => obj.eq(other),
@@ -380,28 +380,28 @@ impl PyCmp<Option<Content<'_, '_>>> for Option<Content<'_, '_>> {
         }
     }
 
-    fn lt(&self, other: &Option<Content<'_, '_>>) -> bool {
+    fn lt(&self, other: &Self) -> bool {
         match (self, other) {
             (Some(obj), Some(other)) => obj.lt(other),
             _ => false,
         }
     }
 
-    fn gt(&self, other: &Option<Content<'_, '_>>) -> bool {
+    fn gt(&self, other: &Self) -> bool {
         match (self, other) {
             (Some(obj), Some(other)) => obj.gt(other),
             _ => false,
         }
     }
 
-    fn lte(&self, other: &Option<Content<'_, '_>>) -> bool {
+    fn lte(&self, other: &Self) -> bool {
         match (self, other) {
             (Some(obj), Some(other)) => obj.lte(other),
             _ => false,
         }
     }
 
-    fn gte(&self, other: &Option<Content<'_, '_>>) -> bool {
+    fn gte(&self, other: &Self) -> bool {
         match (self, other) {
             (Some(obj), Some(other)) => obj.gte(other),
             _ => false,

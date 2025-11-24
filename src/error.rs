@@ -122,7 +122,7 @@ impl AnnotatePyErr for PyErr {
             PyKeyError::new_err((message,))
         } else {
             let err_type = self.get_type(py);
-            PyErr::from_type(err_type, format!("{message:?}"))
+            Self::from_type(err_type, format!("{message:?}"))
         }
     }
 }
