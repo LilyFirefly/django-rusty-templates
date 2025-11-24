@@ -507,7 +507,7 @@ impl Evaluate for IfCondition {
             Self::And(inner) => {
                 let left = inner.0.evaluate(py, template, context).unwrap_or(false);
                 let right = inner.1.evaluate(py, template, context).unwrap_or(false);
-                if !left { false } else { right }
+                if left { right } else { false }
             }
             Self::Or(inner) => {
                 let left = inner.0.evaluate(py, template, context);
