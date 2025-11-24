@@ -90,7 +90,7 @@ pub struct Argument {
     pub argument_type: ArgumentType,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ForVariableName {
     Counter,
     Counter0,
@@ -101,7 +101,7 @@ pub enum ForVariableName {
     Object,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ForVariable {
     pub variant: ForVariableName,
     pub parent_count: usize,

@@ -373,7 +373,7 @@ pub struct ForIterable {
     pub at: (usize, usize),
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ForNames {
     pub names: Vec<String>,
     pub at: (usize, usize),
