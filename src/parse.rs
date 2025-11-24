@@ -1016,7 +1016,7 @@ impl<'t, 'l, 'py> Parser<'t, 'l, 'py> {
                         return Err(ParseError::WrongEndTag {
                             expected: until
                                 .iter()
-                                .map(|u| u.as_cow())
+                                .map(EndTagType::as_cow)
                                 .collect::<Vec<_>>()
                                 .join(", "),
                             unexpected: end_tag.as_cow(),
@@ -1033,7 +1033,7 @@ impl<'t, 'l, 'py> Parser<'t, 'l, 'py> {
             start,
             expected: until
                 .iter()
-                .map(|u| u.as_cow())
+                .map(EndTagType::as_cow)
                 .collect::<Vec<_>>()
                 .join(", "),
             at: start_at.into(),

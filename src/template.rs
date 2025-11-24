@@ -282,9 +282,7 @@ pub mod django_rusty_templates {
                     let loaded = context_processors
                         .try_iter()?
                         .map(|processor| {
-                            import_string
-                                .call1((processor?,))
-                                .map(|processor| processor.unbind())
+                            import_string.call1((processor?,)).map(pyo3::Bound::unbind)
                         })
                         .collect::<PyResult<Vec<Py<PyAny>>>>()?;
                     (context_processors.extract()?, loaded)
@@ -554,7 +552,7 @@ pub mod django_rusty_templates {
                     PyBool::new(py, false).to_owned().into(),
                 ),
             ]);
-            let request = request.map(|request| request.unbind());
+            let request = request.map(pyo3::Bound::unbind);
             if let Some(ref request) = request {
                 for processor in self.context_processors.iter() {
                     let processor = processor.bind(py);

@@ -376,7 +376,7 @@ fn slugify(content: Cow<str>) -> Cow<str> {
         .nfkd()
         // first decomposing characters, then only keeping
         // the ascii ones, filtering out diacritics for example.
-        .filter(|c| c.is_ascii())
+        .filter(char::is_ascii)
         .collect::<String>()
         .to_lowercase();
     let content = NON_WORD_RE.replace_all(&content, "");
