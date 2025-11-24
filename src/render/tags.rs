@@ -18,7 +18,7 @@ use crate::parse::{For, IfCondition, SimpleBlockTag, SimpleTag, Tag, TagElement,
 use crate::template::django_rusty_templates::NoReverseMatch;
 use crate::utils::PyResultMethods;
 
-fn current_app(py: Python, request: &Option<Py<PyAny>>) -> PyResult<Py<PyAny>> {
+fn current_app(py: Python, request: Option<&Py<PyAny>>) -> PyResult<Py<PyAny>> {
     let Some(request) = request else {
         return Ok(py.None());
     };
@@ -54,7 +54,7 @@ impl Resolve for Url {
         let urls = py.import("django.urls")?;
         let reverse = urls.getattr("reverse")?;
 
-        let current_app = current_app(py, &context.request)?;
+        let current_app = current_app(py, context.request.as_ref())?;
         let url = if self.kwargs.is_empty() {
             let py_args = PyList::empty(py);
             for arg in &self.args {
@@ -862,7 +862,7 @@ fn store_target_var<'t>(
     py: Python<'_>,
     context: &mut Context,
     content: Cow<'t, str>,
-    target_var: &Option<String>,
+    target_var: Option<&String>,
 ) -> Cow<'t, str> {
     match target_var {
         None => content,
@@ -896,7 +896,12 @@ impl Render for SimpleTag {
         } else {
             call_tag(py, &self.func, self.at, template, args, kwargs)?
         };
-        Ok(store_target_var(py, context, content, &self.target_var))
+        Ok(store_target_var(
+            py,
+            context,
+            content,
+            self.target_var.as_ref(),
+        ))
     }
 }
 
@@ -927,6 +932,11 @@ impl Render for SimpleBlockTag {
         } else {
             call_tag(py, &self.func, self.at, template, args, kwargs)?
         };
-        Ok(store_target_var(py, context, content, &self.target_var))
+        Ok(store_target_var(
+            py,
+            context,
+            content,
+            self.target_var.as_ref(),
+        ))
     }
 }
