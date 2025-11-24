@@ -18,7 +18,7 @@ use crate::parse::{For, IfCondition, SimpleBlockTag, SimpleTag, Tag, TagElement,
 use crate::template::django_rusty_templates::NoReverseMatch;
 use crate::utils::PyResultMethods;
 
-fn current_app(py: Python, request: &Option<Py<PyAny>>) -> PyResult<Py<PyAny>> {
+fn current_app(py: Python, request: Option<&Py<PyAny>>) -> PyResult<Py<PyAny>> {
     let Some(request) = request else {
         return Ok(py.None());
     };
@@ -54,7 +54,7 @@ impl Resolve for Url {
         let urls = py.import("django.urls")?;
         let reverse = urls.getattr("reverse")?;
 
-        let current_app = current_app(py, &context.request)?;
+        let current_app = current_app(py, context.request.as_ref())?;
         let url = if self.kwargs.is_empty() {
             let py_args = PyList::empty(py);
             for arg in &self.args {
@@ -134,22 +134,20 @@ impl PyCmp<Content<'_, '_>> for Content<'_, '_> {
             (Self::Float(obj), Content::Float(other)) => obj == other,
             (Self::Int(obj), Content::Int(other)) => obj == other,
             (Self::Int(obj), Content::Bool(other)) => u8::try_from(obj)
-                .map(|o| o == *other as u8)
+                .map(|o| o == u8::from(*other))
                 .unwrap_or(false),
             (Self::Bool(obj), Content::Int(other)) => u8::try_from(other)
-                .map(|o| o == *obj as u8)
+                .map(|o| o == u8::from(*obj))
                 .unwrap_or(false),
             (Self::Float(obj), Content::Int(other)) => {
                 match other.to_f64().expect("BigInt to f64 is always possible") {
-                    f64::INFINITY => false,
-                    f64::NEG_INFINITY => false,
+                    f64::INFINITY | f64::NEG_INFINITY => false,
                     other => *obj == other,
                 }
             }
             (Self::Int(obj), Content::Float(other)) => {
                 match obj.to_f64().expect("BigInt to f64 is always possible") {
-                    f64::INFINITY => false,
-                    f64::NEG_INFINITY => false,
+                    f64::INFINITY | f64::NEG_INFINITY => false,
                     obj => obj == *other,
                 }
             }
@@ -182,11 +180,15 @@ impl PyCmp<Content<'_, '_>> for Content<'_, '_> {
             (Self::Int(obj), Content::Int(other)) => obj < other,
             (Self::Int(obj), Content::Bool(other)) => match obj.sign() {
                 Sign::Minus => true,
-                _ => u8::try_from(obj).map(|o| o < *other as u8).unwrap_or(false),
+                _ => u8::try_from(obj)
+                    .map(|o| o < u8::from(*other))
+                    .unwrap_or(false),
             },
             (Self::Bool(obj), Content::Int(other)) => match other.sign() {
                 Sign::Minus => false,
-                _ => u8::try_from(other).map(|o| o > *obj as u8).unwrap_or(true),
+                _ => u8::try_from(other)
+                    .map(|o| o > u8::from(*obj))
+                    .unwrap_or(true),
             },
             (Self::Float(obj), Content::Int(other)) => {
                 match other.to_f64().expect("BigInt to f64 is always possible") {
@@ -231,11 +233,15 @@ impl PyCmp<Content<'_, '_>> for Content<'_, '_> {
             (Self::Int(obj), Content::Int(other)) => obj > other,
             (Self::Int(obj), Content::Bool(other)) => match obj.sign() {
                 Sign::Minus => false,
-                _ => u8::try_from(obj).map(|o| o > *other as u8).unwrap_or(true),
+                _ => u8::try_from(obj)
+                    .map(|o| o > u8::from(*other))
+                    .unwrap_or(true),
             },
             (Self::Bool(obj), Content::Int(other)) => match other.sign() {
                 Sign::Minus => true,
-                _ => u8::try_from(other).map(|o| o < *obj as u8).unwrap_or(false),
+                _ => u8::try_from(other)
+                    .map(|o| o < u8::from(*obj))
+                    .unwrap_or(false),
             },
             (Self::Float(obj), Content::Int(other)) => {
                 match other.to_f64().expect("BigInt to f64 is always possible") {
@@ -281,12 +287,14 @@ impl PyCmp<Content<'_, '_>> for Content<'_, '_> {
             (Self::Int(obj), Content::Bool(other)) => match obj.sign() {
                 Sign::Minus => true,
                 _ => u8::try_from(obj)
-                    .map(|o| o <= *other as u8)
+                    .map(|o| o <= u8::from(*other))
                     .unwrap_or(false),
             },
             (Self::Bool(obj), Content::Int(other)) => match other.sign() {
                 Sign::Minus => false,
-                _ => u8::try_from(other).map(|o| o >= *obj as u8).unwrap_or(true),
+                _ => u8::try_from(other)
+                    .map(|o| o >= u8::from(*obj))
+                    .unwrap_or(true),
             },
             (Self::Float(obj), Content::Int(other)) => {
                 match other.to_f64().expect("BigInt to f64 is always possible") {
@@ -331,12 +339,14 @@ impl PyCmp<Content<'_, '_>> for Content<'_, '_> {
             (Self::Int(obj), Content::Int(other)) => obj >= other,
             (Self::Int(obj), Content::Bool(other)) => match obj.sign() {
                 Sign::Minus => false,
-                _ => u8::try_from(obj).map(|o| o >= *other as u8).unwrap_or(true),
+                _ => u8::try_from(obj)
+                    .map(|o| o >= u8::from(*other))
+                    .unwrap_or(true),
             },
             (Self::Bool(obj), Content::Int(other)) => match other.sign() {
                 Sign::Minus => true,
                 _ => u8::try_from(other)
-                    .map(|o| o <= *obj as u8)
+                    .map(|o| o <= u8::from(*obj))
                     .unwrap_or(false),
             },
             (Self::Float(obj), Content::Int(other)) => {
@@ -368,8 +378,8 @@ impl PyCmp<Content<'_, '_>> for Content<'_, '_> {
     }
 }
 
-impl PyCmp<Option<Content<'_, '_>>> for Option<Content<'_, '_>> {
-    fn eq(&self, other: &Option<Content<'_, '_>>) -> bool {
+impl PyCmp<Self> for Option<Content<'_, '_>> {
+    fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (None, None) => true,
             (Some(obj), Some(other)) => obj.eq(other),
@@ -380,28 +390,28 @@ impl PyCmp<Option<Content<'_, '_>>> for Option<Content<'_, '_>> {
         }
     }
 
-    fn lt(&self, other: &Option<Content<'_, '_>>) -> bool {
+    fn lt(&self, other: &Self) -> bool {
         match (self, other) {
             (Some(obj), Some(other)) => obj.lt(other),
             _ => false,
         }
     }
 
-    fn gt(&self, other: &Option<Content<'_, '_>>) -> bool {
+    fn gt(&self, other: &Self) -> bool {
         match (self, other) {
             (Some(obj), Some(other)) => obj.gt(other),
             _ => false,
         }
     }
 
-    fn lte(&self, other: &Option<Content<'_, '_>>) -> bool {
+    fn lte(&self, other: &Self) -> bool {
         match (self, other) {
             (Some(obj), Some(other)) => obj.lte(other),
             _ => false,
         }
     }
 
-    fn gte(&self, other: &Option<Content<'_, '_>>) -> bool {
+    fn gte(&self, other: &Self) -> bool {
         match (self, other) {
             (Some(obj), Some(other)) => obj.gte(other),
             _ => false,
@@ -496,6 +506,7 @@ impl<'t, 'py> ResolveTuple<'t, 'py> for (IfCondition, IfCondition) {
 }
 
 impl Evaluate for IfCondition {
+    #[allow(clippy::too_many_lines)]
     fn evaluate(
         &self,
         py: Python<'_>,
@@ -507,7 +518,7 @@ impl Evaluate for IfCondition {
             Self::And(inner) => {
                 let left = inner.0.evaluate(py, template, context).unwrap_or(false);
                 let right = inner.1.evaluate(py, template, context).unwrap_or(false);
-                if !left { false } else { right }
+                if left { right } else { false }
             }
             Self::Or(inner) => {
                 let left = inner.0.evaluate(py, template, context);
@@ -524,8 +535,7 @@ impl Evaluate for IfCondition {
                 }
             }
             Self::Not(inner) => match inner.evaluate(py, template, context) {
-                None => false,
-                Some(true) => false,
+                None | Some(true) => false,
                 Some(false) => true,
             },
             Self::Equal(inner) => match inner.resolve(py, template, context) {
@@ -579,7 +589,6 @@ impl Evaluate for IfCondition {
                     (Some(Content::Py(obj)), None) | (None, Some(Content::Py(obj))) => {
                         obj.is(PyNone::get(py).as_any())
                     }
-                    (Some(Content::Bool(_)), None) => false,
                     (Some(Content::Bool(left)), Some(Content::Py(right))) => {
                         right.is(PyBool::new(py, left).as_any())
                     }
@@ -600,11 +609,9 @@ impl Evaluate for IfCondition {
                     (Some(Content::Bool(left)), Some(Content::Py(right))) => {
                         !right.is(PyBool::new(py, left).as_any())
                     }
-                    (Some(Content::Bool(_)), _) => true,
                     (Some(Content::Py(left)), Some(Content::Bool(right))) => {
                         !left.is(PyBool::new(py, right).as_any())
                     }
-                    (_, Some(Content::Bool(_))) => true,
                     (None, None) => false,
                     _ => true,
                 }
@@ -627,7 +634,7 @@ impl Render for Tag {
 
                 let mut rendered = vec![];
                 for node in nodes {
-                    rendered.push(node.render(py, template, context)?)
+                    rendered.push(node.render(py, template, context)?);
                 }
 
                 context.autoescape = autoescape;
@@ -717,7 +724,7 @@ impl For {
         let mut parts = Vec::new();
         let mut chars: Vec<_> = string.chars().collect();
         if self.reversed {
-            chars.reverse()
+            chars.reverse();
         }
 
         let variable = &self.variables.names[0];
@@ -850,19 +857,19 @@ fn build_kwargs<'py>(
     context: &mut Context,
     kwargs: &Vec<(String, TagElement)>,
 ) -> Result<Bound<'py, PyDict>, PyRenderError> {
-    let _kwargs = PyDict::new(py);
+    let py_kwargs = PyDict::new(py);
     for (key, value) in kwargs {
         let value = value.resolve(py, template, context, ResolveFailures::Raise)?;
-        _kwargs.set_item(key, value)?;
+        py_kwargs.set_item(key, value)?;
     }
-    Ok(_kwargs)
+    Ok(py_kwargs)
 }
 
 fn store_target_var<'t>(
     py: Python<'_>,
     context: &mut Context,
     content: Cow<'t, str>,
-    target_var: &Option<String>,
+    target_var: Option<&String>,
 ) -> Cow<'t, str> {
     match target_var {
         None => content,
@@ -896,7 +903,12 @@ impl Render for SimpleTag {
         } else {
             call_tag(py, &self.func, self.at, template, args, kwargs)?
         };
-        Ok(store_target_var(py, context, content, &self.target_var))
+        Ok(store_target_var(
+            py,
+            context,
+            content,
+            self.target_var.as_ref(),
+        ))
     }
 }
 
@@ -927,6 +939,11 @@ impl Render for SimpleBlockTag {
         } else {
             call_tag(py, &self.func, self.at, template, args, kwargs)?
         };
-        Ok(store_target_var(py, context, content, &self.target_var))
+        Ok(store_target_var(
+            py,
+            context,
+            content,
+            self.target_var.as_ref(),
+        ))
     }
 }

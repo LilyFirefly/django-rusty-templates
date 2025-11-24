@@ -24,7 +24,7 @@ pub enum FilterType {
     Yesno(YesnoFilter),
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AddSlashesFilter;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -38,7 +38,7 @@ impl AddFilter {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CapfirstFilter;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -74,10 +74,10 @@ impl DefaultIfNoneFilter {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EscapeFilter;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EscapejsFilter;
 
 #[derive(Clone, Debug)]
@@ -105,22 +105,22 @@ impl PartialEq for ExternalFilter {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LowerFilter;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SafeFilter;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SlugifyFilter;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TitleFilter;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UpperFilter;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WordcountFilter;
 
 #[derive(Clone, Debug, PartialEq)]

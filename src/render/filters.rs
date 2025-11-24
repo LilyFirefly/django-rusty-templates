@@ -83,9 +83,9 @@ impl ResolveFilter for AddSlashesFilter {
                 let content_string = content.resolve_string(context)?;
                 content_string.map_content(|raw| {
                     Cow::Owned(
-                        raw.replace(r"\", r"\\")
-                            .replace("\"", "\\\"")
-                            .replace("'", r"\'"),
+                        raw.replace('\\', r"\\")
+                            .replace('"', "\\\"")
+                            .replace('\'', r"\'"),
                     )
                 })
             }
@@ -154,8 +154,6 @@ impl ResolveFilter for CenterFilter {
         template: TemplateString<'t>,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
-        let left: usize;
-        let right: usize;
         let Some(content) = variable else {
             return Ok(Some("".as_content()));
         };
@@ -170,14 +168,15 @@ impl ResolveFilter for CenterFilter {
         if size <= content.len() {
             return Ok(Some(content.into_content()));
         }
-        if size % 2 == 0 && content.len() % 2 != 0 {
+        let round_up = size % 2 == 0 && content.len() % 2 != 0;
+        let right = if round_up {
             // If the size is even and the content length is odd, we need to adjust the centering
-            right = (size - content.len()).div_ceil(2);
-            left = size - content.len() - right;
+            (size - content.len()).div_ceil(2)
         } else {
-            right = (size - content.len()) / 2;
-            left = size - content.len() - right;
-        }
+            (size - content.len()) / 2
+        };
+        let left = size - content.len() - right;
+
         let mut centered = String::with_capacity(size);
 
         centered.push_str(&" ".repeat(left));
@@ -377,7 +376,7 @@ fn slugify(content: Cow<str>) -> Cow<str> {
         .nfkd()
         // first decomposing characters, then only keeping
         // the ascii ones, filtering out diacritics for example.
-        .filter(|c| c.is_ascii())
+        .filter(char::is_ascii)
         .collect::<String>()
         .to_lowercase();
     let content = NON_WORD_RE.replace_all(&content, "");
@@ -596,7 +595,7 @@ mod tests {
 
             let rendered = filter.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "Lily");
-        })
+        });
     }
 
     #[test]
@@ -612,7 +611,7 @@ mod tests {
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "hello-world");
-        })
+        });
     }
 
     #[test]
@@ -628,7 +627,7 @@ mod tests {
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "hello-world");
-        })
+        });
     }
 
     #[test]
@@ -644,7 +643,7 @@ mod tests {
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "a");
-        })
+        });
     }
 
     #[test]
@@ -660,7 +659,7 @@ mod tests {
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "a-b");
-        })
+        });
     }
 
     #[test]
@@ -675,7 +674,7 @@ mod tests {
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "1");
-        })
+        });
     }
 
     #[test]
@@ -690,7 +689,7 @@ mod tests {
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "1.3");
-        })
+        });
     }
 
     #[test]
@@ -705,7 +704,7 @@ mod tests {
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "hello-world");
-        })
+        });
     }
 
     #[test]
@@ -720,7 +719,7 @@ mod tests {
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "hello-world");
-        })
+        });
     }
 
     #[test]
@@ -737,7 +736,7 @@ mod tests {
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "a-amp-b");
-        })
+        });
     }
 
     #[test]
@@ -752,7 +751,7 @@ mod tests {
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "");
-        })
+        });
     }
 
     #[test]
@@ -766,7 +765,7 @@ mod tests {
 
             let error_string = format!("{error}");
             assert!(error_string.contains("slugify filter does not take an argument"));
-        })
+        });
     }
 
     #[test]
@@ -787,7 +786,7 @@ mod tests {
 
             let rendered = filter.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, r"\'hello\'");
-        })
+        });
     }
 
     #[test]
@@ -825,7 +824,7 @@ mod tests {
 
             let error_string = format!("{error}");
             assert!(error_string.contains("capfirst filter does not take an argument"));
-        })
+        });
     }
 
     #[test]
@@ -857,7 +856,7 @@ mod tests {
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "django");
-        })
+        });
     }
 
     #[test]
@@ -874,7 +873,7 @@ mod tests {
             let error_string = format!("{error}");
 
             assert!(error_string.contains("Expected an argument"));
-        })
+        });
     }
 
     #[test]
@@ -889,7 +888,7 @@ mod tests {
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "");
-        })
+        });
     }
 
     #[test]
@@ -905,7 +904,7 @@ mod tests {
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "hello");
-        })
+        });
     }
 
     #[test]
@@ -928,7 +927,7 @@ mod tests {
 
             let rendered = filter.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "Bryony");
-        })
+        });
     }
 
     #[test]
@@ -951,7 +950,7 @@ mod tests {
 
             let rendered = filter.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "12");
-        })
+        });
     }
 
     #[test]
@@ -974,7 +973,7 @@ mod tests {
 
             let rendered = filter.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "3.5");
-        })
+        });
     }
 
     #[test]
@@ -998,7 +997,7 @@ mod tests {
 
             let rendered = filter.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "Lily");
-        })
+        });
     }
 
     #[test]
@@ -1019,7 +1018,7 @@ mod tests {
 
             let rendered = filter.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "lily");
-        })
+        });
     }
 
     #[test]
@@ -1039,7 +1038,7 @@ mod tests {
 
             let rendered = filter.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "");
-        })
+        });
     }
 
     #[test]
@@ -1067,7 +1066,7 @@ mod tests {
 
             let rendered = lower.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "bryony");
-        })
+        });
     }
 
     #[test]
@@ -1088,7 +1087,7 @@ mod tests {
 
             let rendered = filter.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "FOO");
-        })
+        });
     }
 
     #[test]
@@ -1108,6 +1107,6 @@ mod tests {
 
             let rendered = filter.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "");
-        })
+        });
     }
 }

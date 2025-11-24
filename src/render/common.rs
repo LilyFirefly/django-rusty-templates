@@ -19,7 +19,7 @@ use crate::types::TranslatedText;
 use crate::types::Variable;
 
 /// Helper function to translate a string using Django's gettext
-pub fn gettext<'py>(py: Python<'py>, text: &str) -> PyResult<String> {
+pub fn gettext(py: Python<'_>, text: &str) -> PyResult<String> {
     let django_translation = py.import("django.utils.translation")?;
     let get_text = django_translation.getattr("gettext")?;
     get_text.call1((text,))?.extract::<String>()
@@ -208,8 +208,9 @@ impl Resolve for TagElement {
         failures: ResolveFailures,
     ) -> ResolveResult<'t, 'py> {
         match self {
-            Self::Text(text) => text.resolve(py, template, context, failures),
-            Self::TranslatedText(text) => text.resolve(py, template, context, failures),
+            Self::Text(text) | Self::TranslatedText(text) => {
+                text.resolve(py, template, context, failures)
+            }
             Self::Variable(variable) => variable.resolve(py, template, context, failures),
             Self::ForVariable(variable) => variable.resolve(py, template, context, failures),
             Self::Filter(filter) => filter.resolve(py, template, context, failures),
@@ -278,7 +279,7 @@ mod tests {
 
             let rendered = variable.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "Lily");
-        })
+        });
     }
 
     #[test]
@@ -296,7 +297,7 @@ mod tests {
 
             let rendered = variable.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "Lily");
-        })
+        });
     }
 
     #[test]
@@ -313,7 +314,7 @@ mod tests {
 
             let rendered = variable.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "Lily");
-        })
+        });
     }
 
     #[test]
@@ -342,7 +343,7 @@ user = User('Lily')
 
             let rendered = variable.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "Lily");
-        })
+        });
     }
 
     #[test]
@@ -358,6 +359,6 @@ user = User('Lily')
 
             let rendered = html.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "&lt;p&gt;Hello World!&lt;/p&gt;");
-        })
+        });
     }
 }

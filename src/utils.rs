@@ -8,7 +8,7 @@ pub trait PyResultMethods<T> {
 }
 
 impl<T> PyResultMethods<T> for PyResult<T> {
-    fn ok_or_isinstance_of<E>(self, py: Python<'_>) -> PyResult<PyResult<T>>
+    fn ok_or_isinstance_of<E>(self, py: Python<'_>) -> PyResult<Self>
     where
         E: PyTypeInfo,
     {

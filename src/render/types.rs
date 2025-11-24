@@ -120,7 +120,7 @@ impl Context {
     }
 
     pub fn insert(&mut self, key: String, value: Bound<'_, PyAny>) {
-        self._insert(key, value, true)
+        self._insert(key, value, true);
     }
 
     pub fn push_variable(&mut self, name: String, value: Bound<'_, PyAny>, index: usize) {
@@ -201,13 +201,13 @@ impl Context {
     pub fn pop_variables(&mut self) {
         if let Some(names) = self.names.pop() {
             for name in names {
-                self._pop_variable(&name)
+                self._pop_variable(&name);
             }
         }
     }
 
     pub fn push_for_loop(&mut self, len: usize) {
-        self.loops.push(ForLoop { count: 0, len })
+        self.loops.push(ForLoop { count: 0, len });
     }
 
     pub fn increment_for_loop(&mut self) {
@@ -215,7 +215,7 @@ impl Context {
             .loops
             .last_mut()
             .expect("Called within an active for loop");
-        for_loop.count += 1
+        for_loop.count += 1;
     }
 
     pub fn pop_for_loop(&mut self) {
@@ -301,7 +301,7 @@ impl PyContext {
         }
     }
 
-    fn __contains__<'py>(&self, py: Python<'py>, key: String) -> bool {
+    fn __contains__(&self, py: Python<'_>, key: String) -> bool {
         let guard = self
             .context
             .lock_py_attached(py)
@@ -327,8 +327,8 @@ impl PyContext {
             .expect("Mutex should not be poisoned");
         if let Some(last) = guard.names.last_mut() {
             last.insert(key.clone());
-        };
-        guard.insert(key, value)
+        }
+        guard.insert(key, value);
     }
 }
 
@@ -343,25 +343,20 @@ pub enum ContentString<'t> {
 impl<'t, 'py> ContentString<'t> {
     pub fn content(self) -> Cow<'t, str> {
         match self {
-            Self::String(content) => content,
-            Self::HtmlSafe(content) => content,
+            Self::String(content) | Self::HtmlSafe(content) => content,
             Self::HtmlUnsafe(content) => Cow::Owned(encode_quoted_attribute(&content).to_string()),
         }
     }
 
     pub fn as_raw(&self) -> &Cow<'t, str> {
         match self {
-            Self::String(content) => content,
-            Self::HtmlSafe(content) => content,
-            Self::HtmlUnsafe(content) => content,
+            Self::String(content) | Self::HtmlSafe(content) | Self::HtmlUnsafe(content) => content,
         }
     }
 
     pub fn into_raw(self) -> Cow<'t, str> {
         match self {
-            Self::String(content) => content,
-            Self::HtmlSafe(content) => content,
-            Self::HtmlUnsafe(content) => content,
+            Self::String(content) | Self::HtmlSafe(content) | Self::HtmlUnsafe(content) => content,
         }
     }
 
@@ -379,7 +374,7 @@ fn resolve_python<'t>(value: Bound<'_, PyAny>, context: &Context) -> PyResult<Co
         return Ok(ContentString::String(
             value.str()?.extract::<String>()?.into(),
         ));
-    };
+    }
     let py = value.py();
 
     let value = match value.is_instance_of::<PyString>() {
@@ -399,7 +394,12 @@ fn resolve_python<'t>(value: Bound<'_, PyAny>, context: &Context) -> PyResult<Co
 
 fn resolve_bigint(bigint: BigInt, at: (usize, usize)) -> Result<usize, PyRenderError> {
     match bigint.to_isize() {
-        Some(n) => Ok(n.max(0) as usize),
+        Some(n) => {
+            let n = n.max(0);
+            #[allow(clippy::cast_sign_loss)]
+            let n = n as usize;
+            Ok(n)
+        }
         None => Err(RenderError::OverflowError {
             argument: bigint.to_string(),
             argument_at: at.into(),
@@ -540,11 +540,7 @@ impl<'t, 'py> Content<'t, 'py> {
                 .expect("An f64 can always be converted to a Python float.")
                 .into_any(),
             Self::String(s) => match s {
-                ContentString::String(s) => s
-                    .into_pyobject(py)
-                    .expect("A string can always be converted to a Python str.")
-                    .into_any(),
-                ContentString::HtmlUnsafe(s) => s
+                ContentString::String(s) | ContentString::HtmlUnsafe(s) => s
                     .into_pyobject(py)
                     .expect("A string can always be converted to a Python str.")
                     .into_any(),

@@ -55,7 +55,7 @@ pub mod django_rusty_templates {
             let miette_err = err.with_source_code(source);
             let report = format!("{miette_err:?}");
             // Work around old-style Python formatting in VariableDoesNotExist.__str__
-            let report = report.replace("%", "%%");
+            let report = report.replace('%', "%%");
             Self::new_err(report)
         }
     }
@@ -127,7 +127,7 @@ pub mod django_rusty_templates {
     }
 
     /// Helper function to unpack a loader tuple configuration.
-    /// See https://docs.djangoproject.com/en/stable/ref/templates/api/#django.template.Engine
+    /// See <https://docs.djangoproject.com/en/stable/ref/templates/api/#django.template.Engine>
     fn unpack<'py>(loader: &Bound<'py, PyAny>) -> PyResult<(String, Bound<'py, PyAny>)> {
         let mut items = loader.try_iter()?;
         let first_item = match items.next() {
@@ -149,8 +149,8 @@ pub mod django_rusty_templates {
         };
         Ok((loader_path, remaining_args))
     }
-    fn get_template_loaders<'py>(
-        py: Python<'py>,
+    fn get_template_loaders(
+        py: Python<'_>,
         template_loaders: Bound<'_, PyIterator>,
         encoding: &'static Encoding,
     ) -> PyResult<Vec<Loader>> {
@@ -162,8 +162,8 @@ pub mod django_rusty_templates {
             .collect()
     }
 
-    fn find_template_loader<'py>(
-        py: Python<'py>,
+    fn find_template_loader(
+        py: Python<'_>,
         loader: Bound<'_, PyAny>,
         encoding: &'static Encoding,
     ) -> PyResult<Loader> {
@@ -226,8 +226,7 @@ pub mod django_rusty_templates {
             }
             // TODO: Return an `ExternalLoader` when it's fully implemented
             unknown => Err(ImproperlyConfigured::new_err(format!(
-                "Invalid template loader class: {}",
-                unknown
+                "Invalid template loader class: {unknown}"
             ))),
         }
     }
@@ -256,7 +255,7 @@ pub mod django_rusty_templates {
     #[pymethods]
     impl Engine {
         #[new]
-        #[pyo3(signature = (dirs=None, app_dirs=false, context_processors=None, debug=false, loaders=None, string_if_invalid="".to_string(), file_charset="utf-8".to_string(), libraries=None, builtins=None, autoescape=true))]
+        #[pyo3(signature = (dirs=None, app_dirs=false, context_processors=None, debug=false, loaders=None, string_if_invalid=String::new(), file_charset="utf-8".to_string(), libraries=None, builtins=None, autoescape=true))]
         #[allow(clippy::too_many_arguments)] // We're matching Django's Engine __init__ signature
         pub fn new(
             py: Python<'_>,
@@ -282,22 +281,17 @@ pub mod django_rusty_templates {
                     let loaded = context_processors
                         .try_iter()?
                         .map(|processor| {
-                            import_string
-                                .call1((processor?,))
-                                .map(|processor| processor.unbind())
+                            import_string.call1((processor?,)).map(pyo3::Bound::unbind)
                         })
                         .collect::<PyResult<Vec<Py<PyAny>>>>()?;
                     (context_processors.extract()?, loaded)
                 }
                 None => (Vec::new(), Vec::new()),
             };
-            let encoding = match Encoding::for_label(file_charset.as_bytes()) {
-                Some(encoding) => encoding,
-                None => {
-                    return Err(PyValueError::new_err(format!(
-                        "Unknown encoding: '{file_charset}'"
-                    )));
-                }
+            let Some(encoding) = Encoding::for_label(file_charset.as_bytes()) else {
+                return Err(PyValueError::new_err(format!(
+                    "Unknown encoding: '{file_charset}'"
+                )));
             };
             let template_loaders = match loaders {
                 Some(_) if app_dirs => {
@@ -346,7 +340,7 @@ pub mod django_rusty_templates {
         /// Return a compiled Template object for the given template name,
         /// handling template inheritance recursively.
         ///
-        /// See https://docs.djangoproject.com/en/stable/ref/templates/api/#django.template.Engine.get_template
+        /// See <https://docs.djangoproject.com/en/stable/ref/templates/api/#django.template.Engine.get_template>
         pub fn get_template(
             &mut self,
             py: Python<'_>,
@@ -364,7 +358,7 @@ pub mod django_rusty_templates {
 
         /// Given a list of template names, return the first that can be loaded.
         ///
-        /// See https://docs.djangoproject.com/en/stable/ref/templates/api/#django.template.Engine.select_template
+        /// See <https://docs.djangoproject.com/en/stable/ref/templates/api/#django.template.Engine.select_template>
         pub fn select_template(
             &mut self,
             py: Python<'_>,
@@ -378,7 +372,7 @@ pub mod django_rusty_templates {
                 match self.get_template(py, template_name) {
                     Ok(template) => return Ok(template),
                     Err(e) if e.is_instance_of::<TemplateDoesNotExist>(py) => {
-                        not_found.push(e.value(py).to_string())
+                        not_found.push(e.value(py).to_string());
                     }
                     Err(e) => return Err(e),
                 }
@@ -391,7 +385,7 @@ pub mod django_rusty_templates {
             Template::new_from_string(template_code.py(), template_code.extract()?, &self.data)
         }
 
-        /// Render the template specified by template_name with the given context.
+        /// Render the template specified by `template_name` with the given context.
         /// For use in Django's test suite.
         #[pyo3(signature = (template_name, context=None))]
         pub fn render_to_string(
@@ -513,7 +507,8 @@ pub mod django_rusty_templates {
                                 ));
                             }
                             RenderError::InvalidArgumentInteger { .. }
-                            | RenderError::InvalidArgumentString { .. } => {
+                            | RenderError::InvalidArgumentString { .. }
+                            | RenderError::TupleUnpackError { .. } => {
                                 return Err(PyValueError::with_source_code(
                                     err.into(),
                                     self.template.clone(),
@@ -522,12 +517,6 @@ pub mod django_rusty_templates {
                             RenderError::OverflowError { .. }
                             | RenderError::InvalidArgumentFloat { .. } => {
                                 return Err(PyOverflowError::with_source_code(
-                                    err.into(),
-                                    self.template.clone(),
-                                ));
-                            }
-                            RenderError::TupleUnpackError { .. } => {
-                                return Err(PyValueError::with_source_code(
                                     err.into(),
                                     self.template.clone(),
                                 ));
@@ -557,7 +546,7 @@ pub mod django_rusty_templates {
                     PyBool::new(py, false).to_owned().into(),
                 ),
             ]);
-            let request = request.map(|request| request.unbind());
+            let request = request.map(pyo3::Bound::unbind);
             if let Some(ref request) = request {
                 for processor in self.context_processors.iter() {
                     let processor = processor.bind(py);
@@ -576,11 +565,11 @@ pub mod django_rusty_templates {
                     };
                     base_context.extend(processor_context);
                 }
-            };
+            }
             if let Some(context) = context {
                 let new_context: HashMap<_, _> = context.extract()?;
                 base_context.extend(new_context);
-            };
+            }
             let mut context = Context::new(base_context, request, self.autoescape);
             self._render(py, &mut context)
         }
@@ -623,7 +612,7 @@ mod tests {
 
             let error_string = format!("{error}");
             assert_eq!(error_string, expected);
-        })
+        });
     }
 
     #[test]
@@ -647,7 +636,7 @@ mod tests {
 
             let error_string = format!("{error}");
             assert_eq!(error_string, expected);
-        })
+        });
     }
 
     #[test]
@@ -656,12 +645,12 @@ mod tests {
 
         Python::attach(|py| {
             let engine = EngineData::empty();
-            let template_string = "".to_string();
+            let template_string = String::new();
             let template = Template::new_from_string(py, template_string, &engine).unwrap();
             let context = PyDict::new(py);
 
             assert_eq!(template.render(py, Some(context), None).unwrap(), "");
-        })
+        });
     }
 
     #[test]
@@ -679,7 +668,7 @@ mod tests {
                 template.render(py, Some(context), None).unwrap(),
                 "Hello Lily!"
             );
-        })
+        });
     }
 
     #[test]
@@ -693,7 +682,7 @@ mod tests {
             let context = PyDict::new(py);
 
             assert_eq!(template.render(py, Some(context), None).unwrap(), "Hello !");
-        })
+        });
     }
 
     #[test]
@@ -725,7 +714,7 @@ user = User(["Lily"])
                 template.render(py, Some(context), None).unwrap(),
                 "Hello Lily!"
             );
-        })
+        });
     }
 
     #[test]
@@ -740,7 +729,7 @@ user = User(["Lily"])
                 None,
                 false,
                 None,
-                "".to_string(),
+                String::new(),
                 "utf-8".to_string(),
                 None,
                 None,
@@ -752,7 +741,7 @@ user = User(["Lily"])
             let context = PyDict::new(py);
 
             assert_eq!(template.render(py, Some(context), None).unwrap(), "Hello !");
-        })
+        });
     }
 
     #[test]
@@ -776,7 +765,7 @@ user = User(["Lily"])
                 None,
                 false,
                 None,
-                "".to_string(),
+                String::new(),
                 "utf-8".to_string(),
                 Some(
                     HashMap::from([("custom_filters", "tests.templatetags.custom_filters")])
@@ -796,7 +785,7 @@ user = User(["Lily"])
             assert_eq!(cloned.template, template.template);
             assert_eq!(cloned.nodes, template.nodes);
             assert_eq!(cloned.autoescape, template.autoescape);
-        })
+        });
     }
 
     #[test]
@@ -870,7 +859,7 @@ user = User(["Lily"])
             // let loaders: Vec<String> = py_engine.getattr("loaders").unwrap().extract().unwrap();
             // assert_eq!(loaders.len(), 1);
             // assert_eq!(loaders[0], "django.template.loaders.cached.Loader");
-        })
+        });
     }
 
     #[test]
@@ -887,7 +876,7 @@ user = User(["Lily"])
                 None,
                 false,
                 Some(loaders),
-                "".to_string(),
+                String::new(),
                 "utf-8".to_string(),
                 None,
                 None,
@@ -898,6 +887,6 @@ user = User(["Lily"])
             assert!(engine_error.is_instance_of::<ImproperlyConfigured>(py));
             let message = "app_dirs must not be set when loaders is defined.";
             assert_eq!(engine_error.value(py).to_string(), message);
-        })
+        });
     }
 }

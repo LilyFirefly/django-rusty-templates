@@ -99,7 +99,8 @@ impl FileSystemLoader {
             let (contents, encoding, malformed) = self.encoding.decode(&bytes);
             if malformed {
                 return Ok(Err(PyUnicodeError::new_err(format!(
-                    "Could not open {path:?} with {} encoding.",
+                    "Could not open {} with {} encoding.",
+                    path.display(),
                     encoding.name()
                 ))));
             }
@@ -295,7 +296,7 @@ mod tests {
             #[cfg(windows)]
             expected.push("tests\\templates\\basic.txt");
             assert_eq!(template.filename.unwrap(), expected);
-        })
+        });
     }
 
     #[test]
@@ -322,7 +323,7 @@ mod tests {
                     )],
                 },
             );
-        })
+        });
     }
 
     #[test]
@@ -345,9 +346,12 @@ mod tests {
             expected.push("tests\\templates\\invalid.txt");
             assert_eq!(
                 error.to_string(),
-                format!("UnicodeError: Could not open {expected:?} with UTF-8 encoding.")
+                format!(
+                    "UnicodeError: Could not open {} with UTF-8 encoding.",
+                    expected.display()
+                )
             );
-        })
+        });
     }
 
     #[test]
@@ -446,7 +450,7 @@ mod tests {
                 .get_template(py, "missing.txt", &engine)
                 .unwrap_err();
             assert_eq!(error, expected_err);
-        })
+        });
     }
 
     #[test]
@@ -471,9 +475,12 @@ mod tests {
             expected.push("tests\\templates\\invalid.txt");
             assert_eq!(
                 error.to_string(),
-                format!("UnicodeError: Could not open {expected:?} with UTF-8 encoding.")
+                format!(
+                    "UnicodeError: Could not open {} with UTF-8 encoding.",
+                    expected.display()
+                )
             );
-        })
+        });
     }
 
     #[test]
@@ -516,7 +523,7 @@ mod tests {
                     )],
                 },
             );
-        })
+        });
     }
 
     #[test]
@@ -540,7 +547,7 @@ mod tests {
             #[cfg(windows)]
             expected.push("tests\\templates\\basic.txt");
             assert_eq!(template.filename.unwrap(), expected);
-        })
+        });
     }
 
     #[test]
@@ -584,7 +591,7 @@ mod tests {
                     ],
                 },
             );
-        })
+        });
     }
 
     #[test]
@@ -609,9 +616,12 @@ mod tests {
             expected.push("tests\\templates\\invalid.txt");
             assert_eq!(
                 error.to_string(),
-                format!("UnicodeError: Could not open {expected:?} with UTF-8 encoding.")
+                format!(
+                    "UnicodeError: Could not open {} with UTF-8 encoding.",
+                    expected.display()
+                )
             );
-        })
+        });
     }
 
     #[test]
@@ -800,8 +810,6 @@ mod tests {
         ignore = "Skipping on Windows due to path character restrictions"
     )]
     fn test_safe_join_matches_django_safe_join() {
-        Python::initialize();
-
         fn matches(path: PathBuf, template_name: String) -> bool {
             Python::attach(|py| {
                 let utils_os = PyModule::import(py, "django.utils._os").unwrap();
@@ -814,6 +822,8 @@ mod tests {
                 joined == safe_join(&path, &template_name)
             })
         }
-        quickcheck(matches as fn(PathBuf, String) -> bool)
+        Python::initialize();
+
+        quickcheck(matches as fn(PathBuf, String) -> bool);
     }
 }
