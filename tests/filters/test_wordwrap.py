@@ -19,7 +19,9 @@ import pytest
         pytest.param(1, "a b c", "a\nb\nc", id="width_one"),
         pytest.param(10, "hello world\n", "hello\nworld\n", id="trailing_newline"),
         pytest.param(10, "   ", "   ", id="only_whitespace"),
-        pytest.param(10, "hello\tworld", "hello\nworld", id="tabs_and_spaces"),
+        pytest.param(
+            10, "hello\tworld world", "hello\nworld\nworld", id="tabs_and_spaces"
+        ),
         pytest.param(10, "line1\n\nline2", "line1\n\nline2", id="multiple_newlines"),
         pytest.param(
             15,
@@ -136,11 +138,11 @@ def test_wordwrap_width_as_float(assert_render):
 
 def test_wordwrap_with_autoescape_off(assert_render):
     template = (
-        "{% autoescape off %}{{ a|wordwrap:3 }} {{ b|wordwrap:3 }}{% endautoescape %}"
+        "{% autoescape off %}{{ a|wordwrap:3 }} {{ a|wordwrap:3 }}{% endautoescape %}"
     )
     assert_render(
         template,
-        {"a": "a & b", "b": "a & b"},
+        {"a": "a & b"},
         "a &\nb a &\nb",
     )
 
@@ -202,37 +204,63 @@ def test_wordwrap_invalid_width_string(assert_render_error):
 
 
 def test_wordwrap_negative_width(assert_render_error):
+    rusty_message = """\
+  × invalid width -5 (must be > 0)
+   ╭────
+ 1 │ {{ text|wordwrap:-5 }}
+   ·                  ─┬
+   ·                   ╰── argument
+   ╰────
+"""
     assert_render_error(
         template="{{ text|wordwrap:-5 }}",
         context={"text": "hello world"},
         exception=ValueError,
         django_message="invalid width -5 (must be > 0)",
-        rusty_message="invalid width -5 (must be > 0)",
+        rusty_message=rusty_message,
     )
 
 
 def test_wordwrap_bool_zero_width(assert_render_error):
+    rusty_message = """\
+  × invalid width 0 (must be > 0)
+   ╭────
+ 1 │ {{ text|wordwrap:False }}
+   ·                  ──┬──
+   ·                    ╰── argument
+   ╰────
+"""
     assert_render_error(
         template="{{ text|wordwrap:False }}",
         context={"text": "hello world"},
         exception=ValueError,
         django_message="invalid width 0 (must be > 0)",
-        rusty_message="invalid width 0 (must be > 0)",
+        rusty_message=rusty_message,
     )
 
 
 def test_wordwrap_zero_width(assert_render_error):
+    rusty_message = """\
+  × invalid width 0 (must be > 0)
+   ╭────
+ 1 │ {{ text|wordwrap:0 }}
+   ·                  ┬
+   ·                  ╰── argument
+   ╰────
+"""
     assert_render_error(
         template="{{ text|wordwrap:0 }}",
         context={"text": "hello world"},
         exception=ValueError,
         django_message="invalid width 0 (must be > 0)",
-        rusty_message="invalid width 0 (must be > 0)",
+        rusty_message=rusty_message,
     )
 
 
-@pytest.mark.skip("Should overflow in django")
-def test_wordwrap_width_overflow(assert_render_error):
+def test_wordwrap_width_overflow(request, assert_render_error):
+    if "django" in request.node.name:
+        pytest.skip("Django does not fail with bigints when casting with `int(...)`")
+
     assert_render_error(
         template="{{ text|wordwrap:9223372036854775808 }}",
         context={"text": "hello"},
@@ -242,8 +270,25 @@ def test_wordwrap_width_overflow(assert_render_error):
   × Integer 9223372036854775808 is too large
    ╭────
  1 │ {{ text|wordwrap:9223372036854775808 }}
-   ·                  ─────────┬───────────
+   ·                  ─────────┬─────────
    ·                           ╰── here
+   ╰────
+""",
+    )
+
+
+def test_wordwrap_width_overflow_float(assert_render_error):
+    assert_render_error(
+        template="{{ text|wordwrap:1e310 }}",
+        context={"text": "hello"},
+        exception=OverflowError,
+        django_message="cannot convert float infinity to integer",
+        rusty_message="""\
+  × Couldn't convert float (inf) to integer
+   ╭────
+ 1 │ {{ text|wordwrap:1e310 }}
+   ·                  ──┬──
+   ·                    ╰── here
    ╰────
 """,
     )

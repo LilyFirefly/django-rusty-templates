@@ -510,13 +510,7 @@ impl ResolveFilter for WordcountFilter {
 /// which they break the line.
 ///
 /// Don't wrap long words, thus the output text may have lines longer than ``width``.
-fn wordwrap(text: &str, width: usize) -> Result<String, PyErr> {
-    if width == 0 {
-        return Err(pyo3::exceptions::PyValueError::new_err(
-            "invalid width 0 (must be > 0)",
-        ));
-    }
-
+fn wordwrap(text: &str, width: usize) -> String {
     let mut result = String::with_capacity(text.len());
 
     for (i, line) in text.split('\n').enumerate() {
@@ -548,17 +542,16 @@ fn wordwrap(text: &str, width: usize) -> Result<String, PyErr> {
 
             if current_len + word_len < width {
                 result.push(' ');
-                result.push_str(word);
                 current_len += 1 + word_len;
             } else {
                 result.push('\n');
-                result.push_str(word);
                 current_len = word_len;
             }
+            result.push_str(word);
         }
     }
 
-    Ok(result)
+    result
 }
 
 impl ResolveFilter for WordwrapFilter {
@@ -583,18 +576,19 @@ impl ResolveFilter for WordwrapFilter {
         // Check for negative values before converting to usize
         if let Some(bigint) = arg.to_bigint()
             && let Some(n) = bigint.to_isize()
-            && n < 0
+            && n <= 0
         {
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
                 "invalid width {} (must be > 0)",
                 n
             ))
+            .annotate(py, self.argument.at, "argument", template)
             .into());
         }
 
         let width = arg.resolve_usize(self.argument.at)?;
 
-        let wrapped = wordwrap(text.as_raw(), width)?;
+        let wrapped = wordwrap(text.as_raw(), width);
         Ok(Some(text.map_content(|_| Cow::Owned(wrapped))))
     }
 }
