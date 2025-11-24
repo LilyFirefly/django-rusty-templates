@@ -1012,19 +1012,18 @@ impl<'t, 'l, 'py> Parser<'t, 'l, 'py> {
                     Either::Right(end_tag) => {
                         if until.contains(&end_tag.end) {
                             return Ok((nodes, end_tag));
-                        } else {
-                            return Err(ParseError::WrongEndTag {
-                                expected: until
-                                    .iter()
-                                    .map(|u| u.as_cow())
-                                    .collect::<Vec<_>>()
-                                    .join(", "),
-                                unexpected: end_tag.as_cow(),
-                                at: end_tag.at.into(),
-                                start_at: start_at.into(),
-                            }
-                            .into());
                         }
+                        return Err(ParseError::WrongEndTag {
+                            expected: until
+                                .iter()
+                                .map(|u| u.as_cow())
+                                .collect::<Vec<_>>()
+                                .join(", "),
+                            unexpected: end_tag.as_cow(),
+                            at: end_tag.at.into(),
+                            start_at: start_at.into(),
+                        }
+                        .into());
                     }
                 },
             };
