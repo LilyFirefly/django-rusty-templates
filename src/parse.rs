@@ -317,7 +317,7 @@ fn parse_if_binding_power(
             .expect("already `return Err` in match peek()");
         let rhs = parse_if_binding_power(parser, lexer, binding_power, token.at)?;
 
-        lhs = operator.build_condition(lhs, rhs)
+        lhs = operator.build_condition(lhs, rhs);
     }
 
     Ok(lhs)
@@ -984,7 +984,7 @@ impl<'t, 'l, 'py> Parser<'t, 'l, 'py> {
                     }
                 },
             };
-            nodes.push(node)
+            nodes.push(node);
         }
         Ok(nodes)
     }
@@ -1027,7 +1027,7 @@ impl<'t, 'l, 'py> Parser<'t, 'l, 'py> {
                     }
                 },
             };
-            nodes.push(node)
+            nodes.push(node);
         }
         Err(ParseError::MissingEndTag {
             start,
@@ -1551,7 +1551,7 @@ impl<'t, 'l, 'py> Parser<'t, 'l, 'py> {
             _ => None,
         };
         if variable.is_some() {
-            tokens.truncate(tokens.len() - 2)
+            tokens.truncate(tokens.len() - 2);
         }
         let mut args = vec![];
         let mut kwargs = vec![];
@@ -1730,7 +1730,7 @@ mod tests {
             let mut parser = Parser::new(py, template.into(), &libraries);
             let nodes = parser.parse().unwrap();
             assert_eq!(nodes, vec![]);
-        })
+        });
     }
 
     #[test]
@@ -1746,7 +1746,7 @@ mod tests {
             let text = Text::new((0, template.len()));
             assert_eq!(nodes, vec![TokenTree::Text(text)]);
             assert_eq!(template_string.content(text.at), template);
-        })
+        });
     }
 
     #[test]
@@ -1759,7 +1759,7 @@ mod tests {
             let mut parser = Parser::new(py, template.into(), &libraries);
             let nodes = parser.parse().unwrap();
             assert_eq!(nodes, vec![]);
-        })
+        });
     }
 
     #[test]
@@ -1772,7 +1772,7 @@ mod tests {
             let mut parser = Parser::new(py, template.into(), &libraries);
             let error = parser.parse().unwrap_err().unwrap_parse_error();
             assert_eq!(error, ParseError::EmptyVariable { at: (0, 5).into() });
-        })
+        });
     }
 
     #[test]
@@ -1790,7 +1790,7 @@ mod tests {
                 variable.parts(template).collect::<Vec<_>>(),
                 vec![("foo", (3, 3))]
             );
-        })
+        });
     }
 
     #[test]
@@ -1808,7 +1808,7 @@ mod tests {
                 variable.parts(template).collect::<Vec<_>>(),
                 vec![("foo", (3, 3)), ("bar", (7, 3)), ("baz", (11, 3))]
             );
-        })
+        });
     }
 
     #[test]
@@ -1840,7 +1840,7 @@ mod tests {
                 foo.parts(template).collect::<Vec<_>>(),
                 vec![("foo", (3, 3))]
             );
-        })
+        });
     }
 
     #[test]
@@ -1859,7 +1859,7 @@ mod tests {
                     at: (7, 3).into()
                 }
             );
-        })
+        });
     }
 
     #[test]
@@ -1899,7 +1899,7 @@ mod tests {
                 }),
             }));
             assert_eq!(nodes, vec![baz]);
-        })
+        });
     }
 
     #[test]
@@ -1934,7 +1934,7 @@ mod tests {
                 baz.parts(template).collect::<Vec<_>>(),
                 vec![("baz", (11, 3))]
             );
-        })
+        });
     }
 
     #[test]
@@ -1965,7 +1965,7 @@ mod tests {
             }));
             assert_eq!(nodes, vec![bar]);
             assert_eq!(template.content(baz.at), "baz");
-        })
+        });
     }
 
     #[test]
@@ -1996,7 +1996,7 @@ mod tests {
             }));
             assert_eq!(nodes, vec![bar]);
             assert_eq!(template.content(baz.at), "baz");
-        })
+        });
     }
 
     #[test]
@@ -2026,7 +2026,7 @@ mod tests {
                 }),
             }));
             assert_eq!(nodes, vec![bar]);
-        })
+        });
     }
 
     #[test]
@@ -2056,7 +2056,7 @@ mod tests {
                 }),
             }));
             assert_eq!(nodes, vec![bar]);
-        })
+        });
     }
 
     #[test]
@@ -2086,7 +2086,7 @@ mod tests {
                 }),
             }));
             assert_eq!(nodes, vec![bar]);
-        })
+        });
     }
 
     #[test]
@@ -2099,7 +2099,7 @@ mod tests {
             let mut parser = Parser::new(py, template.into(), &libraries);
             let error = parser.parse().unwrap_err().unwrap_parse_error();
             assert_eq!(error, ParseError::InvalidNumber { at: (11, 5).into() });
-        })
+        });
     }
 
     #[test]
@@ -2123,7 +2123,7 @@ mod tests {
 
             let error_string = format!("{error}");
             assert!(error_string.contains("addslashes filter does not take an argument"));
-        })
+        });
     }
 
     #[test]
@@ -2151,7 +2151,7 @@ mod tests {
                 baz.parts(template).collect::<Vec<_>>(),
                 vec![("baz", (15, 3))]
             );
-        })
+        });
     }
 
     #[test]
@@ -2164,7 +2164,7 @@ mod tests {
             let mut parser = Parser::new(py, template.into(), &libraries);
             let error = parser.parse().unwrap_err().unwrap_parse_error();
             assert_eq!(error, ParseError::MissingArgument { at: (7, 7).into() });
-        })
+        });
     }
 
     #[test]
@@ -2183,7 +2183,7 @@ mod tests {
                     at: (13, 3).into()
                 }
             );
-        })
+        });
     }
 
     #[test]
@@ -2201,7 +2201,7 @@ mod tests {
                     LexerError::InvalidVariableName { at: (3, 4).into() }.into()
                 )
             );
-        })
+        });
     }
 
     #[test]
@@ -2214,7 +2214,7 @@ mod tests {
             let mut parser = Parser::new(py, template.into(), &libraries);
             let error = parser.parse().unwrap_err().unwrap_parse_error();
             assert_eq!(error, ParseError::EmptyTag { at: (0, 6).into() });
-        })
+        });
     }
 
     #[test]
@@ -2230,7 +2230,7 @@ mod tests {
                 error,
                 ParseError::BlockError(TagLexerError::InvalidTagName { at: (3, 8).into() })
             );
-        })
+        });
     }
 
     #[test]
@@ -2251,7 +2251,7 @@ mod tests {
             }));
 
             assert_eq!(nodes, vec![url]);
-        })
+        });
     }
 
     #[test]
@@ -2272,7 +2272,7 @@ mod tests {
             }));
 
             assert_eq!(nodes, vec![url]);
-        })
+        });
     }
 
     #[test]
@@ -2293,7 +2293,7 @@ mod tests {
             }));
 
             assert_eq!(nodes, vec![url]);
-        })
+        });
     }
 
     #[test]
@@ -2324,7 +2324,7 @@ mod tests {
             }));
 
             assert_eq!(nodes, vec![url]);
-        })
+        });
     }
 
     #[test]
@@ -2337,7 +2337,7 @@ mod tests {
             let mut parser = Parser::new(py, template.into(), &libraries);
             let error = parser.parse().unwrap_err().unwrap_parse_error();
             assert_eq!(error, ParseError::UrlTagNoArguments { at: (0, 9).into() });
-        })
+        });
     }
 
     #[test]
@@ -2358,7 +2358,7 @@ mod tests {
             }));
 
             assert_eq!(nodes, vec![url]);
-        })
+        });
     }
 
     #[test]
@@ -2392,7 +2392,7 @@ mod tests {
             }));
 
             assert_eq!(nodes, vec![url]);
-        })
+        });
     }
 
     #[test]
@@ -2416,7 +2416,7 @@ mod tests {
             }));
 
             assert_eq!(nodes, vec![url]);
-        })
+        });
     }
 
     #[test]
@@ -2437,7 +2437,7 @@ mod tests {
             }));
 
             assert_eq!(nodes, vec![url]);
-        })
+        });
     }
 
     #[test]
@@ -2458,7 +2458,7 @@ mod tests {
             }));
 
             assert_eq!(nodes, vec![url]);
-        })
+        });
     }
 
     #[test]
@@ -2483,7 +2483,7 @@ mod tests {
             }));
 
             assert_eq!(nodes, vec![url]);
-        })
+        });
     }
 
     #[test]
@@ -2501,7 +2501,7 @@ mod tests {
                     at: (0, template.len()).into()
                 }
             );
-        })
+        });
     }
 
     #[test]
@@ -2514,7 +2514,7 @@ mod tests {
             let mut parser = Parser::new(py, template.into(), &libraries);
             let error = parser.parse().unwrap_err().unwrap_parse_error();
             assert_eq!(error, ParseError::InvalidNumber { at: (11, 5).into() });
-        })
+        });
     }
 
     #[test]
@@ -2537,7 +2537,7 @@ mod tests {
                     argument_type: ArgumentType::Float(1.0)
                 }))
             );
-        })
+        });
     }
 
     #[test]
@@ -2566,7 +2566,7 @@ mod tests {
                     target_var: Some("foo".to_string()),
                 },
             );
-        })
+        });
     }
 
     #[test]
@@ -2597,6 +2597,6 @@ mod tests {
                     target_var: Some("foo".to_string()),
                 },
             );
-        })
+        });
     }
 }

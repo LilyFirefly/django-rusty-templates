@@ -278,7 +278,7 @@ mod tests {
 
             let rendered = variable.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "Lily");
-        })
+        });
     }
 
     #[test]
@@ -296,7 +296,7 @@ mod tests {
 
             let rendered = variable.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "Lily");
-        })
+        });
     }
 
     #[test]
@@ -313,7 +313,7 @@ mod tests {
 
             let rendered = variable.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "Lily");
-        })
+        });
     }
 
     #[test]
@@ -342,7 +342,7 @@ user = User('Lily')
 
             let rendered = variable.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "Lily");
-        })
+        });
     }
 
     #[test]
@@ -358,6 +358,6 @@ user = User('Lily')
 
             let rendered = html.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "&lt;p&gt;Hello World!&lt;/p&gt;");
-        })
+        });
     }
 }

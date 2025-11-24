@@ -595,7 +595,7 @@ mod tests {
 
             let rendered = filter.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "Lily");
-        })
+        });
     }
 
     #[test]
@@ -611,7 +611,7 @@ mod tests {
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "hello-world");
-        })
+        });
     }
 
     #[test]
@@ -627,7 +627,7 @@ mod tests {
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "hello-world");
-        })
+        });
     }
 
     #[test]
@@ -643,7 +643,7 @@ mod tests {
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "a");
-        })
+        });
     }
 
     #[test]
@@ -659,7 +659,7 @@ mod tests {
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "a-b");
-        })
+        });
     }
 
     #[test]
@@ -674,7 +674,7 @@ mod tests {
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "1");
-        })
+        });
     }
 
     #[test]
@@ -689,7 +689,7 @@ mod tests {
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "1.3");
-        })
+        });
     }
 
     #[test]
@@ -704,7 +704,7 @@ mod tests {
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "hello-world");
-        })
+        });
     }
 
     #[test]
@@ -719,7 +719,7 @@ mod tests {
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "hello-world");
-        })
+        });
     }
 
     #[test]
@@ -736,7 +736,7 @@ mod tests {
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "a-amp-b");
-        })
+        });
     }
 
     #[test]
@@ -751,7 +751,7 @@ mod tests {
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "");
-        })
+        });
     }
 
     #[test]
@@ -765,7 +765,7 @@ mod tests {
 
             let error_string = format!("{error}");
             assert!(error_string.contains("slugify filter does not take an argument"));
-        })
+        });
     }
 
     #[test]
@@ -786,7 +786,7 @@ mod tests {
 
             let rendered = filter.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, r"\'hello\'");
-        })
+        });
     }
 
     #[test]
@@ -824,7 +824,7 @@ mod tests {
 
             let error_string = format!("{error}");
             assert!(error_string.contains("capfirst filter does not take an argument"));
-        })
+        });
     }
 
     #[test]
@@ -856,7 +856,7 @@ mod tests {
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "django");
-        })
+        });
     }
 
     #[test]
@@ -873,7 +873,7 @@ mod tests {
             let error_string = format!("{error}");
 
             assert!(error_string.contains("Expected an argument"));
-        })
+        });
     }
 
     #[test]
@@ -888,7 +888,7 @@ mod tests {
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "");
-        })
+        });
     }
 
     #[test]
@@ -904,7 +904,7 @@ mod tests {
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "hello");
-        })
+        });
     }
 
     #[test]
@@ -927,7 +927,7 @@ mod tests {
 
             let rendered = filter.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "Bryony");
-        })
+        });
     }
 
     #[test]
@@ -950,7 +950,7 @@ mod tests {
 
             let rendered = filter.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "12");
-        })
+        });
     }
 
     #[test]
@@ -973,7 +973,7 @@ mod tests {
 
             let rendered = filter.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "3.5");
-        })
+        });
     }
 
     #[test]
@@ -997,7 +997,7 @@ mod tests {
 
             let rendered = filter.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "Lily");
-        })
+        });
     }
 
     #[test]
@@ -1018,7 +1018,7 @@ mod tests {
 
             let rendered = filter.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "lily");
-        })
+        });
     }
 
     #[test]
@@ -1038,7 +1038,7 @@ mod tests {
 
             let rendered = filter.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "");
-        })
+        });
     }
 
     #[test]
@@ -1066,7 +1066,7 @@ mod tests {
 
             let rendered = lower.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "bryony");
-        })
+        });
     }
 
     #[test]
@@ -1087,7 +1087,7 @@ mod tests {
 
             let rendered = filter.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "FOO");
-        })
+        });
     }
 
     #[test]
@@ -1107,6 +1107,6 @@ mod tests {
 
             let rendered = filter.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "");
-        })
+        });
     }
 }

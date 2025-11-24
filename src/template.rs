@@ -373,7 +373,7 @@ pub mod django_rusty_templates {
                 match self.get_template(py, template_name) {
                     Ok(template) => return Ok(template),
                     Err(e) if e.is_instance_of::<TemplateDoesNotExist>(py) => {
-                        not_found.push(e.value(py).to_string())
+                        not_found.push(e.value(py).to_string());
                     }
                     Err(e) => return Err(e),
                 }
@@ -618,7 +618,7 @@ mod tests {
 
             let error_string = format!("{error}");
             assert_eq!(error_string, expected);
-        })
+        });
     }
 
     #[test]
@@ -642,7 +642,7 @@ mod tests {
 
             let error_string = format!("{error}");
             assert_eq!(error_string, expected);
-        })
+        });
     }
 
     #[test]
@@ -656,7 +656,7 @@ mod tests {
             let context = PyDict::new(py);
 
             assert_eq!(template.render(py, Some(context), None).unwrap(), "");
-        })
+        });
     }
 
     #[test]
@@ -674,7 +674,7 @@ mod tests {
                 template.render(py, Some(context), None).unwrap(),
                 "Hello Lily!"
             );
-        })
+        });
     }
 
     #[test]
@@ -688,7 +688,7 @@ mod tests {
             let context = PyDict::new(py);
 
             assert_eq!(template.render(py, Some(context), None).unwrap(), "Hello !");
-        })
+        });
     }
 
     #[test]
@@ -720,7 +720,7 @@ user = User(["Lily"])
                 template.render(py, Some(context), None).unwrap(),
                 "Hello Lily!"
             );
-        })
+        });
     }
 
     #[test]
@@ -747,7 +747,7 @@ user = User(["Lily"])
             let context = PyDict::new(py);
 
             assert_eq!(template.render(py, Some(context), None).unwrap(), "Hello !");
-        })
+        });
     }
 
     #[test]
@@ -791,7 +791,7 @@ user = User(["Lily"])
             assert_eq!(cloned.template, template.template);
             assert_eq!(cloned.nodes, template.nodes);
             assert_eq!(cloned.autoescape, template.autoescape);
-        })
+        });
     }
 
     #[test]
@@ -865,7 +865,7 @@ user = User(["Lily"])
             // let loaders: Vec<String> = py_engine.getattr("loaders").unwrap().extract().unwrap();
             // assert_eq!(loaders.len(), 1);
             // assert_eq!(loaders[0], "django.template.loaders.cached.Loader");
-        })
+        });
     }
 
     #[test]
@@ -893,6 +893,6 @@ user = User(["Lily"])
             assert!(engine_error.is_instance_of::<ImproperlyConfigured>(py));
             let message = "app_dirs must not be set when loaders is defined.";
             assert_eq!(engine_error.value(py).to_string(), message);
-        })
+        });
     }
 }

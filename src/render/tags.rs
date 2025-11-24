@@ -640,7 +640,7 @@ impl Render for Tag {
 
                 let mut rendered = vec![];
                 for node in nodes {
-                    rendered.push(node.render(py, template, context)?)
+                    rendered.push(node.render(py, template, context)?);
                 }
 
                 context.autoescape = autoescape;
@@ -730,7 +730,7 @@ impl For {
         let mut parts = Vec::new();
         let mut chars: Vec<_> = string.chars().collect();
         if self.reversed {
-            chars.reverse()
+            chars.reverse();
         }
 
         let variable = &self.variables.names[0];

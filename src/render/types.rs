@@ -120,7 +120,7 @@ impl Context {
     }
 
     pub fn insert(&mut self, key: String, value: Bound<'_, PyAny>) {
-        self._insert(key, value, true)
+        self._insert(key, value, true);
     }
 
     pub fn push_variable(&mut self, name: String, value: Bound<'_, PyAny>, index: usize) {
@@ -201,13 +201,13 @@ impl Context {
     pub fn pop_variables(&mut self) {
         if let Some(names) = self.names.pop() {
             for name in names {
-                self._pop_variable(&name)
+                self._pop_variable(&name);
             }
         }
     }
 
     pub fn push_for_loop(&mut self, len: usize) {
-        self.loops.push(ForLoop { count: 0, len })
+        self.loops.push(ForLoop { count: 0, len });
     }
 
     pub fn increment_for_loop(&mut self) {
@@ -215,7 +215,7 @@ impl Context {
             .loops
             .last_mut()
             .expect("Called within an active for loop");
-        for_loop.count += 1
+        for_loop.count += 1;
     }
 
     pub fn pop_for_loop(&mut self) {
@@ -328,7 +328,7 @@ impl PyContext {
         if let Some(last) = guard.names.last_mut() {
             last.insert(key.clone());
         }
-        guard.insert(key, value)
+        guard.insert(key, value);
     }
 }
 

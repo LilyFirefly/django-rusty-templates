@@ -296,7 +296,7 @@ mod tests {
             #[cfg(windows)]
             expected.push("tests\\templates\\basic.txt");
             assert_eq!(template.filename.unwrap(), expected);
-        })
+        });
     }
 
     #[test]
@@ -323,7 +323,7 @@ mod tests {
                     )],
                 },
             );
-        })
+        });
     }
 
     #[test]
@@ -351,7 +351,7 @@ mod tests {
                     expected.display()
                 )
             );
-        })
+        });
     }
 
     #[test]
@@ -450,7 +450,7 @@ mod tests {
                 .get_template(py, "missing.txt", &engine)
                 .unwrap_err();
             assert_eq!(error, expected_err);
-        })
+        });
     }
 
     #[test]
@@ -480,7 +480,7 @@ mod tests {
                     expected.display()
                 )
             );
-        })
+        });
     }
 
     #[test]
@@ -523,7 +523,7 @@ mod tests {
                     )],
                 },
             );
-        })
+        });
     }
 
     #[test]
@@ -547,7 +547,7 @@ mod tests {
             #[cfg(windows)]
             expected.push("tests\\templates\\basic.txt");
             assert_eq!(template.filename.unwrap(), expected);
-        })
+        });
     }
 
     #[test]
@@ -591,7 +591,7 @@ mod tests {
                     ],
                 },
             );
-        })
+        });
     }
 
     #[test]
@@ -621,7 +621,7 @@ mod tests {
                     expected.display()
                 )
             );
-        })
+        });
     }
 
     #[test]
@@ -824,6 +824,6 @@ mod tests {
         }
         Python::initialize();
 
-        quickcheck(matches as fn(PathBuf, String) -> bool)
+        quickcheck(matches as fn(PathBuf, String) -> bool);
     }
 }
