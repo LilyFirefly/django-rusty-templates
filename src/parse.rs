@@ -1380,7 +1380,7 @@ impl<'t, 'l, 'py> Parser<'t, 'l, 'py> {
         }
         Ok(TokenTree::Tag(Tag::Load))
     }
-
+    #[allow(clippy::too_many_lines)]
     fn load_tag(
         &mut self,
         at: (usize, usize),

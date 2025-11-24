@@ -496,6 +496,7 @@ impl<'t, 'py> ResolveTuple<'t, 'py> for (IfCondition, IfCondition) {
 }
 
 impl Evaluate for IfCondition {
+    #[allow(clippy::too_many_lines)]
     fn evaluate(
         &self,
         py: Python<'_>,
