@@ -127,7 +127,7 @@ pub mod django_rusty_templates {
     }
 
     /// Helper function to unpack a loader tuple configuration.
-    /// See https://docs.djangoproject.com/en/stable/ref/templates/api/#django.template.Engine
+    /// See <https://docs.djangoproject.com/en/stable/ref/templates/api/#django.template.Engine>
     fn unpack<'py>(loader: &Bound<'py, PyAny>) -> PyResult<(String, Bound<'py, PyAny>)> {
         let mut items = loader.try_iter()?;
         let first_item = match items.next() {
@@ -343,7 +343,7 @@ pub mod django_rusty_templates {
         /// Return a compiled Template object for the given template name,
         /// handling template inheritance recursively.
         ///
-        /// See https://docs.djangoproject.com/en/stable/ref/templates/api/#django.template.Engine.get_template
+        /// See <https://docs.djangoproject.com/en/stable/ref/templates/api/#django.template.Engine.get_template>
         pub fn get_template(
             &mut self,
             py: Python<'_>,
@@ -361,7 +361,7 @@ pub mod django_rusty_templates {
 
         /// Given a list of template names, return the first that can be loaded.
         ///
-        /// See https://docs.djangoproject.com/en/stable/ref/templates/api/#django.template.Engine.select_template
+        /// See <https://docs.djangoproject.com/en/stable/ref/templates/api/#django.template.Engine.select_template>
         pub fn select_template(
             &mut self,
             py: Python<'_>,
@@ -388,7 +388,7 @@ pub mod django_rusty_templates {
             Template::new_from_string(template_code.py(), template_code.extract()?, &self.data)
         }
 
-        /// Render the template specified by template_name with the given context.
+        /// Render the template specified by `template_name` with the given context.
         /// For use in Django's test suite.
         #[pyo3(signature = (template_name, context=None))]
         pub fn render_to_string(
