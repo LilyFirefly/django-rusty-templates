@@ -1503,20 +1503,20 @@ impl<'t, 'l, 'py> Parser<'t, 'l, 'py> {
     }
 
     fn get_tags(
-        &mut self,
+        &self,
         library: &Bound<'py, PyAny>,
     ) -> PyResult<HashMap<String, Bound<'py, PyAny>>> {
         library.getattr(intern!(self.py, "tags"))?.extract()
     }
 
     fn get_filters(
-        &mut self,
+        &self,
         library: &Bound<'py, PyAny>,
     ) -> PyResult<HashMap<String, Bound<'py, PyAny>>> {
         library.getattr(intern!(self.py, "filters"))?.extract()
     }
 
-    fn parse_url(&mut self, at: (usize, usize), parts: TagParts) -> Result<TokenTree, ParseError> {
+    fn parse_url(&self, at: (usize, usize), parts: TagParts) -> Result<TokenTree, ParseError> {
         let mut lexer = SimpleTagLexer::new(self.template, parts);
         let Some(view_token) = lexer.next() else {
             return Err(ParseError::UrlTagNoArguments { at: at.into() });
