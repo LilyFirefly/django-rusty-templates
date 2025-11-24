@@ -99,7 +99,8 @@ impl FileSystemLoader {
             let (contents, encoding, malformed) = self.encoding.decode(&bytes);
             if malformed {
                 return Ok(Err(PyUnicodeError::new_err(format!(
-                    "Could not open {path:?} with {} encoding.",
+                    "Could not open {} with {} encoding.",
+                    path.display(),
                     encoding.name()
                 ))));
             }
@@ -345,7 +346,10 @@ mod tests {
             expected.push("tests\\templates\\invalid.txt");
             assert_eq!(
                 error.to_string(),
-                format!("UnicodeError: Could not open {expected:?} with UTF-8 encoding.")
+                format!(
+                    "UnicodeError: Could not open {} with UTF-8 encoding.",
+                    expected.display()
+                )
             );
         })
     }
@@ -471,7 +475,10 @@ mod tests {
             expected.push("tests\\templates\\invalid.txt");
             assert_eq!(
                 error.to_string(),
-                format!("UnicodeError: Could not open {expected:?} with UTF-8 encoding.")
+                format!(
+                    "UnicodeError: Could not open {} with UTF-8 encoding.",
+                    expected.display()
+                )
             );
         })
     }
@@ -609,7 +616,10 @@ mod tests {
             expected.push("tests\\templates\\invalid.txt");
             assert_eq!(
                 error.to_string(),
-                format!("UnicodeError: Could not open {expected:?} with UTF-8 encoding.")
+                format!(
+                    "UnicodeError: Could not open {} with UTF-8 encoding.",
+                    expected.display()
+                )
             );
         })
     }
