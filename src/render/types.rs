@@ -399,7 +399,12 @@ fn resolve_python<'t>(value: Bound<'_, PyAny>, context: &Context) -> PyResult<Co
 
 fn resolve_bigint(bigint: BigInt, at: (usize, usize)) -> Result<usize, PyRenderError> {
     match bigint.to_isize() {
-        Some(n) => Ok(n.max(0) as usize),
+        Some(n) => {
+            let n = n.max(0);
+            #[allow(clippy::cast_sign_loss)]
+            let n = n as usize;
+            Ok(n)
+        }
         None => Err(RenderError::OverflowError {
             argument: bigint.to_string(),
             argument_at: at.into(),
