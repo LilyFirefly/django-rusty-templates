@@ -327,7 +327,7 @@ impl PyContext {
             .expect("Mutex should not be poisoned");
         if let Some(last) = guard.names.last_mut() {
             last.insert(key.clone());
-        };
+        }
         guard.insert(key, value)
     }
 }
@@ -379,7 +379,7 @@ fn resolve_python<'t>(value: Bound<'_, PyAny>, context: &Context) -> PyResult<Co
         return Ok(ContentString::String(
             value.str()?.extract::<String>()?.into(),
         ));
-    };
+    }
     let py = value.py();
 
     let value = match value.is_instance_of::<PyString>() {

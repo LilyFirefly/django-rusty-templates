@@ -573,11 +573,11 @@ pub mod django_rusty_templates {
                     };
                     base_context.extend(processor_context);
                 }
-            };
+            }
             if let Some(context) = context {
                 let new_context: HashMap<_, _> = context.extract()?;
                 base_context.extend(new_context);
-            };
+            }
             let mut context = Context::new(base_context, request, self.autoescape);
             self._render(py, &mut context)
         }
