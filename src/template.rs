@@ -55,7 +55,7 @@ pub mod django_rusty_templates {
             let miette_err = err.with_source_code(source);
             let report = format!("{miette_err:?}");
             // Work around old-style Python formatting in VariableDoesNotExist.__str__
-            let report = report.replace("%", "%%");
+            let report = report.replace('%', "%%");
             Self::new_err(report)
         }
     }

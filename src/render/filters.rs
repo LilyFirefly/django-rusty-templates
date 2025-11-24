@@ -83,9 +83,9 @@ impl ResolveFilter for AddSlashesFilter {
                 let content_string = content.resolve_string(context)?;
                 content_string.map_content(|raw| {
                     Cow::Owned(
-                        raw.replace(r"\", r"\\")
-                            .replace("\"", "\\\"")
-                            .replace("'", r"\'"),
+                        raw.replace('\\', r"\\")
+                            .replace('"', "\\\"")
+                            .replace('\'', r"\'"),
                     )
                 })
             }
