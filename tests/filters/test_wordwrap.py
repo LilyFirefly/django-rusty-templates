@@ -1,4 +1,7 @@
 import pytest
+from django.template.base import VariableDoesNotExist
+
+from tests.utils import BrokenDunderStr
 
 
 @pytest.mark.parametrize(
@@ -325,4 +328,35 @@ def test_wordwrap_width_from_python_variable(assert_render_error):
    ·                    ╰── argument
    ╰────
 """,
+    )
+
+
+def test_wordwrap_missing_width_argument(assert_render_error):
+    django_message = "Failed lookup for key [width] in [{'True': True, 'False': False, 'None': None}, {'text': 'hello'}]"
+    rusty_message = """\
+  × Failed lookup for key [width] in {"False": False, "None": None, "True":
+  │ True, "text": "hello"}
+   ╭────
+ 1 │ {{ text|wordwrap:width }}
+   ·                  ──┬──
+   ·                    ╰── key
+   ╰────
+"""
+    assert_render_error(
+        template="{{ text|wordwrap:width }}",
+        context={"text": "hello"},
+        exception=VariableDoesNotExist,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
+def test_wordwrap_invalid_str_method(assert_render_error):
+    broken = BrokenDunderStr()
+    assert_render_error(
+        template="{{ broken|wordwrap:1 }}",
+        context={"broken": broken},
+        exception=ZeroDivisionError,
+        django_message="division by zero",
+        rusty_message="division by zero",
     )
