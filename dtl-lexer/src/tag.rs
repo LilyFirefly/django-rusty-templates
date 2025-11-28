@@ -2,7 +2,9 @@ use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 use unicode_xid::UnicodeXID;
 
+use crate::TemplateContent;
 use crate::common::NextChar;
+use crate::types::TemplateString;
 
 #[derive(Error, Debug, Diagnostic, Eq, PartialEq)]
 pub enum TagLexerError {
@@ -18,9 +20,21 @@ pub struct TagToken {
     pub at: (usize, usize),
 }
 
+impl<'t> TemplateContent<'t> for TagToken {
+    fn content(&self, template: TemplateString<'t>) -> &'t str {
+        template.content(self.at)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TagParts {
     pub at: (usize, usize),
+}
+
+impl<'t> TemplateContent<'t> for TagParts {
+    fn content(&self, template: TemplateString<'t>) -> &'t str {
+        template.content(self.at)
+    }
 }
 
 pub fn lex_tag(tag: &str, start: usize) -> Result<Option<(TagToken, TagParts)>, TagLexerError> {
@@ -58,7 +72,7 @@ pub fn lex_tag(tag: &str, start: usize) -> Result<Option<(TagToken, TagParts)>, 
 mod tests {
     use super::*;
 
-    use crate::types::TemplateString;
+    use crate::types::{IntoTemplateString, TemplateString};
     use crate::{END_TAG_LEN, START_TAG_LEN};
 
     fn trim_tag(template: &str) -> &str {
@@ -106,5 +120,22 @@ mod tests {
         assert_eq!(token, TagToken { at: (3, 3) });
         assert_eq!(TemplateString(template).content(token.at), "url");
         assert_eq!(rest, TagParts { at: (7, 8) })
+    }
+
+    #[test]
+    fn test_template_content_impl() {
+        let template = "{% url name arg %}";
+        let template_string = "{% url name arg %}".into_template_string();
+        let (token, rest) = lex_tag(trim_tag(template), START_TAG_LEN).unwrap().unwrap();
+        assert_eq!(template_string.content(token.at), "url");
+        assert_eq!(
+            template_string.content(token.at),
+            token.content(template_string)
+        );
+        assert_eq!(template_string.content(rest.at), "name arg");
+        assert_eq!(
+            template_string.content(rest.at),
+            rest.content(template_string)
+        );
     }
 }
