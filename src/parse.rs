@@ -53,7 +53,7 @@ use crate::types::ForVariableName;
 
 use crate::types::Text;
 use crate::types::TranslatedText;
-use crate::types::Variable;
+use dtl_lexer::types::Variable;
 
 trait Parse<R> {
     fn parse(&self, parser: &Parser) -> Result<R, ParseError>;
@@ -1096,7 +1096,7 @@ impl<'t, 'l, 'py> Parser<'t, 'l, 'py> {
             return Err(ParseError::EmptyVariable { at: at.into() });
         };
         let mut var = match variable_token.token_type {
-            VariableTokenType::Variable => self.parse_for_variable(variable_token.at).into(),
+            VariableTokenType::Variable(_) => self.parse_for_variable(variable_token.at).into(),
             VariableTokenType::Int(n) => TagElement::Int(n),
             VariableTokenType::Float(f) => TagElement::Float(f),
         };

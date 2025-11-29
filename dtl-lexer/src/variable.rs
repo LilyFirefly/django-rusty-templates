@@ -7,7 +7,7 @@ use crate::common::{
     LexerError, NextChar, check_variable_attrs, lex_numeric, lex_text, lex_translated,
     lex_variable_argument, trim_variable,
 };
-use crate::types::TemplateString;
+use crate::types::{TemplateString, Variable};
 use crate::{END_TRANSLATE_LEN, QUOTE_LEN, START_TRANSLATE_LEN, TemplateContent};
 
 #[derive(Debug, PartialEq, Eq)]
@@ -67,7 +67,7 @@ impl<'t> TemplateContent<'t> for FilterToken {
 
 #[derive(Debug, PartialEq)]
 pub enum VariableTokenType {
-    Variable,
+    Variable(Variable),
     Int(BigInt),
     Float(f64),
 }
@@ -118,6 +118,9 @@ pub fn lex_variable(
 
     let start = start + variable.len() - rest.len();
     let content = trim_variable(rest);
+    let end = content.len();
+    let at = (start, end);
+
     if content.is_empty() {
         let at = (start, rest.trim().len());
         return Err(VariableLexerError::InvalidVariableName { at: at.into() });
@@ -132,11 +135,9 @@ pub fn lex_variable(
         token_type = VariableTokenType::Float(num);
     } else {
         check_variable_attrs(content, start)?;
-        token_type = VariableTokenType::Variable;
+        token_type = VariableTokenType::Variable(Variable::new(at));
     }
 
-    let end = content.len();
-    let at = (start, end);
     Ok(Some((
         VariableToken { at, token_type },
         FilterLexer::new(&rest[end..], start + end),
@@ -392,7 +393,7 @@ mod tests {
             token,
             VariableToken {
                 at: (3, 7),
-                token_type: VariableTokenType::Variable
+                token_type: VariableTokenType::Variable(Variable::new((3, 7)))
             }
         );
         assert_eq!(token.content(template.into_template_string()), "foo.bar");
@@ -463,7 +464,7 @@ mod tests {
             token,
             VariableToken {
                 at: (3, 5),
-                token_type: VariableTokenType::Variable
+                token_type: VariableTokenType::Variable(Variable::new((3, 5)))
             }
         );
         assert_eq!(token.content(template.into_template_string()), "foo.1");
