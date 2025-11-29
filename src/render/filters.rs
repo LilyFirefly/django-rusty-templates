@@ -579,8 +579,7 @@ impl ResolveFilter for WordwrapFilter {
             && n <= 0
         {
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                "invalid width {} (must be > 0)",
-                n
+                "invalid width {n} (must be > 0)"
             ))
             .annotate(py, self.argument.at, "width", template)
             .into());
