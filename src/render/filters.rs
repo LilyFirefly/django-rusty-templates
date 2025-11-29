@@ -648,7 +648,7 @@ mod tests {
     use crate::parse::TagElement;
     use crate::render::Render;
     use crate::template::django_rusty_templates::{EngineData, Template};
-    use crate::types::{Argument, ArgumentType, Text, Variable};
+    use crate::types::{Argument, ArgumentType, Text};
 
     use pyo3::types::{PyDict, PyString};
     static MARK_SAFE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
@@ -667,6 +667,7 @@ mod tests {
         Ok(safe_string)
     }
 
+    use dtl_lexer::types::Variable;
     use std::collections::HashMap;
 
     #[test]
