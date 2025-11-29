@@ -112,6 +112,12 @@ from tests.utils import BrokenDunderStr
             "first\nline\n          \nsecond\nline",
             id="double_width_spaces",
         ),
+        pytest.param(
+            9223372036854775808,
+            "first line\n   \nsecond line",
+            "first line\n   \nsecond line",
+            id="very_large_integer",
+        ),
     ],
 )
 def test_wordwrap(assert_render, wordwrap_size, text, expected):
@@ -257,26 +263,6 @@ def test_wordwrap_zero_width(assert_render_error):
         exception=ValueError,
         django_message="invalid width 0 (must be > 0)",
         rusty_message=rusty_message,
-    )
-
-
-def test_wordwrap_width_overflow(request, assert_render_error):
-    if "django" in request.node.name:
-        pytest.skip("Django does not fail with bigints when casting with `int(...)`")
-
-    assert_render_error(
-        template="{{ text|wordwrap:9223372036854775808 }}",
-        context={"text": "hello"},
-        exception=OverflowError,
-        django_message="Python int too large to convert to C ssize_t",
-        rusty_message="""\
-  × Integer 9223372036854775808 is too large
-   ╭────
- 1 │ {{ text|wordwrap:9223372036854775808 }}
-   ·                  ─────────┬─────────
-   ·                           ╰── here
-   ╰────
-""",
     )
 
 

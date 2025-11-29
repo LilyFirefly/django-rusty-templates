@@ -7,7 +7,7 @@ use pyo3::prelude::*;
 use pyo3::sync::PyOnceLock;
 use pyo3::types::PyType;
 
-use crate::error::AnnotatePyErr;
+use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
 use crate::filters::{
     AddFilter, AddSlashesFilter, CapfirstFilter, CenterFilter, DefaultFilter, DefaultIfNoneFilter,
     EscapeFilter, EscapejsFilter, ExternalFilter, FilterType, LowerFilter, SafeFilter,
@@ -586,7 +586,11 @@ impl ResolveFilter for WordwrapFilter {
             .into());
         }
 
-        let width = arg.resolve_usize(self.argument.at)?;
+        let width = match arg.resolve_usize(self.argument.at) {
+            Ok(w) => w,
+            Err(PyRenderError::RenderError(RenderError::OverflowError { .. })) => usize::MAX,
+            Err(e) => return Err(e),
+        };
 
         let wrapped = wordwrap(text.as_raw(), width);
         Ok(Some(text.map_content(|_| Cow::Owned(wrapped))))
