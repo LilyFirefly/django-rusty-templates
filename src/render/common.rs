@@ -16,7 +16,7 @@ use crate::types::ForVariable;
 use crate::types::ForVariableName;
 use crate::types::Text;
 use crate::types::TranslatedText;
-use crate::types::Variable;
+use dtl_lexer::types::Variable;
 
 /// Helper function to translate a string using Django's gettext
 pub fn gettext(py: Python<'_>, text: &str) -> PyResult<String> {

@@ -43,7 +43,7 @@ use dtl_lexer::tag::{TagLexerError, TagParts, lex_tag};
 use dtl_lexer::types::TemplateString;
 use dtl_lexer::variable::{
     Argument as ArgumentToken, ArgumentType as ArgumentTokenType, VariableLexerError,
-    VariableTokenType, lex_variable,
+    VariableToken, lex_variable,
 };
 
 use crate::types::Argument;
@@ -53,7 +53,7 @@ use crate::types::ForVariableName;
 
 use crate::types::Text;
 use crate::types::TranslatedText;
-use crate::types::Variable;
+use dtl_lexer::types::Variable;
 
 trait Parse<R> {
     fn parse(&self, parser: &Parser) -> Result<R, ParseError>;
@@ -1095,10 +1095,10 @@ impl<'t, 'l, 'py> Parser<'t, 'l, 'py> {
         let Some((variable_token, filter_lexer)) = lex_variable(variable, start)? else {
             return Err(ParseError::EmptyVariable { at: at.into() });
         };
-        let mut var = match variable_token.token_type {
-            VariableTokenType::Variable => self.parse_for_variable(variable_token.at).into(),
-            VariableTokenType::Int(n) => TagElement::Int(n),
-            VariableTokenType::Float(f) => TagElement::Float(f),
+        let mut var = match variable_token {
+            VariableToken::Variable(var) => self.parse_for_variable(var.at).into(),
+            VariableToken::Int(n) => TagElement::Int(n),
+            VariableToken::Float(f) => TagElement::Float(f),
         };
         for filter_token in filter_lexer {
             let filter_token = filter_token?;

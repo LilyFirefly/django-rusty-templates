@@ -7,7 +7,7 @@ use crate::common::{
     LexerError, NextChar, check_variable_attrs, lex_numeric, lex_text, lex_translated,
     lex_variable_argument, trim_variable,
 };
-use crate::types::TemplateString;
+use crate::types::{TemplateString, Variable};
 use crate::{END_TRANSLATE_LEN, QUOTE_LEN, START_TRANSLATE_LEN, TemplateContent};
 
 #[derive(Debug, PartialEq, Eq)]
@@ -66,23 +66,10 @@ impl<'t> TemplateContent<'t> for FilterToken {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum VariableTokenType {
-    Variable,
+pub enum VariableToken {
+    Variable(Variable),
     Int(BigInt),
     Float(f64),
-}
-
-#[derive(Debug, PartialEq)]
-pub struct VariableToken {
-    pub at: (usize, usize),
-    pub token_type: VariableTokenType,
-}
-
-impl<'t> TemplateContent<'t> for VariableToken {
-    fn content(&self, template: TemplateString<'t>) -> &'t str {
-        let (start, len) = self.at;
-        &template.0[start..start + len]
-    }
 }
 
 #[derive(Error, Debug, Diagnostic, PartialEq, Eq)]
@@ -118,27 +105,29 @@ pub fn lex_variable(
 
     let start = start + variable.len() - rest.len();
     let content = trim_variable(rest);
+
     if content.is_empty() {
         let at = (start, rest.trim().len());
         return Err(VariableLexerError::InvalidVariableName { at: at.into() });
     }
 
+    let end = content.len();
+    let at = (start, end);
+
     let token_type;
     if let Ok(num) = content.parse::<BigInt>() {
-        token_type = VariableTokenType::Int(num);
+        token_type = VariableToken::Int(num);
     } else if let Ok(num) = content.parse::<f64>()
         && num.is_finite()
     {
-        token_type = VariableTokenType::Float(num);
+        token_type = VariableToken::Float(num);
     } else {
         check_variable_attrs(content, start)?;
-        token_type = VariableTokenType::Variable;
+        token_type = VariableToken::Variable(Variable::new(at));
     }
 
-    let end = content.len();
-    let at = (start, end);
     Ok(Some((
-        VariableToken { at, token_type },
+        token_type,
         FilterLexer::new(&rest[end..], start + end),
     )))
 }
@@ -388,13 +377,10 @@ mod tests {
         let template = "{{ foo.bar }}";
         let variable = trim_variable(template);
         let (token, lexer) = lex_variable(variable, START_TAG_LEN).unwrap().unwrap();
-        assert_eq!(
-            token,
-            VariableToken {
-                at: (3, 7),
-                token_type: VariableTokenType::Variable
-            }
-        );
+        assert_eq!(token, VariableToken::Variable(Variable::new((3, 7))));
+        let VariableToken::Variable(token) = token else {
+            unreachable!()
+        };
         assert_eq!(token.content(template.into_template_string()), "foo.bar");
         let tokens: Vec<_> = lexer.collect();
         assert_eq!(tokens, vec![]);
@@ -405,14 +391,11 @@ mod tests {
         let template = "{{ 1 }}";
         let variable = trim_variable(template);
         let (token, lexer) = lex_variable(variable, START_TAG_LEN).unwrap().unwrap();
-        assert_eq!(
-            token,
-            VariableToken {
-                at: (3, 1),
-                token_type: VariableTokenType::Int(1.into())
-            }
-        );
-        assert_eq!(token.content(template.into_template_string()), "1");
+        assert_eq!(token, VariableToken::Int(1.into()));
+        let VariableToken::Int(token) = token else {
+            unreachable!()
+        };
+        assert_eq!(format!("{token}"), "1");
         let tokens: Vec<_> = lexer.collect();
         assert_eq!(tokens, vec![]);
     }
@@ -422,14 +405,11 @@ mod tests {
         let template = "{{ -1 }}";
         let variable = trim_variable(template);
         let (token, lexer) = lex_variable(variable, START_TAG_LEN).unwrap().unwrap();
-        assert_eq!(
-            token,
-            VariableToken {
-                at: (3, 2),
-                token_type: VariableTokenType::Int((-1).into())
-            }
-        );
-        assert_eq!(token.content(template.into_template_string()), "-1");
+        assert_eq!(token, VariableToken::Int((-1).into()));
+        let VariableToken::Int(token) = token else {
+            unreachable!()
+        };
+        assert_eq!(format!("{token}"), "-1");
         let tokens: Vec<_> = lexer.collect();
         assert_eq!(tokens, vec![]);
     }
@@ -459,13 +439,10 @@ mod tests {
         let template = "{{ foo.1 }}";
         let variable = trim_variable(template);
         let (token, lexer) = lex_variable(variable, START_TAG_LEN).unwrap().unwrap();
-        assert_eq!(
-            token,
-            VariableToken {
-                at: (3, 5),
-                token_type: VariableTokenType::Variable
-            }
-        );
+        assert_eq!(token, VariableToken::Variable(Variable::new((3, 5))));
+        let VariableToken::Variable(token) = token else {
+            unreachable!()
+        };
         assert_eq!(token.content(template.into_template_string()), "foo.1");
         let tokens: Vec<_> = lexer.collect();
         assert_eq!(tokens, vec![]);
