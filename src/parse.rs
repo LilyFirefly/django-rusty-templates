@@ -26,6 +26,7 @@ use crate::filters::SlugifyFilter;
 use crate::filters::TitleFilter;
 use crate::filters::UpperFilter;
 use crate::filters::WordcountFilter;
+use crate::filters::WordwrapFilter;
 use crate::filters::YesnoFilter;
 use dtl_lexer::START_TAG_LEN;
 use dtl_lexer::autoescape::{AutoescapeEnabled, AutoescapeError, lex_autoescape_argument};
@@ -170,6 +171,10 @@ impl Filter {
             "wordcount" => match right {
                 Some(right) => return Err(unexpected_argument("wordcount", right)),
                 None => FilterType::Wordcount(WordcountFilter),
+            },
+            "wordwrap" => match right {
+                Some(right) => FilterType::Wordwrap(WordwrapFilter::new(right)),
+                None => return Err(ParseError::MissingArgument { at: at.into() }),
             },
             "yesno" => FilterType::Yesno(YesnoFilter::new(at, right)),
             external => {

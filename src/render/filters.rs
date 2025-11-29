@@ -2,15 +2,16 @@ use std::borrow::Cow;
 use std::sync::LazyLock;
 
 use html_escape::encode_quoted_attribute_to_string;
+use num_traits::ToPrimitive;
 use pyo3::prelude::*;
 use pyo3::sync::PyOnceLock;
 use pyo3::types::PyType;
 
-use crate::error::AnnotatePyErr;
+use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
 use crate::filters::{
     AddFilter, AddSlashesFilter, CapfirstFilter, CenterFilter, DefaultFilter, DefaultIfNoneFilter,
     EscapeFilter, EscapejsFilter, ExternalFilter, FilterType, LowerFilter, SafeFilter,
-    SlugifyFilter, TitleFilter, UpperFilter, WordcountFilter, YesnoFilter,
+    SlugifyFilter, TitleFilter, UpperFilter, WordcountFilter, WordwrapFilter, YesnoFilter,
 };
 use crate::parse::Filter;
 use crate::render::common::gettext;
@@ -55,6 +56,7 @@ impl Resolve for Filter {
             FilterType::Title(filter) => filter.resolve(left, py, template, context),
             FilterType::Upper(filter) => filter.resolve(left, py, template, context),
             FilterType::Wordcount(filter) => filter.resolve(left, py, template, context),
+            FilterType::Wordwrap(filter) => filter.resolve(left, py, template, context),
             FilterType::Yesno(filter) => filter.resolve(left, py, template, context),
         }
     }
@@ -498,6 +500,99 @@ impl ResolveFilter for WordcountFilter {
             None => Content::Int(0.into()),
         };
         Ok(Some(content))
+    }
+}
+
+/// A word-wrap function that preserves existing line breaks.
+/// Expects that existing line breaks are posix newlines.
+///
+/// Preserve all white space except added line breaks consume the space on
+/// which they break the line.
+///
+/// Don't wrap long words, thus the output text may have lines longer than ``width``.
+fn wordwrap(text: &str, width: usize) -> String {
+    let mut result = String::with_capacity(text.len());
+
+    for (i, line) in text.split('\n').enumerate() {
+        if i > 0 {
+            result.push('\n');
+        }
+
+        if line.is_empty() {
+            continue;
+        }
+
+        let leading_whitespace = line.chars().take_while(|c| c.is_whitespace()).count();
+        let (indent, trimmed_line) = line.split_at(leading_whitespace);
+
+        let mut words = trimmed_line.split_whitespace();
+
+        let Some(first_word) = words.next() else {
+            // Line contains only whitespace - preserve it
+            result.push_str(line);
+            continue;
+        };
+
+        result.push_str(indent);
+        result.push_str(first_word);
+
+        let mut current_len = leading_whitespace + first_word.len();
+        for word in words {
+            let word_len = word.len();
+
+            if current_len + word_len < width {
+                result.push(' ');
+                current_len += 1 + word_len;
+            } else {
+                result.push('\n');
+                current_len = word_len;
+            }
+            result.push_str(word);
+        }
+    }
+
+    result
+}
+
+impl ResolveFilter for WordwrapFilter {
+    fn resolve<'t, 'py>(
+        &self,
+        variable: Option<Content<'t, 'py>>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> ResolveResult<'t, 'py> {
+        let Some(content) = variable else {
+            return Ok(Some("".as_content()));
+        };
+
+        let text = content.resolve_string(context)?;
+
+        let arg = self
+            .argument
+            .resolve(py, template, context, ResolveFailures::Raise)?
+            .expect("missing argument in context should already have raised");
+
+        // Check for negative values before converting to usize
+        if let Some(bigint) = arg.to_bigint()
+            && let Some(n) = bigint.to_isize()
+            && n <= 0
+        {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "invalid width {n} (must be > 0)"
+            ))
+            .annotate(py, self.argument.at, "width", template)
+            .into());
+        }
+
+        let width = match arg.resolve_usize(self.argument.at) {
+            Ok(w) => w,
+            Err(PyRenderError::RenderError(RenderError::OverflowError { .. })) => usize::MAX,
+            Err(e) => return Err(e),
+        };
+
+        let wrapped = wordwrap(text.as_raw(), width);
+        Ok(Some(text.map_content(|_| Cow::Owned(wrapped))))
     }
 }
 

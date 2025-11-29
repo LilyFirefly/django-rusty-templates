@@ -21,6 +21,7 @@ pub enum FilterType {
     Title(TitleFilter),
     Upper(UpperFilter),
     Wordcount(WordcountFilter),
+    Wordwrap(WordwrapFilter),
     Yesno(YesnoFilter),
 }
 
@@ -122,6 +123,17 @@ pub struct UpperFilter;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WordcountFilter;
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct WordwrapFilter {
+    pub argument: Argument,
+}
+
+impl WordwrapFilter {
+    pub fn new(argument: Argument) -> Self {
+        Self { argument }
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct YesnoFilter {
