@@ -39,6 +39,7 @@ use dtl_lexer::forloop::{ForLexer, ForLexerError, ForLexerInError, ForTokenType}
 use dtl_lexer::ifcondition::{
     IfConditionAtom, IfConditionLexer, IfConditionOperator, IfConditionTokenType,
 };
+use dtl_lexer::include::{IncludeLexer, IncludeTemplateToken};
 use dtl_lexer::load::{LoadLexer, LoadToken};
 use dtl_lexer::tag::{TagLexerError, TagParts, lex_tag};
 use dtl_lexer::types::TemplateString;
@@ -206,6 +207,22 @@ fn parse_numeric(content: &str, at: (usize, usize)) -> Result<TagElement, ParseE
 }
 
 impl Parse<TagElement> for SimpleTagToken {
+    fn parse(&self, parser: &Parser) -> Result<TagElement, ParseError> {
+        let content_at = self.content_at();
+        let (start, _len) = content_at;
+        let content = parser.template.content(content_at);
+        match self.token_type {
+            SimpleTagTokenType::Numeric => parse_numeric(content, self.at),
+            SimpleTagTokenType::Text => Ok(TagElement::Text(Text::new(content_at))),
+            SimpleTagTokenType::TranslatedText => {
+                Ok(TagElement::TranslatedText(Text::new(content_at)))
+            }
+            SimpleTagTokenType::Variable => parser.parse_variable(content, content_at, start),
+        }
+    }
+}
+
+impl Parse<TagElement> for IncludeTemplateToken {
     fn parse(&self, parser: &Parser) -> Result<TagElement, ParseError> {
         let content_at = self.content_at();
         let (start, _len) = content_at;
@@ -468,6 +485,22 @@ pub struct For {
 }
 
 #[derive(Clone, Debug)]
+pub struct Include {
+    pub template_name: TagElement,
+    pub engine: Arc<Engine>,
+}
+
+impl PartialEq for Include {
+    fn eq(&self, other: &Self) -> bool {
+        // We use `Arc::ptr_eq` here to avoid needing the `py` token for true
+        // equality comparison between two `Py` smart pointers.
+        //
+        // We only use `eq` in tests, so this concession is acceptable here.
+        self.template_name.eq(&other.template_name) && Arc::ptr_eq(&self.engine, &other.engine)
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct SimpleTag {
     pub func: Arc<Py<PyAny>>,
     pub at: (usize, usize),
@@ -531,6 +564,7 @@ pub enum Tag {
         falsey: Option<Vec<TokenTree>>,
     },
     For(For),
+    Include(Include),
     Load,
     SimpleTag(SimpleTag),
     SimpleBlockTag(SimpleBlockTag),
@@ -1169,6 +1203,7 @@ impl<'t, 'py> Parser<'t, 'py> {
                 at,
                 parts,
             }),
+            "include" => Either::Left(self.parse_include(at, parts)?),
             tag_name => match self.external_tags.get(tag_name) {
                 Some(TagContext::Simple(context)) => {
                     Either::Left(self.parse_simple_tag(context, at, parts)?)
@@ -1576,6 +1611,24 @@ impl<'t, 'py> Parser<'t, 'py> {
             variable,
         };
         Ok(TokenTree::Tag(Tag::Url(url)))
+    }
+
+    fn parse_include(
+        &mut self,
+        at: (usize, usize),
+        parts: TagParts,
+    ) -> Result<TokenTree, PyParseError> {
+        let mut lexer = IncludeLexer::new(self.template, parts);
+        let template_token = match lexer.lex_template() {
+            Ok(template_token) => template_token,
+            Err(lex_error) => return Err(ParseError::from(lex_error).into()),
+        };
+        let template_name = template_token.parse(self)?;
+        let include = Include {
+            template_name,
+            engine: self.engine.clone(),
+        };
+        Ok(TokenTree::Tag(Tag::Include(include)))
     }
 
     fn parse_autoescape(

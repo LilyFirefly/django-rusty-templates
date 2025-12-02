@@ -14,8 +14,8 @@ use dtl_lexer::types::TemplateString;
 use super::types::{AsBorrowedContent, Content, Context, PyContext};
 use super::{Evaluate, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
-use crate::parse::{For, IfCondition, SimpleBlockTag, SimpleTag, Tag, TagElement, Url};
-use crate::template::django_rusty_templates::NoReverseMatch;
+use crate::parse::{For, IfCondition, Include, SimpleBlockTag, SimpleTag, Tag, TagElement, Url};
+use crate::template::django_rusty_templates::{NoReverseMatch, get_template};
 use crate::utils::PyResultMethods;
 
 fn current_app(py: Python, request: Option<&Py<PyAny>>) -> PyResult<Py<PyAny>> {
@@ -652,6 +652,7 @@ impl Render for Tag {
                 }
             }
             Self::For(for_tag) => for_tag.render(py, template, context)?,
+            Self::Include(include_tag) => include_tag.render(py, template, context)?,
             Self::Load => Cow::Borrowed(""),
             Self::SimpleTag(simple_tag) => simple_tag.render(py, template, context)?,
             Self::SimpleBlockTag(simple_tag) => simple_tag.render(py, template, context)?,
@@ -762,6 +763,30 @@ impl Render for For {
                 unreachable!("float, int and bool literals are not iterable")
             }
         }
+    }
+}
+
+impl Render for Include {
+    fn render<'t>(
+        &self,
+        py: Python<'_>,
+        template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> RenderResult<'t> {
+        let Some(template_name) =
+            self.template_name
+                .resolve(py, template, context, ResolveFailures::Raise)?
+        else {
+            std::todo!();
+        };
+        let include = match template_name {
+            Content::String(content) => content.content(),
+            _ => todo!(),
+        };
+        let include = get_template(self.engine.clone(), py, include)?;
+        include
+            .render(py, context)
+            .map(|content| Cow::Owned(content.into_owned()))
     }
 }
 
