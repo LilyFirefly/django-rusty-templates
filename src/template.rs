@@ -4,7 +4,7 @@ use pyo3::prelude::*;
 pub mod django_rusty_templates {
     use std::collections::HashMap;
     use std::path::PathBuf;
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
 
     use encoding_rs::Encoding;
     use pyo3::exceptions::{
@@ -13,6 +13,7 @@ pub mod django_rusty_templates {
     use pyo3::import_exception;
     use pyo3::intern;
     use pyo3::prelude::*;
+    use pyo3::sync::MutexExt;
     use pyo3::types::{PyBool, PyDict, PyIterator, PyList, PyString, PyTuple};
 
     use crate::error::RenderError;
@@ -80,24 +81,6 @@ pub mod django_rusty_templates {
         }
     }
 
-    #[derive(Debug)]
-    pub struct EngineData {
-        autoescape: bool,
-        context_processors: Arc<Vec<Py<PyAny>>>,
-        libraries: HashMap<String, Py<PyAny>>,
-    }
-
-    impl EngineData {
-        #[cfg(test)]
-        pub fn empty() -> Self {
-            Self {
-                autoescape: false,
-                libraries: HashMap::new(),
-                context_processors: Arc::new(Vec::new()),
-            }
-        }
-    }
-
     fn import_libraries(libraries: Bound<'_, PyAny>) -> PyResult<HashMap<String, Py<PyAny>>> {
         let py = libraries.py();
         let libraries: HashMap<String, String> = libraries.extract()?;
@@ -149,6 +132,7 @@ pub mod django_rusty_templates {
         };
         Ok((loader_path, remaining_args))
     }
+
     fn get_template_loaders(
         py: Python<'_>,
         template_loaders: Bound<'_, PyIterator>,
@@ -232,28 +216,49 @@ pub mod django_rusty_templates {
     }
 
     #[derive(Debug)]
-    #[pyclass]
     pub struct Engine {
         #[allow(dead_code)]
         dirs: Vec<PathBuf>,
-        #[pyo3(get)]
         app_dirs: bool,
-        #[pyo3(get)]
         context_processors: Vec<String>,
-        #[pyo3(get)]
         debug: bool,
-        template_loaders: Vec<Loader>,
-        #[pyo3(get)]
+        template_loaders: Mutex<Vec<Loader>>,
         string_if_invalid: String,
         #[allow(dead_code)]
         encoding: &'static Encoding,
-        #[pyo3(get)]
         builtins: Vec<String>,
-        data: EngineData,
+        pub autoescape: bool,
+        loaded_context_processors: Vec<Py<PyAny>>,
+        libraries: HashMap<String, Py<PyAny>>,
+    }
+
+    impl Engine {
+        #[cfg(test)]
+        pub fn empty() -> Self {
+            Self {
+                dirs: Vec::new(),
+                app_dirs: false,
+                context_processors: Vec::new(),
+                debug: false,
+                template_loaders: Mutex::new(Vec::new()),
+                string_if_invalid: String::new(),
+                encoding: encoding_rs::UTF_8,
+                builtins: Vec::new(),
+                autoescape: false,
+                loaded_context_processors: Vec::new(),
+                libraries: HashMap::new(),
+            }
+        }
+    }
+
+    #[derive(Debug)]
+    #[pyclass(name = "Engine")]
+    pub struct PyEngine {
+        engine: Arc<Engine>,
     }
 
     #[pymethods]
-    impl Engine {
+    impl PyEngine {
         #[new]
         #[pyo3(signature = (dirs=None, app_dirs=false, context_processors=None, debug=false, loaders=None, string_if_invalid=String::new(), file_charset="utf-8".to_string(), libraries=None, builtins=None, autoescape=true))]
         #[allow(clippy::too_many_arguments)] // We're matching Django's Engine __init__ signature
@@ -319,21 +324,21 @@ pub mod django_rusty_templates {
                 Some(libraries) => import_libraries(libraries)?,
             };
             let builtins = vec![];
-            let data = EngineData {
-                autoescape,
-                context_processors: Arc::new(loaded_context_processors),
-                libraries,
-            };
-            Ok(Self {
+            let engine = Engine {
                 dirs,
                 app_dirs,
                 context_processors,
                 debug,
-                template_loaders,
+                template_loaders: template_loaders.into(),
                 string_if_invalid,
                 encoding,
                 builtins,
-                data,
+                autoescape,
+                loaded_context_processors,
+                libraries,
+            };
+            Ok(Self {
+                engine: Arc::new(engine),
             })
         }
 
@@ -341,18 +346,20 @@ pub mod django_rusty_templates {
         /// handling template inheritance recursively.
         ///
         /// See <https://docs.djangoproject.com/en/stable/ref/templates/api/#django.template.Engine.get_template>
-        pub fn get_template(
-            &mut self,
-            py: Python<'_>,
-            template_name: String,
-        ) -> PyResult<Template> {
+        pub fn get_template(&self, py: Python<'_>, template_name: String) -> PyResult<Template> {
             let mut tried = Vec::new();
-            for loader in &mut self.template_loaders {
-                match loader.get_template(py, &template_name, &self.data) {
+            let mut loaders = self
+                .engine
+                .template_loaders
+                .lock_py_attached(py)
+                .expect("Mutex should not be poisoned");
+            for loader in loaders.iter_mut() {
+                match loader.get_template(py, &template_name, self.engine.clone()) {
                     Ok(template) => return template,
                     Err(e) => tried.push(e.tried),
                 }
             }
+            drop(loaders);
             Err(TemplateDoesNotExist::new_err((template_name, tried)))
         }
 
@@ -382,7 +389,11 @@ pub mod django_rusty_templates {
 
         #[allow(clippy::wrong_self_convention)] // We're implementing a Django interface
         pub fn from_string(&self, template_code: Bound<'_, PyString>) -> PyResult<Template> {
-            Template::new_from_string(template_code.py(), template_code.extract()?, &self.data)
+            Template::new_from_string(
+                template_code.py(),
+                template_code.extract()?,
+                self.engine.clone(),
+            )
         }
 
         /// Render the template specified by `template_name` with the given context.
@@ -407,28 +418,55 @@ pub mod django_rusty_templates {
 
         #[getter]
         pub fn dirs(&self) -> Vec<String> {
-            self.dirs
+            self.engine
+                .dirs
                 .iter()
                 .map(|p| p.to_string_lossy().to_string())
                 .collect()
         }
+
+        #[getter]
+        pub fn app_dirs(&self) -> bool {
+            self.engine.app_dirs
+        }
+
+        #[getter]
+        pub fn context_processors(&self) -> &Vec<String> {
+            &self.engine.context_processors
+        }
+
+        #[getter]
+        pub fn debug(&self) -> bool {
+            self.engine.debug
+        }
+
+        #[getter]
+        pub fn string_if_invalid(&self) -> &str {
+            &self.engine.string_if_invalid
+        }
+
         #[getter]
         pub fn file_charset(&self) -> String {
-            self.encoding.name().to_string()
+            self.engine.encoding.name().to_string()
+        }
+
+        #[getter]
+        pub fn builtins(&self) -> &Vec<String> {
+            &self.engine.builtins
+        }
+
+        #[getter]
+        pub fn autoescape(&self) -> bool {
+            self.engine.autoescape
         }
 
         #[getter]
         pub fn libraries<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
             let dict = PyDict::new(py);
-            for (key, value) in &self.data.libraries {
+            for (key, value) in &self.engine.libraries {
                 dict.set_item(key, value.bind(py))?;
             }
             Ok(dict)
-        }
-
-        #[getter]
-        pub fn autoescape(&self) -> bool {
-            self.data.autoescape
         }
     }
 
@@ -438,8 +476,7 @@ pub mod django_rusty_templates {
         pub filename: Option<PathBuf>,
         pub template: String,
         pub nodes: Vec<TokenTree>,
-        pub autoescape: bool,
-        context_processors: Arc<Vec<Py<PyAny>>>,
+        pub engine: Arc<Engine>,
     }
 
     impl Template {
@@ -447,9 +484,9 @@ pub mod django_rusty_templates {
             py: Python<'_>,
             template: &str,
             filename: PathBuf,
-            engine_data: &EngineData,
+            engine: Arc<Engine>,
         ) -> PyResult<Self> {
-            let mut parser = Parser::new(py, TemplateString(template), &engine_data.libraries);
+            let mut parser = Parser::new(py, TemplateString(template), &engine.libraries);
             let nodes = match parser.parse() {
                 Ok(nodes) => nodes,
                 Err(err) => {
@@ -463,17 +500,16 @@ pub mod django_rusty_templates {
                 template: template.to_string(),
                 filename: Some(filename),
                 nodes,
-                autoescape: engine_data.autoescape,
-                context_processors: engine_data.context_processors.clone(),
+                engine: engine.clone(),
             })
         }
 
         pub fn new_from_string(
             py: Python<'_>,
             template: String,
-            engine_data: &EngineData,
+            engine: Arc<Engine>,
         ) -> PyResult<Self> {
-            let mut parser = Parser::new(py, TemplateString(&template), &engine_data.libraries);
+            let mut parser = Parser::new(py, TemplateString(&template), &engine.libraries);
             let nodes = match parser.parse() {
                 Ok(nodes) => nodes,
                 Err(err) => {
@@ -485,8 +521,7 @@ pub mod django_rusty_templates {
                 template,
                 filename: None,
                 nodes,
-                autoescape: engine_data.autoescape,
-                context_processors: engine_data.context_processors.clone(),
+                engine: engine.clone(),
             })
         }
 
@@ -548,7 +583,7 @@ pub mod django_rusty_templates {
             ]);
             let request = request.map(pyo3::Bound::unbind);
             if let Some(ref request) = request {
-                for processor in self.context_processors.iter() {
+                for processor in &self.engine.loaded_context_processors {
                     let processor = processor.bind(py);
                     let processor_context = processor.call1((request,))?;
                     let processor_context: HashMap<_, _> = match processor_context.extract() {
@@ -570,7 +605,7 @@ pub mod django_rusty_templates {
                 let new_context: HashMap<_, _> = context.extract()?;
                 base_context.extend(new_context);
             }
-            let mut context = Context::new(base_context, request, self.autoescape);
+            let mut context = Context::new(base_context, request, self.engine.autoescape);
             self._render(py, &mut context)
         }
     }
@@ -578,6 +613,8 @@ pub mod django_rusty_templates {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::django_rusty_templates::*;
 
     use pyo3::Python;
@@ -604,10 +641,10 @@ mod tests {
                 filename.display(),
             );
 
-            let engine = EngineData::empty();
+            let engine = Arc::new(Engine::empty());
             let template_string = std::fs::read_to_string(&filename).unwrap();
             let error = temp_env::with_var("NO_COLOR", Some("1"), || {
-                Template::new(py, &template_string, filename, &engine).unwrap_err()
+                Template::new(py, &template_string, filename, engine).unwrap_err()
             });
 
             let error_string = format!("{error}");
@@ -620,10 +657,10 @@ mod tests {
         Python::initialize();
 
         Python::attach(|py| {
-            let engine = EngineData::empty();
+            let engine = Arc::new(Engine::empty());
             let template_string = "{{ foo.bar|title'foo' }}".to_string();
             let error = temp_env::with_var("NO_COLOR", Some("1"), || {
-                Template::new_from_string(py, template_string, &engine).unwrap_err()
+                Template::new_from_string(py, template_string, engine).unwrap_err()
             });
 
             let expected = "TemplateSyntaxError:   × Could not parse the remainder
@@ -644,9 +681,9 @@ mod tests {
         Python::initialize();
 
         Python::attach(|py| {
-            let engine = EngineData::empty();
+            let engine = Arc::new(Engine::empty());
             let template_string = String::new();
-            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let template = Template::new_from_string(py, template_string, engine).unwrap();
             let context = PyDict::new(py);
 
             assert_eq!(template.render(py, Some(context), None).unwrap(), "");
@@ -658,9 +695,9 @@ mod tests {
         Python::initialize();
 
         Python::attach(|py| {
-            let engine = EngineData::empty();
+            let engine = Arc::new(Engine::empty());
             let template_string = "Hello {{ user }}!".to_string();
-            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let template = Template::new_from_string(py, template_string, engine).unwrap();
             let context = PyDict::new(py);
             context.set_item("user", "Lily").unwrap();
 
@@ -676,9 +713,9 @@ mod tests {
         Python::initialize();
 
         Python::attach(|py| {
-            let engine = EngineData::empty();
+            let engine = Arc::new(Engine::empty());
             let template_string = "Hello {{ user }}!".to_string();
-            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let template = Template::new_from_string(py, template_string, engine).unwrap();
             let context = PyDict::new(py);
 
             assert_eq!(template.render(py, Some(context), None).unwrap(), "Hello !");
@@ -690,9 +727,9 @@ mod tests {
         Python::initialize();
 
         Python::attach(|py| {
-            let engine = EngineData::empty();
+            let engine = Arc::new(Engine::empty());
             let template_string = "Hello {{ user.profile.names.0 }}!".to_string();
-            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let template = Template::new_from_string(py, template_string, engine).unwrap();
             let locals = PyDict::new(py);
             py.run(
                 cr#"
@@ -722,7 +759,7 @@ user = User(["Lily"])
         Python::initialize();
 
         Python::attach(|py| {
-            let engine = Engine::new(
+            let engine = PyEngine::new(
                 py,
                 None,
                 false,
@@ -758,7 +795,7 @@ user = User(["Lily"])
             let sys_path = py.import("sys").unwrap().getattr("path").unwrap();
             let sys_path = sys_path.cast().unwrap();
             sys_path.append(cwd.to_string_lossy()).unwrap();
-            let mut engine = Engine::new(
+            let engine = PyEngine::new(
                 py,
                 Some(vec!["tests/templates"].into_pyobject(py).unwrap()),
                 false,
@@ -784,7 +821,7 @@ user = User(["Lily"])
             assert_eq!(cloned.filename, template.filename);
             assert_eq!(cloned.template, template.template);
             assert_eq!(cloned.nodes, template.nodes);
-            assert_eq!(cloned.autoescape, template.autoescape);
+            assert_eq!(cloned.engine.autoescape, template.engine.autoescape);
         });
     }
 
@@ -803,7 +840,7 @@ user = User(["Lily"])
             let sys_path = sys_path.cast().unwrap();
             sys_path.append(cwd.to_string_lossy()).unwrap();
 
-            let engine = Engine::new(
+            let engine = PyEngine::new(
                 py,
                 Some(
                     vec!["tests/templates", "other/templates"]
@@ -869,7 +906,7 @@ user = User(["Lily"])
         Python::attach(|py| {
             let loaders = PyList::empty(py).into_any();
             let app_dirs = true;
-            let engine_error = Engine::new(
+            let engine_error = PyEngine::new(
                 py,
                 None,
                 app_dirs,

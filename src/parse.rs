@@ -1697,7 +1697,7 @@ mod tests {
 
     use crate::{
         filters::{DefaultFilter, ExternalFilter, LowerFilter},
-        template::django_rusty_templates::{EngineData, Template},
+        template::django_rusty_templates::{Engine, Template},
     };
     use dtl_lexer::common::LexerError;
 
@@ -2111,11 +2111,11 @@ mod tests {
         Python::initialize();
 
         Python::attach(|py| {
-            let engine = EngineData::empty();
+            let engine = Arc::new(Engine::empty());
             let template_string = "{{ foo|addslashes }}".to_string();
             let context = PyDict::new(py);
             context.set_item("bar", "").unwrap();
-            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let template = Template::new_from_string(py, template_string, engine.clone()).unwrap();
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "");
@@ -2123,7 +2123,7 @@ mod tests {
             let context = PyDict::new(py);
             context.set_item("foo", "").unwrap();
             let template_string = "{{ foo|addslashes:invalid }}".to_string();
-            let error = Template::new_from_string(py, template_string, &engine).unwrap_err();
+            let error = Template::new_from_string(py, template_string, engine).unwrap_err();
 
             let error_string = format!("{error}");
             assert!(error_string.contains("addslashes filter does not take an argument"));
