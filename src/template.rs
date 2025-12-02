@@ -2,6 +2,7 @@ use pyo3::prelude::*;
 
 #[pymodule]
 pub mod django_rusty_templates {
+    use std::borrow::Cow;
     use std::collections::HashMap;
     use std::path::PathBuf;
     use std::sync::{Arc, Mutex};
@@ -19,8 +20,8 @@ pub mod django_rusty_templates {
     use crate::error::RenderError;
     use crate::loaders::{AppDirsLoader, CachedLoader, FileSystemLoader, Loader, LocMemLoader};
     use crate::parse::{Parser, TokenTree};
-    use crate::render::Render;
     use crate::render::types::Context;
+    use crate::render::{Render, RenderResult};
     use crate::utils::PyResultMethods;
     use dtl_lexer::types::TemplateString;
 
@@ -413,7 +414,7 @@ pub mod django_rusty_templates {
                 self.get_template(py, template_name.extract()?)?
             };
 
-            template.render(py, context, None)
+            template.py_render(py, context, None)
         }
 
         #[getter]
@@ -525,49 +526,21 @@ pub mod django_rusty_templates {
             })
         }
 
-        fn _render(&self, py: Python<'_>, context: &mut Context) -> PyResult<String> {
+        pub fn render(&self, py: Python<'_>, context: &mut Context) -> RenderResult<'_> {
             let mut rendered = String::with_capacity(self.template.len());
             let template = TemplateString(&self.template);
             for node in &self.nodes {
-                match node.render(py, template, context) {
-                    Ok(content) => rendered.push_str(&content),
-                    Err(err) => {
-                        let err = err.try_into_render_error()?;
-                        match err {
-                            RenderError::VariableDoesNotExist { .. }
-                            | RenderError::ArgumentDoesNotExist { .. } => {
-                                return Err(VariableDoesNotExist::with_source_code(
-                                    err.into(),
-                                    self.template.clone(),
-                                ));
-                            }
-                            RenderError::InvalidArgumentInteger { .. }
-                            | RenderError::InvalidArgumentString { .. }
-                            | RenderError::TupleUnpackError { .. } => {
-                                return Err(PyValueError::with_source_code(
-                                    err.into(),
-                                    self.template.clone(),
-                                ));
-                            }
-                            RenderError::OverflowError { .. }
-                            | RenderError::InvalidArgumentFloat { .. } => {
-                                return Err(PyOverflowError::with_source_code(
-                                    err.into(),
-                                    self.template.clone(),
-                                ));
-                            }
-                        }
-                    }
-                }
+                let content = node.render(py, template, context)?;
+                rendered.push_str(&content);
             }
-            Ok(rendered)
+            Ok(Cow::Owned(rendered))
         }
     }
 
     #[pymethods]
     impl Template {
-        #[pyo3(signature = (context=None, request=None))]
-        pub fn render(
+        #[pyo3(name = "render", signature = (context=None, request=None))]
+        pub fn py_render(
             &self,
             py: Python<'_>,
             context: Option<Bound<'_, PyDict>>,
@@ -606,7 +579,31 @@ pub mod django_rusty_templates {
                 base_context.extend(new_context);
             }
             let mut context = Context::new(base_context, request, self.engine.autoescape);
-            self._render(py, &mut context)
+
+            match self.render(py, &mut context) {
+                Ok(content) => Ok(content.to_string()),
+                Err(err) => {
+                    let err = err.try_into_render_error()?;
+                    match err {
+                        RenderError::VariableDoesNotExist { .. }
+                        | RenderError::ArgumentDoesNotExist { .. } => {
+                            Err(VariableDoesNotExist::with_source_code(
+                                err.into(),
+                                self.template.clone(),
+                            ))
+                        }
+                        RenderError::InvalidArgumentInteger { .. }
+                        | RenderError::InvalidArgumentString { .. }
+                        | RenderError::TupleUnpackError { .. } => Err(
+                            PyValueError::with_source_code(err.into(), self.template.clone()),
+                        ),
+                        RenderError::OverflowError { .. }
+                        | RenderError::InvalidArgumentFloat { .. } => Err(
+                            PyOverflowError::with_source_code(err.into(), self.template.clone()),
+                        ),
+                    }
+                }
+            }
         }
     }
 }
@@ -686,7 +683,7 @@ mod tests {
             let template = Template::new_from_string(py, template_string, engine).unwrap();
             let context = PyDict::new(py);
 
-            assert_eq!(template.render(py, Some(context), None).unwrap(), "");
+            assert_eq!(template.py_render(py, Some(context), None).unwrap(), "");
         });
     }
 
@@ -702,7 +699,7 @@ mod tests {
             context.set_item("user", "Lily").unwrap();
 
             assert_eq!(
-                template.render(py, Some(context), None).unwrap(),
+                template.py_render(py, Some(context), None).unwrap(),
                 "Hello Lily!"
             );
         });
@@ -718,7 +715,10 @@ mod tests {
             let template = Template::new_from_string(py, template_string, engine).unwrap();
             let context = PyDict::new(py);
 
-            assert_eq!(template.render(py, Some(context), None).unwrap(), "Hello !");
+            assert_eq!(
+                template.py_render(py, Some(context), None).unwrap(),
+                "Hello !"
+            );
         });
     }
 
@@ -748,7 +748,7 @@ user = User(["Lily"])
             context.set_item("user", user.into_any()).unwrap();
 
             assert_eq!(
-                template.render(py, Some(context), None).unwrap(),
+                template.py_render(py, Some(context), None).unwrap(),
                 "Hello Lily!"
             );
         });
@@ -777,7 +777,10 @@ user = User(["Lily"])
             let template = engine.from_string(template_string).unwrap();
             let context = PyDict::new(py);
 
-            assert_eq!(template.render(py, Some(context), None).unwrap(), "Hello !");
+            assert_eq!(
+                template.py_render(py, Some(context), None).unwrap(),
+                "Hello !"
+            );
         });
     }
 

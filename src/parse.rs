@@ -2097,7 +2097,7 @@ mod tests {
             let context = PyDict::new(py);
             context.set_item("bar", "").unwrap();
             let template = Template::new_from_string(py, template_string, engine.clone()).unwrap();
-            let result = template.render(py, Some(context), None).unwrap();
+            let result = template.py_render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "");
 
