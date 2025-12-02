@@ -229,7 +229,7 @@ pub mod django_rusty_templates {
         builtins: Vec<String>,
         pub autoescape: bool,
         loaded_context_processors: Vec<Py<PyAny>>,
-        libraries: HashMap<String, Py<PyAny>>,
+        pub libraries: HashMap<String, Py<PyAny>>,
     }
 
     impl Engine {
@@ -486,7 +486,7 @@ pub mod django_rusty_templates {
             filename: PathBuf,
             engine: Arc<Engine>,
         ) -> PyResult<Self> {
-            let mut parser = Parser::new(py, TemplateString(template), &engine.libraries);
+            let mut parser = Parser::new(py, TemplateString(template), engine.clone());
             let nodes = match parser.parse() {
                 Ok(nodes) => nodes,
                 Err(err) => {
@@ -500,7 +500,7 @@ pub mod django_rusty_templates {
                 template: template.to_string(),
                 filename: Some(filename),
                 nodes,
-                engine: engine.clone(),
+                engine,
             })
         }
 
@@ -509,7 +509,7 @@ pub mod django_rusty_templates {
             template: String,
             engine: Arc<Engine>,
         ) -> PyResult<Self> {
-            let mut parser = Parser::new(py, TemplateString(&template), &engine.libraries);
+            let mut parser = Parser::new(py, TemplateString(&template), engine.clone());
             let nodes = match parser.parse() {
                 Ok(nodes) => nodes,
                 Err(err) => {
@@ -521,7 +521,7 @@ pub mod django_rusty_templates {
                 template,
                 filename: None,
                 nodes,
-                engine: engine.clone(),
+                engine,
             })
         }
 
