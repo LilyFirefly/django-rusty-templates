@@ -61,7 +61,7 @@ impl<'t> SimpleTagLexer<'t> {
     }
 
     fn lex_numeric(&mut self, kwarg: Option<At>) -> SimpleTagToken {
-        let (at, byte, rest) = lex_numeric(self.byte, self.rest);
+        let (at, _, byte, rest) = lex_numeric(self.byte, self.rest);
         self.rest = rest;
         self.byte = byte;
         SimpleTagToken {
@@ -73,12 +73,12 @@ impl<'t> SimpleTagLexer<'t> {
 
     fn lex_text(
         &mut self,
-        chars: &mut std::str::Chars,
+        token: &'t str,
         end: char,
         kwarg: Option<At>,
     ) -> Result<SimpleTagToken, SimpleTagLexerError> {
-        match lex_text(self.byte, self.rest, chars, end) {
-            Ok((at, byte, rest)) => {
+        match lex_text(self.byte, self.rest, token, end) {
+            Ok((at, _, byte, rest)) => {
                 self.rest = rest;
                 self.byte = byte;
                 Ok(SimpleTagToken {
@@ -94,13 +94,9 @@ impl<'t> SimpleTagLexer<'t> {
         }
     }
 
-    fn lex_translated(
-        &mut self,
-        chars: &mut std::str::Chars,
-        kwarg: Option<At>,
-    ) -> Result<SimpleTagToken, SimpleTagLexerError> {
-        match lex_translated(self.byte, self.rest, chars) {
-            Ok((at, byte, rest)) => {
+    fn lex_translated(&mut self, kwarg: Option<At>) -> Result<SimpleTagToken, SimpleTagLexerError> {
+        match lex_translated(self.byte, self.rest) {
+            Ok((at, _, byte, rest)) => {
                 self.rest = rest;
                 self.byte = byte;
                 Ok(SimpleTagToken {
@@ -174,9 +170,9 @@ impl Iterator for SimpleTagLexer<'_> {
 
         let kwarg = self.lex_kwarg();
 
-        let mut chars = self.rest.chars();
+        let mut chars = self.rest.chars().enumerate();
         let next = match chars.next() {
-            Some(next) if !next.is_whitespace() => next,
+            Some((_, next)) if !next.is_whitespace() => next,
             _ => {
                 self.rest = "";
                 let at = kwarg.expect("kwarg is Some or we'd already have exited");
@@ -186,14 +182,14 @@ impl Iterator for SimpleTagLexer<'_> {
         };
         let token = match next {
             '_' => {
-                if let Some('(') = chars.next() {
-                    self.lex_translated(&mut chars, kwarg)
+                if let Some((_, '(')) = chars.next() {
+                    self.lex_translated(kwarg)
                 } else {
                     self.lex_variable_or_filter(kwarg)
                 }
             }
-            '"' => self.lex_text(&mut chars, '"', kwarg),
-            '\'' => self.lex_text(&mut chars, '\'', kwarg),
+            '"' => self.lex_text(&self.rest[1..], '"', kwarg),
+            '\'' => self.lex_text(&self.rest[1..], '\'', kwarg),
             '0'..='9' | '-' => Ok(self.lex_numeric(kwarg)),
             _ => self.lex_variable_or_filter(kwarg),
         };

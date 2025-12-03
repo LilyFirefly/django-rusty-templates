@@ -80,18 +80,19 @@ pub fn lex_variable(byte: usize, rest: &str) -> (At, usize, &str) {
 pub fn lex_text<'t>(
     byte: usize,
     rest: &'t str,
-    chars: &mut std::str::Chars,
+    token: &'t str,
     end: char,
-) -> Result<(At, usize, &'t str), LexerError> {
+) -> Result<(At, &'t str, usize, &'t str), LexerError> {
     let mut count = 1;
+    let mut chars = token.chars().enumerate();
     loop {
-        let Some(next) = chars.next() else {
+        let Some((_, next)) = chars.next() else {
             let at = (byte, count);
             return Err(LexerError::IncompleteString { at: at.into() });
         };
         count += next.len_utf8();
         if next == '\\' {
-            let Some(next) = chars.next() else {
+            let Some((_, next)) = chars.next() else {
                 let at = (byte, count);
                 return Err(LexerError::IncompleteString { at: at.into() });
             };
@@ -100,43 +101,40 @@ pub fn lex_text<'t>(
             let at = (byte, count);
             let rest = &rest[count..];
             let byte = byte + count;
-            return Ok((at, byte, rest));
+            return Ok((at, &token[..count - 2], byte, rest));
         }
     }
 }
 
-pub fn lex_translated<'t>(
-    byte: usize,
-    rest: &'t str,
-    chars: &mut std::str::Chars,
-) -> Result<(At, usize, &'t str), LexerError> {
+pub fn lex_translated(byte: usize, token: &str) -> Result<(At, &str, usize, &str), LexerError> {
     let start = byte;
     let byte = byte + START_TRANSLATE_LEN;
-    let rest = &rest[START_TRANSLATE_LEN..];
-    let (_at, byte, rest) = match chars.next() {
+    let rest = &token[START_TRANSLATE_LEN..];
+    let mut chars = rest.chars().enumerate();
+    let (_at, text, byte, rest) = match chars.next() {
         None => {
             let at = (start, START_TRANSLATE_LEN);
             return Err(LexerError::MissingTranslatedString { at: at.into() });
         }
-        Some('\'') => lex_text(byte, rest, chars, '\'')?,
-        Some('"') => lex_text(byte, rest, chars, '"')?,
+        Some((idx, '\'')) => lex_text(byte, rest, &rest[idx + 1..], '\'')?,
+        Some((idx, '"')) => lex_text(byte, rest, &rest[idx + 1..], '"')?,
         _ => {
             let at = (start, rest.len() + START_TRANSLATE_LEN);
             return Err(LexerError::MissingTranslatedString { at: at.into() });
         }
     };
-    if let Some(')') = chars.next() {
+    if rest.starts_with(")") {
         let byte = byte + END_TRANSLATE_LEN;
         let rest = &rest[END_TRANSLATE_LEN..];
         let at = (start, byte - start);
-        Ok((at, byte, rest))
+        Ok((at, text, byte, rest))
     } else {
         let at = (start, byte - start);
         Err(LexerError::IncompleteTranslatedString { at: at.into() })
     }
 }
 
-pub fn lex_numeric(byte: usize, rest: &str) -> (At, usize, &str) {
+pub fn lex_numeric(byte: usize, rest: &str) -> (At, &str, usize, &str) {
     let end = rest
         .find(|c: char| !(c.is_ascii_digit() || c == '-' || c == '.' || c == 'e'))
         .unwrap_or(rest.len());
@@ -148,7 +146,7 @@ pub fn lex_numeric(byte: usize, rest: &str) -> (At, usize, &str) {
     };
     // End match django bug
     let at = (byte, end);
-    (at, byte + end, &rest[end..])
+    (at, content, byte + end, &rest[end..])
 }
 
 pub fn trim_variable(variable: &str) -> &str {
@@ -216,10 +214,9 @@ mod tests {
     #[test]
     fn test_lex_text_non_ascii() {
         let template = "'N\u{ec655}'";
-        let mut chars = template.chars();
-        chars.next();
-        let (at, byte, rest) = lex_text(1, template, &mut chars, '\'').unwrap();
+        let (at, text, byte, rest) = lex_text(1, template, &template[1..], '\'').unwrap();
         assert_eq!(at, (1, 7));
+        assert_eq!(text, "N\u{ec655}");
         assert_eq!(byte, 8);
         assert_eq!(rest, "");
     }
