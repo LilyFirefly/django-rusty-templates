@@ -65,8 +65,15 @@ def parse_test_output(output: str) -> tuple[Counter[str], str]:
         if line.startswith(_SKIPPED_TESTS):
             continue
         if line.endswith(("ERROR", "FAIL", "ok")):
+            print(line)
             line = re.sub(r"<lambda> at 0x.*>", "<lambda> at ..>", line)
-            summary[line.split("... ", maxsplit=1)[1].upper()] += 1
+            try:
+                status = line.split("... ", maxsplit=1)[1]
+            except IndexError:
+                print(line)
+                raise
+
+            summary[status.upper()] += 1
             lines.append(line.strip())
 
     return summary, "\n".join(
