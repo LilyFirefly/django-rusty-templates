@@ -39,7 +39,7 @@ use dtl_lexer::forloop::{ForLexer, ForLexerError, ForLexerInError, ForTokenType}
 use dtl_lexer::ifcondition::{
     IfConditionAtom, IfConditionLexer, IfConditionOperator, IfConditionTokenType,
 };
-use dtl_lexer::include::{IncludeLexer, IncludeTemplateToken};
+use dtl_lexer::include::{IncludeLexer, IncludeLexerError, IncludeTemplateToken};
 use dtl_lexer::load::{LoadLexer, LoadToken};
 use dtl_lexer::tag::{TagLexerError, TagParts, lex_tag};
 use dtl_lexer::types::{At, TemplateString};
@@ -712,6 +712,9 @@ pub enum ParseError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     ForParseError(#[from] ForParseError),
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    IncludeLexerError(#[from] IncludeLexerError),
     #[error("{literal} is not iterable")]
     NotIterable {
         literal: String,
@@ -1617,7 +1620,8 @@ impl<'t, 'py> Parser<'t, 'py> {
     ) -> Result<TokenTree, PyParseError> {
         let mut lexer = IncludeLexer::new(self.template, parts);
         let template_token = match lexer.lex_template() {
-            Ok(template_token) => template_token,
+            Ok(Some(template_token)) => template_token,
+            Ok(None) => return Err(ParseError::MissingArgument { at: at.into() }.into()),
             Err(lex_error) => return Err(ParseError::from(lex_error).into()),
         };
         let template_name = template_token.parse(self)?;

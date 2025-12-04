@@ -15,7 +15,7 @@ use super::types::{AsBorrowedContent, Content, Context, PyContext};
 use super::{Evaluate, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
 use crate::parse::{For, IfCondition, Include, SimpleBlockTag, SimpleTag, Tag, TagElement, Url};
-use crate::template::django_rusty_templates::{NoReverseMatch, get_template};
+use crate::template::django_rusty_templates::{NoReverseMatch, TemplateDoesNotExist, get_template};
 use crate::utils::PyResultMethods;
 
 static REVERSE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
@@ -778,7 +778,13 @@ impl Render for Include {
             self.template_name
                 .resolve(py, template, context, ResolveFailures::Raise)?
         else {
-            std::todo!();
+            let at = match self.template_name {
+                TagElement::Variable(variable) => variable.at,
+                _ => std::todo!(),
+            };
+            return Err(TemplateDoesNotExist::new_err("No template names provided")
+                .annotate(py, at, "This variable is not in the context", template)
+                .into());
         };
         let include = match template_name {
             Content::String(content) => content.content(),
