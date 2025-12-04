@@ -643,11 +643,13 @@ impl ResolveFilter for YesnoFilter {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
     use crate::filters::{AddSlashesFilter, DefaultFilter, LowerFilter, UpperFilter};
     use crate::parse::TagElement;
     use crate::render::Render;
-    use crate::template::django_rusty_templates::{EngineData, Template};
+    use crate::template::django_rusty_templates::{Engine, Template};
     use crate::types::{Argument, ArgumentType, Text};
 
     use pyo3::types::{PyDict, PyString};
@@ -699,11 +701,11 @@ mod tests {
         Python::initialize();
 
         Python::attach(|py| {
-            let engine = EngineData::empty();
+            let engine = Arc::new(Engine::empty());
             let template_string = "{{ var|slugify }}".to_string();
             let context = PyDict::new(py);
             context.set_item("var", "hello world").unwrap();
-            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let template = Template::new_from_string(py, template_string, engine).unwrap();
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "hello-world");
@@ -715,11 +717,11 @@ mod tests {
         Python::initialize();
 
         Python::attach(|py| {
-            let engine = EngineData::empty();
+            let engine = Arc::new(Engine::empty());
             let template_string = "{{ var|slugify }}".to_string();
             let context = PyDict::new(py);
             context.set_item("var", " hello world").unwrap();
-            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let template = Template::new_from_string(py, template_string, engine).unwrap();
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "hello-world");
@@ -731,11 +733,11 @@ mod tests {
         Python::initialize();
 
         Python::attach(|py| {
-            let engine = EngineData::empty();
+            let engine = Arc::new(Engine::empty());
             let template_string = "{{ var|slugify }}".to_string();
             let context = PyDict::new(py);
             context.set_item("var", "a&€%").unwrap();
-            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let template = Template::new_from_string(py, template_string, engine).unwrap();
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "a");
@@ -747,11 +749,11 @@ mod tests {
         Python::initialize();
 
         Python::attach(|py| {
-            let engine = EngineData::empty();
+            let engine = Arc::new(Engine::empty());
             let template_string = "{{ var|slugify }}".to_string();
             let context = PyDict::new(py);
             context.set_item("var", "a & b").unwrap();
-            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let template = Template::new_from_string(py, template_string, engine).unwrap();
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "a-b");
@@ -763,10 +765,10 @@ mod tests {
         Python::initialize();
 
         Python::attach(|py| {
-            let engine = EngineData::empty();
+            let engine = Arc::new(Engine::empty());
             let template_string = "{{ var|default:1|slugify }}".to_string();
             let context = PyDict::new(py);
-            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let template = Template::new_from_string(py, template_string, engine).unwrap();
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "1");
@@ -778,10 +780,10 @@ mod tests {
         Python::initialize();
 
         Python::attach(|py| {
-            let engine = EngineData::empty();
+            let engine = Arc::new(Engine::empty());
             let template_string = "{{ var|default:1.3|slugify }}".to_string();
             let context = PyDict::new(py);
-            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let template = Template::new_from_string(py, template_string, engine).unwrap();
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "1.3");
@@ -793,10 +795,10 @@ mod tests {
         Python::initialize();
 
         Python::attach(|py| {
-            let engine = EngineData::empty();
+            let engine = Arc::new(Engine::empty());
             let template_string = "{{ var|default:'hello world'|slugify }}".to_string();
             let context = PyDict::new(py);
-            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let template = Template::new_from_string(py, template_string, engine).unwrap();
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "hello-world");
@@ -808,10 +810,10 @@ mod tests {
         Python::initialize();
 
         Python::attach(|py| {
-            let engine = EngineData::empty();
+            let engine = Arc::new(Engine::empty());
             let template_string = "{{ var|default:'hello world'|safe|slugify }}".to_string();
             let context = PyDict::new(py);
-            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let template = Template::new_from_string(py, template_string, engine).unwrap();
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "hello-world");
@@ -823,12 +825,12 @@ mod tests {
         Python::initialize();
 
         Python::attach(|py| {
-            let engine = EngineData::empty();
+            let engine = Arc::new(Engine::empty());
             let template_string = "{{ var|slugify }}".to_string();
             let context = PyDict::new(py);
             let safe_string = mark_safe(py, "a &amp; b".to_string()).unwrap();
             context.set_item("var", safe_string).unwrap();
-            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let template = Template::new_from_string(py, template_string, engine).unwrap();
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "a-amp-b");
@@ -840,10 +842,10 @@ mod tests {
         Python::initialize();
 
         Python::attach(|py| {
-            let engine = EngineData::empty();
+            let engine = Arc::new(Engine::empty());
             let template_string = "{{ not_there|slugify }}".to_string();
             let context = PyDict::new(py);
-            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let template = Template::new_from_string(py, template_string, engine).unwrap();
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "");
@@ -855,9 +857,9 @@ mod tests {
         Python::initialize();
 
         Python::attach(|py| {
-            let engine = EngineData::empty();
+            let engine = Arc::new(Engine::empty());
             let template_string = "{{ var|slugify:invalid }}".to_string();
-            let error = Template::new_from_string(py, template_string, &engine).unwrap_err();
+            let error = Template::new_from_string(py, template_string, engine).unwrap_err();
 
             let error_string = format!("{error}");
             assert!(error_string.contains("slugify filter does not take an argument"));
@@ -890,11 +892,11 @@ mod tests {
         Python::initialize();
 
         Python::attach(|py| {
-            let engine = EngineData::empty();
+            let engine = Arc::new(Engine::empty());
             let template_string = "{{ var|capfirst }}".to_string();
             let context = PyDict::new(py);
             context.set_item("var", "hello world").unwrap();
-            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let template = Template::new_from_string(py, template_string, engine.clone()).unwrap();
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "Hello world");
@@ -902,7 +904,7 @@ mod tests {
             let context = PyDict::new(py);
             context.set_item("var", "").unwrap();
             let template_string = "{{ var|capfirst }}".to_string();
-            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let template = Template::new_from_string(py, template_string, engine.clone()).unwrap();
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "");
@@ -910,13 +912,13 @@ mod tests {
             let context = PyDict::new(py);
             context.set_item("bar", "").unwrap();
             let template_string = "{{ var|capfirst }}".to_string();
-            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let template = Template::new_from_string(py, template_string, engine.clone()).unwrap();
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "");
 
             let template_string = "{{ var|capfirst:invalid }}".to_string();
-            let error = Template::new_from_string(py, template_string, &engine).unwrap_err();
+            let error = Template::new_from_string(py, template_string, engine).unwrap_err();
 
             let error_string = format!("{error}");
             assert!(error_string.contains("capfirst filter does not take an argument"));
@@ -928,11 +930,11 @@ mod tests {
         Python::initialize();
 
         Python::attach(|py| {
-            let engine = EngineData::empty();
+            let engine = Arc::new(Engine::empty());
             let template_string = "{{ var|center:'11' }}".to_string();
             let context = PyDict::new(py);
             context.set_item("var", "hello").unwrap();
-            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let template = Template::new_from_string(py, template_string, engine.clone()).unwrap();
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "   hello   ");
@@ -940,7 +942,7 @@ mod tests {
             let context = PyDict::new(py);
             context.set_item("var", "django").unwrap();
             let template_string = "{{ var|center:'15' }}".to_string();
-            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let template = Template::new_from_string(py, template_string, engine.clone()).unwrap();
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "     django    ");
@@ -948,7 +950,7 @@ mod tests {
             let context = PyDict::new(py);
             context.set_item("var", "django").unwrap();
             let template_string = "{{ var|center:1 }}".to_string();
-            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let template = Template::new_from_string(py, template_string, engine).unwrap();
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "django");
@@ -960,11 +962,11 @@ mod tests {
         Python::initialize();
 
         Python::attach(|py| {
-            let engine = EngineData::empty();
+            let engine = Arc::new(Engine::empty());
             let template_string = "{{ var|center }}".to_string();
             let context = PyDict::new(py);
             context.set_item("var", "hello").unwrap();
-            let error = Template::new_from_string(py, template_string, &engine).unwrap_err();
+            let error = Template::new_from_string(py, template_string, engine).unwrap_err();
 
             let error_string = format!("{error}");
 
@@ -977,10 +979,10 @@ mod tests {
         Python::initialize();
 
         Python::attach(|py| {
-            let engine = EngineData::empty();
+            let engine = Arc::new(Engine::empty());
             let template_string = "{{ var|center:'11' }}".to_string();
             let context = PyDict::new(py);
-            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let template = Template::new_from_string(py, template_string, engine).unwrap();
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "");
@@ -992,11 +994,11 @@ mod tests {
         Python::initialize();
 
         Python::attach(|py| {
-            let engine = EngineData::empty();
+            let engine = Arc::new(Engine::empty());
             let template_string = "{{ var|center:0 }}".to_string();
             let context = PyDict::new(py);
             context.set_item("var", "hello").unwrap();
-            let template = Template::new_from_string(py, template_string, &engine).unwrap();
+            let template = Template::new_from_string(py, template_string, engine).unwrap();
             let result = template.render(py, Some(context), None).unwrap();
 
             assert_eq!(result, "hello");
