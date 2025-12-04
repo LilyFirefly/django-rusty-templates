@@ -7,7 +7,7 @@ use crate::common::{
     LexerError, NextChar, check_variable_attrs, lex_numeric, lex_text, lex_translated,
     lex_variable_argument, trim_variable,
 };
-use crate::types::{TemplateString, Variable};
+use crate::types::TemplateString;
 use crate::{END_TRANSLATE_LEN, QUOTE_LEN, START_TRANSLATE_LEN, TemplateContent};
 
 #[derive(Debug, PartialEq, Eq)]
@@ -67,7 +67,7 @@ impl<'t> TemplateContent<'t> for FilterToken {
 
 #[derive(Debug, PartialEq)]
 pub enum VariableToken {
-    Variable(Variable),
+    Variable,
     Int(BigInt),
     Float(f64),
 }
@@ -94,10 +94,12 @@ pub enum VariableLexerError {
     },
 }
 
+type At = (usize, usize);
+
 pub fn lex_variable_or_filter(
     variable: &str,
     start: usize,
-) -> Result<Option<(VariableToken, FilterLexer<'_>)>, VariableLexerError> {
+) -> Result<Option<(VariableToken, At, FilterLexer<'_>)>, VariableLexerError> {
     let rest = variable.trim_start();
     if rest.trim().is_empty() {
         return Ok(None);
@@ -123,11 +125,12 @@ pub fn lex_variable_or_filter(
         token_type = VariableToken::Float(num);
     } else {
         check_variable_attrs(content, start)?;
-        token_type = VariableToken::Variable(Variable::new(at));
+        token_type = VariableToken::Variable;
     }
 
     Ok(Some((
         token_type,
+        at,
         FilterLexer::new(&rest[end..], start + end),
     )))
 }
@@ -380,14 +383,12 @@ mod tests {
     fn test_lex_variable() {
         let template = "{{ foo.bar }}";
         let variable = trim_variable(template);
-        let (token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (token, at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
-        assert_eq!(token, VariableToken::Variable(Variable::new((3, 7))));
-        let VariableToken::Variable(token) = token else {
-            unreachable!()
-        };
-        assert_eq!(token.content(template.into_template_string()), "foo.bar");
+        assert_eq!(token, VariableToken::Variable);
+        assert_eq!(at, (3, 7));
+        assert_eq!(TemplateString(template).content(at), "foo.bar");
         let tokens: Vec<_> = lexer.collect();
         assert_eq!(tokens, vec![]);
     }
@@ -396,14 +397,11 @@ mod tests {
     fn test_lex_variable_index() {
         let template = "{{ 1 }}";
         let variable = trim_variable(template);
-        let (token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (token, at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         assert_eq!(token, VariableToken::Int(1.into()));
-        let VariableToken::Int(token) = token else {
-            unreachable!()
-        };
-        assert_eq!(format!("{token}"), "1");
+        assert_eq!(TemplateString(template).content(at), "1");
         let tokens: Vec<_> = lexer.collect();
         assert_eq!(tokens, vec![]);
     }
@@ -412,14 +410,11 @@ mod tests {
     fn test_lex_variable_negative_index() {
         let template = "{{ -1 }}";
         let variable = trim_variable(template);
-        let (token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (token, at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         assert_eq!(token, VariableToken::Int((-1).into()));
-        let VariableToken::Int(token) = token else {
-            unreachable!()
-        };
-        assert_eq!(format!("{token}"), "-1");
+        assert_eq!(TemplateString(template).content(at), "-1");
         let tokens: Vec<_> = lexer.collect();
         assert_eq!(tokens, vec![]);
     }
@@ -448,14 +443,12 @@ mod tests {
     fn test_lex_attribute_index() {
         let template = "{{ foo.1 }}";
         let variable = trim_variable(template);
-        let (token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (token, at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
-        assert_eq!(token, VariableToken::Variable(Variable::new((3, 5))));
-        let VariableToken::Variable(token) = token else {
-            unreachable!()
-        };
-        assert_eq!(token.content(template.into_template_string()), "foo.1");
+        assert_eq!(token, VariableToken::Variable);
+        assert_eq!(at, (3, 5));
+        assert_eq!(TemplateString(template).content(at), "foo.1");
         let tokens: Vec<_> = lexer.collect();
         assert_eq!(tokens, vec![]);
     }
@@ -475,7 +468,7 @@ mod tests {
     fn test_lex_filter() {
         let template = "{{ foo.bar|title }}";
         let variable = trim_variable(template);
-        let (_token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (_token, _at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         let tokens: Vec<_> = lexer.collect();
@@ -493,7 +486,7 @@ mod tests {
     fn test_lex_filter_chain() {
         let template = "{{ foo.bar|title|length }}";
         let variable = trim_variable(template);
-        let (_token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (_token, _at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         let tokens: Vec<_> = lexer.collect();
@@ -520,7 +513,7 @@ mod tests {
     fn test_lex_filter_remainder() {
         let template = "{{ foo.bar|title'foo' }}";
         let variable = trim_variable(template);
-        let (_token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (_token, _at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         let tokens: Vec<_> = lexer.collect();
@@ -536,7 +529,7 @@ mod tests {
     fn test_lex_filter_invalid_start() {
         let template = "{{ foo.bar|'foo' }}";
         let variable = trim_variable(template);
-        let (_token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (_token, _at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         let tokens: Vec<_> = lexer.collect();
@@ -552,7 +545,7 @@ mod tests {
     fn test_lex_text_argument_single_quote() {
         let template = "{{ foo.bar|default:'foo' }}";
         let variable = trim_variable(template);
-        let (_token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (_token, _at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         let tokens: Vec<_> = lexer.collect();
@@ -573,7 +566,7 @@ mod tests {
     fn test_lex_text_argument_double_quote() {
         let template = "{{ foo.bar|default:\"foo\" }}";
         let variable = trim_variable(template);
-        let (_token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (_token, _at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         let tokens: Vec<_> = lexer.collect();
@@ -594,7 +587,7 @@ mod tests {
     fn test_lex_text_argument_escaped() {
         let template = "{{ foo.bar|default:'foo\\\'' }}";
         let variable = trim_variable(template);
-        let (_token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (_token, _at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         let tokens: Vec<_> = lexer.collect();
@@ -618,7 +611,7 @@ mod tests {
     fn test_lex_translated_text_argument() {
         let template = "{{ foo.bar|default:_('foo') }}";
         let variable = trim_variable(template);
-        let (_token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (_token, _at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         let tokens: Vec<_> = lexer.collect();
@@ -639,7 +632,7 @@ mod tests {
     fn test_lex_translated_text_argument_double_quoted() {
         let template = "{{ foo.bar|default:_(\"foo\") }}";
         let variable = trim_variable(template);
-        let (_token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (_token, _at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         let tokens: Vec<_> = lexer.collect();
@@ -660,7 +653,7 @@ mod tests {
     fn test_lex_numeric_argument() {
         let template = "{{ foo.bar|default:500 }}";
         let variable = trim_variable(template);
-        let (_token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (_token, _at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         let tokens: Vec<_> = lexer.collect();
@@ -681,7 +674,7 @@ mod tests {
     fn test_lex_numeric_argument_negative() {
         let template = "{{ foo.bar|default:-0.5 }}";
         let variable = trim_variable(template);
-        let (_token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (_token, _at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         let tokens: Vec<_> = lexer.collect();
@@ -702,7 +695,7 @@ mod tests {
     fn test_lex_numeric_argument_scientific() {
         let template = "{{ foo.bar|default:5.2e3 }}";
         let variable = trim_variable(template);
-        let (_token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (_token, _at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         let tokens: Vec<_> = lexer.collect();
@@ -725,7 +718,7 @@ mod tests {
         // https://code.djangoproject.com/ticket/35816
         let template = "{{ foo.bar|default:5.2e-3 }}";
         let variable = trim_variable(template);
-        let (_token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (_token, _at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         let tokens: Vec<_> = lexer.collect();
@@ -751,7 +744,7 @@ mod tests {
     fn test_lex_variable_argument() {
         let template = "{{ foo.bar|default:spam }}";
         let variable = trim_variable(template);
-        let (_token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (_token, _at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         let tokens: Vec<_> = lexer.collect();
@@ -772,7 +765,7 @@ mod tests {
     fn test_lex_variable_argument_then_filter() {
         let template = "{{ foo.bar|default:spam|title }}";
         let variable = trim_variable(template);
-        let (_token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (_token, _at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         let tokens: Vec<_> = lexer.collect();
@@ -802,7 +795,7 @@ mod tests {
     fn test_lex_string_argument_then_filter() {
         let template = "{{ foo.bar|default:\"spam\"|title }}";
         let variable = trim_variable(template);
-        let (_token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (_token, _at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         let tokens: Vec<_> = lexer.collect();
@@ -832,7 +825,7 @@ mod tests {
     fn test_lex_argument_with_leading_underscore() {
         let template = "{{ foo.bar|default:_spam }}";
         let variable = trim_variable(template);
-        let (_token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (_token, _at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         let tokens: Vec<_> = lexer.collect();
@@ -848,7 +841,7 @@ mod tests {
     fn test_lex_argument_with_attribute_underscore() {
         let template = "{{ foo.bar|default:spam._eggs }}";
         let variable = trim_variable(template);
-        let (_token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (_token, _at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         let tokens: Vec<_> = lexer.collect();
@@ -864,7 +857,7 @@ mod tests {
     fn test_lex_argument_with_only_underscore() {
         let template = "{{ foo.bar|default:_ }}";
         let variable = trim_variable(template);
-        let (_token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (_token, _at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         let tokens: Vec<_> = lexer.collect();
@@ -880,7 +873,7 @@ mod tests {
     fn test_lex_text_argument_incomplete() {
         let template = "{{ foo.bar|default:'foo }}";
         let variable = trim_variable(template);
-        let (_token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (_token, _at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         let tokens: Vec<_> = lexer.collect();
@@ -892,7 +885,7 @@ mod tests {
     fn test_lex_translated_text_argument_incomplete() {
         let template = "{{ foo.bar|default:_('foo' }}";
         let variable = trim_variable(template);
-        let (_token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (_token, _at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         let tokens: Vec<_> = lexer.collect();
@@ -904,7 +897,7 @@ mod tests {
     fn test_lex_translated_text_argument_incomplete_string() {
         let template = "{{ foo.bar|default:_('foo }}";
         let variable = trim_variable(template);
-        let (_token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (_token, _at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         let tokens: Vec<_> = lexer.collect();
@@ -916,7 +909,7 @@ mod tests {
     fn test_lex_translated_text_argument_incomplete_string_double_quotes() {
         let template = "{{ foo.bar|default:_(\"foo }}";
         let variable = trim_variable(template);
-        let (_token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (_token, _at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         let tokens: Vec<_> = lexer.collect();
@@ -928,7 +921,7 @@ mod tests {
     fn test_lex_translated_text_argument_missing_string() {
         let template = "{{ foo.bar|default:_( }}";
         let variable = trim_variable(template);
-        let (_token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (_token, _at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         let tokens: Vec<_> = lexer.collect();
@@ -940,7 +933,7 @@ mod tests {
     fn test_lex_translated_text_argument_missing_string_trailing_chars() {
         let template = "{{ foo.bar|default:_(foo) }}";
         let variable = trim_variable(template);
-        let (_token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (_token, _at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         let tokens: Vec<_> = lexer.collect();
@@ -952,7 +945,7 @@ mod tests {
     fn test_lex_filter_remainder_before_argument() {
         let template = "{{ foo.bar|default'spam':title }}";
         let variable = trim_variable(template);
-        let (_token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (_token, _at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         let tokens: Vec<_> = lexer.collect();
@@ -968,7 +961,7 @@ mod tests {
     fn test_lex_filter_remainder_before_filter() {
         let template = "{{ foo.bar|title'spam'|title }}";
         let variable = trim_variable(template);
-        let (_token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (_token, _at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         let tokens: Vec<_> = lexer.collect();
@@ -984,7 +977,7 @@ mod tests {
     fn test_lex_string_argument_remainder() {
         let template = "{{ foo.bar|default:\"spam\"title }}";
         let variable = trim_variable(template);
-        let (_token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (_token, _at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         let tokens: Vec<_> = lexer.collect();
@@ -1000,7 +993,7 @@ mod tests {
     fn test_lex_string_argument_remainder_before_filter() {
         let template = "{{ foo.bar|default:\"spam\"title|title }}";
         let variable = trim_variable(template);
-        let (_token, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
+        let (_token, _at, lexer) = lex_variable_or_filter(variable, START_TAG_LEN)
             .unwrap()
             .unwrap();
         let tokens: Vec<_> = lexer.collect();

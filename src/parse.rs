@@ -1093,11 +1093,12 @@ impl<'t, 'py> Parser<'t, 'py> {
         at: (usize, usize),
         start: usize,
     ) -> Result<TagElement, ParseError> {
-        let Some((variable_token, filter_lexer)) = lex_variable_or_filter(variable, start)? else {
+        let Some((variable_token, at, filter_lexer)) = lex_variable_or_filter(variable, start)?
+        else {
             return Err(ParseError::EmptyVariable { at: at.into() });
         };
         let mut var = match variable_token {
-            VariableToken::Variable(var) => self.parse_for_variable(var.at).into(),
+            VariableToken::Variable => self.parse_for_variable(at).into(),
             VariableToken::Int(n) => TagElement::Int(n),
             VariableToken::Float(f) => TagElement::Float(f),
         };
