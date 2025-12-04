@@ -778,9 +778,10 @@ impl Render for Include {
             self.template_name
                 .resolve(py, template, context, ResolveFailures::Raise)?
         else {
-            let at = match self.template_name {
+            let at = match &self.template_name {
                 TagElement::Variable(variable) => variable.at,
-                _ => std::todo!(),
+                TagElement::Filter(filter) => filter.all_at,
+                _ => unreachable!(),
             };
             return Err(TemplateDoesNotExist::new_err("No template names provided")
                 .annotate(py, at, "This variable is not in the context", template)
