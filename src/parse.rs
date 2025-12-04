@@ -46,7 +46,9 @@ use dtl_lexer::tag::forloop::{ForLexer, ForLexerError, ForLexerInError, ForToken
 use dtl_lexer::tag::ifcondition::{
     IfConditionAtom, IfConditionLexer, IfConditionOperator, IfConditionTokenType,
 };
-use dtl_lexer::tag::include::{IncludeLexer, IncludeLexerError, IncludeTemplateToken};
+use dtl_lexer::tag::include::{
+    IncludeLexer, IncludeLexerError, IncludeTemplateToken, IncludeTemplateTokenType,
+};
 use dtl_lexer::tag::load::{LoadLexer, LoadToken};
 use dtl_lexer::tag::{TagLexerError, TagParts, lex_tag};
 use dtl_lexer::types::{At, TemplateString};
@@ -250,12 +252,11 @@ impl Parse<TagElement> for IncludeTemplateToken {
         let (start, _len) = content_at;
         let content = parser.template.content(content_at);
         match self.token_type {
-            SimpleTagTokenType::Numeric => parse_numeric(content, self.at),
-            SimpleTagTokenType::Text => Ok(TagElement::Text(Text::new(content_at))),
-            SimpleTagTokenType::TranslatedText => {
+            IncludeTemplateTokenType::Text => Ok(TagElement::Text(Text::new(content_at))),
+            IncludeTemplateTokenType::TranslatedText => {
                 Ok(TagElement::TranslatedText(Text::new(content_at)))
             }
-            SimpleTagTokenType::Variable => parser.parse_variable(content, content_at, start),
+            IncludeTemplateTokenType::Variable => parser.parse_variable(content, content_at, start),
         }
     }
 }

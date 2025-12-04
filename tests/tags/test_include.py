@@ -1,4 +1,5 @@
-from django.template.exceptions import TemplateDoesNotExist
+import pytest
+from django.template.exceptions import TemplateDoesNotExist, TemplateSyntaxError
 
 
 def test_include(assert_render):
@@ -60,3 +61,30 @@ def test_include_missing_variable(assert_render_error):
         django_message=django_message,
         rusty_message=rusty_message,
     )
+
+
+def test_include_numeric(template_engine):
+    template = "{% include 1 %}"
+    django_message = "'int' object is not iterable"
+    rusty_message = """\
+  × Included template name must be a string or iterable of strings.
+   ╭────
+ 1 │ {% include 1 %}
+   ·            ┬
+   ·            ╰── invalid template name
+   ╰────
+"""
+
+    if template_engine.name == "rusty":
+        with pytest.raises(TemplateSyntaxError) as exc_info:
+            template_engine.from_string(template)
+
+        assert str(exc_info.value) == rusty_message
+
+    else:
+        template = template_engine.from_string(template)
+
+        with pytest.raises(TypeError) as exc_info:
+            template.render({})
+
+        assert str(exc_info.value) == django_message

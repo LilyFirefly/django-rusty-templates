@@ -6,18 +6,25 @@ use crate::tag::TagParts;
 use crate::tag::custom_tag::{SimpleTagLexer, SimpleTagLexerError, SimpleTagTokenType};
 use crate::types::{At, TemplateString};
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum IncludeTemplateTokenType {
+    Text,
+    TranslatedText,
+    Variable,
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub struct IncludeTemplateToken {
     pub at: At,
-    pub token_type: SimpleTagTokenType,
+    pub token_type: IncludeTemplateTokenType,
 }
 
 impl IncludeTemplateToken {
     pub fn content_at(&self) -> At {
         match self.token_type {
-            SimpleTagTokenType::Variable => self.at,
-            SimpleTagTokenType::Numeric => self.at,
-            SimpleTagTokenType::Text => text_content_at(self.at),
-            SimpleTagTokenType::TranslatedText => translated_text_content_at(self.at),
+            IncludeTemplateTokenType::Variable => self.at,
+            IncludeTemplateTokenType::Text => text_content_at(self.at),
+            IncludeTemplateTokenType::TranslatedText => translated_text_content_at(self.at),
         }
     }
 }
@@ -27,6 +34,11 @@ pub enum IncludeLexerError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     SimpleTagLexerError(#[from] SimpleTagLexerError),
+    #[error("Included template name must be a string or iterable of strings.")]
+    InvalidTemplateName {
+        #[label("invalid template name")]
+        at: SourceSpan,
+    },
     #[error("Unexpected keyword argument")]
     UnexpectedKeywordArgument {
         #[label("here")]
@@ -50,10 +62,22 @@ impl<'t> IncludeLexer<'t> {
             Some(kwarg_at) => Err(IncludeLexerError::UnexpectedKeywordArgument {
                 at: kwarg_at.into(),
             }),
-            None => Ok(Some(IncludeTemplateToken {
-                at: token.at,
-                token_type: token.token_type,
-            })),
+            None => {
+                let token_type = match token.token_type {
+                    SimpleTagTokenType::Numeric => {
+                        return Err(IncludeLexerError::InvalidTemplateName {
+                            at: token.at.into(),
+                        });
+                    }
+                    SimpleTagTokenType::Text => IncludeTemplateTokenType::Text,
+                    SimpleTagTokenType::TranslatedText => IncludeTemplateTokenType::TranslatedText,
+                    SimpleTagTokenType::Variable => IncludeTemplateTokenType::Variable,
+                };
+                Ok(Some(IncludeTemplateToken {
+                    at: token.at,
+                    token_type,
+                }))
+            }
         }
     }
 }
