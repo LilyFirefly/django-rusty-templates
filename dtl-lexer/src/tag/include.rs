@@ -1,3 +1,6 @@
+use miette::{Diagnostic, SourceSpan};
+use thiserror::Error;
+
 use crate::common::{text_content_at, translated_text_content_at};
 use crate::tag::TagParts;
 use crate::tag::custom_tag::{SimpleTagLexer, SimpleTagLexerError, SimpleTagTokenType};
@@ -19,6 +22,18 @@ impl IncludeTemplateToken {
     }
 }
 
+#[derive(Error, Debug, Diagnostic, PartialEq, Eq)]
+pub enum IncludeLexerError {
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    SimpleTagLexerError(#[from] SimpleTagLexerError),
+    #[error("Unexpected keyword argument")]
+    UnexpectedKeywordArgument {
+        #[label("here")]
+        at: SourceSpan,
+    },
+}
+
 pub struct IncludeLexer<'t>(SimpleTagLexer<'t>);
 
 impl<'t> IncludeLexer<'t> {
@@ -26,15 +41,19 @@ impl<'t> IncludeLexer<'t> {
         Self(SimpleTagLexer::new(template, parts))
     }
 
-    pub fn lex_template(&mut self) -> Result<IncludeTemplateToken, SimpleTagLexerError> {
-        let Some(token) = self.0.next() else { todo!() };
-        let token = token?;
+    pub fn lex_template(&mut self) -> Result<Option<IncludeTemplateToken>, IncludeLexerError> {
+        let token = match self.0.next() {
+            Some(token) => token?,
+            None => return Ok(None),
+        };
         match token.kwarg {
-            Some(kwarg_at) => todo!(),
-            None => Ok(IncludeTemplateToken {
+            Some(kwarg_at) => Err(IncludeLexerError::UnexpectedKeywordArgument {
+                at: kwarg_at.into(),
+            }),
+            None => Ok(Some(IncludeTemplateToken {
                 at: token.at,
                 token_type: token.token_type,
-            }),
+            })),
         }
     }
 }
