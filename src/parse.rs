@@ -44,7 +44,7 @@ use dtl_lexer::tag::{TagLexerError, TagParts, lex_tag};
 use dtl_lexer::types::TemplateString;
 use dtl_lexer::variable::{
     Argument as ArgumentToken, ArgumentType as ArgumentTokenType, VariableLexerError,
-    VariableToken, lex_variable,
+    VariableToken, lex_variable_or_filter,
 };
 
 use crate::template::django_rusty_templates::Engine;
@@ -1093,7 +1093,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         at: (usize, usize),
         start: usize,
     ) -> Result<TagElement, ParseError> {
-        let Some((variable_token, filter_lexer)) = lex_variable(variable, start)? else {
+        let Some((variable_token, filter_lexer)) = lex_variable_or_filter(variable, start)? else {
             return Err(ParseError::EmptyVariable { at: at.into() });
         };
         let mut var = match variable_token {
