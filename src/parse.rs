@@ -108,6 +108,7 @@ fn unexpected_argument(filter: &'static str, right: Argument) -> ParseError {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Filter {
     pub at: At,
+    pub all_at: At,
     pub left: TagElement,
     pub filter: FilterType,
 }
@@ -116,6 +117,7 @@ impl Filter {
     pub fn new(
         parser: &Parser,
         at: At,
+        all_at: At,
         left: TagElement,
         right: Option<Argument>,
     ) -> Result<Self, ParseError> {
@@ -194,7 +196,12 @@ impl Filter {
                 FilterType::External(ExternalFilter::new(external, right))
             }
         };
-        Ok(Self { at, left, filter })
+        Ok(Self {
+            at,
+            all_at,
+            left,
+            filter,
+        })
     }
 }
 
@@ -1146,7 +1153,8 @@ impl<'t, 'py> Parser<'t, 'py> {
                 None => None,
                 Some(ref a) => Some(a.parse(self)?),
             };
-            let filter = Filter::new(self, filter_token.at, var, argument)?;
+            let filter_at = (at.0, filter_token.at.0 - at.0 + filter_token.at.1);
+            let filter = Filter::new(self, filter_token.at, filter_at, var, argument)?;
             var = TagElement::Filter(Box::new(filter));
         }
         Ok(var)
@@ -1870,6 +1878,7 @@ mod tests {
             assert!(external.is_none(py));
             let bar = TokenTree::Filter(Box::new(Filter {
                 at: (7, 3),
+                all_at: (3, 7),
                 left: TagElement::Variable(foo),
                 filter: FilterType::External(ExternalFilter {
                     filter: external,
@@ -1921,6 +1930,7 @@ mod tests {
             assert!(external.is_none(py));
             let bar = TagElement::Filter(Box::new(Filter {
                 at: (7, 3),
+                all_at: (3, 7),
                 left: foo,
                 filter: FilterType::External(ExternalFilter {
                     filter: external,
@@ -1931,6 +1941,7 @@ mod tests {
             assert!(external.is_none(py));
             let baz = TokenTree::Filter(Box::new(Filter {
                 at: (11, 3),
+                all_at: (3, 11),
                 left: bar,
                 filter: FilterType::External(ExternalFilter {
                     filter: external,
@@ -1958,6 +1969,7 @@ mod tests {
             assert!(external.is_none(py));
             let bar = TokenTree::Filter(Box::new(Filter {
                 at: (7, 3),
+                all_at: (3, 7),
                 left: foo,
                 filter: FilterType::External(ExternalFilter {
                     filter: external,
@@ -1991,6 +2003,7 @@ mod tests {
             assert!(external.is_none(py));
             let bar = TokenTree::Filter(Box::new(Filter {
                 at: (7, 3),
+                all_at: (3, 7),
                 left: foo,
                 filter: FilterType::External(ExternalFilter {
                     filter: external,
@@ -2021,6 +2034,7 @@ mod tests {
             assert!(external.is_none(py));
             let bar = TokenTree::Filter(Box::new(Filter {
                 at: (7, 3),
+                all_at: (3, 7),
                 left: foo,
                 filter: FilterType::External(ExternalFilter {
                     filter: external,
@@ -2054,6 +2068,7 @@ mod tests {
             assert!(external.is_none(py));
             let bar = TokenTree::Filter(Box::new(Filter {
                 at: (7, 3),
+                all_at: (3, 7),
                 left: foo,
                 filter: FilterType::External(ExternalFilter {
                     filter: external,
@@ -2083,6 +2098,7 @@ mod tests {
             assert!(external.is_none(py));
             let bar = TokenTree::Filter(Box::new(Filter {
                 at: (7, 3),
+                all_at: (3, 7),
                 left: foo,
                 filter: FilterType::External(ExternalFilter {
                     filter: external,
@@ -2112,6 +2128,7 @@ mod tests {
             assert!(external.is_none(py));
             let bar = TokenTree::Filter(Box::new(Filter {
                 at: (7, 3),
+                all_at: (3, 7),
                 left: foo,
                 filter: FilterType::External(ExternalFilter {
                     filter: external,
@@ -2171,6 +2188,7 @@ mod tests {
             let baz = Variable { at: (15, 3) };
             let bar = TokenTree::Filter(Box::new(Filter {
                 at: (7, 7),
+                all_at: (3, 11),
                 left: foo,
                 filter: FilterType::Default(DefaultFilter::new(Argument {
                     at: (15, 3),
@@ -2332,6 +2350,7 @@ mod tests {
             let home = Text { at: (31, 4) };
             let default = Box::new(Filter {
                 at: (22, 7),
+                all_at: (7, 22),
                 left: some_view_name,
                 filter: FilterType::Default(DefaultFilter::new(Argument {
                     at: (30, 6),
@@ -2396,6 +2415,7 @@ mod tests {
                     TagElement::Text(Text { at: (23, 3) }),
                     TagElement::Filter(Box::new(Filter {
                         at: (32, 7),
+                        all_at: (28, 11),
                         left: TagElement::Variable(Variable { at: (28, 3) }),
                         filter: FilterType::Default(DefaultFilter::new(Argument {
                             at: (40, 6),
