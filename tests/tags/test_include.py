@@ -63,6 +63,26 @@ def test_include_missing_variable(assert_render_error):
     )
 
 
+def test_include_missing_filter_variable(assert_render_error):
+    template = "{% include missing|add:3 %}"
+    django_message = "No template names provided"
+    rusty_message = """\
+  × No template names provided
+   ╭────
+ 1 │ {% include missing|add:3 %}
+   ·            ─────┬─────
+   ·                 ╰── This variable is not in the context
+   ╰────
+"""
+    assert_render_error(
+        template=template,
+        context={},
+        exception=TemplateDoesNotExist,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
 def test_include_numeric(template_engine):
     template = "{% include 1 %}"
     django_message = "'int' object is not iterable"

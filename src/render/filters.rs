@@ -684,6 +684,7 @@ mod tests {
             let variable = Variable::new((3, 4));
             let filter = Filter {
                 at: (8, 7),
+                all_at: (3, 12),
                 left: TagElement::Variable(variable),
                 filter: FilterType::Default(DefaultFilter::new(Argument {
                     at: (16, 8),
@@ -878,6 +879,7 @@ mod tests {
             let variable = Variable::new((3, 6));
             let filter = Filter {
                 at: (10, 10),
+                all_at: (3, 17),
                 left: TagElement::Variable(variable),
                 filter: FilterType::AddSlashes(AddSlashesFilter),
             };
@@ -1016,6 +1018,7 @@ mod tests {
             let variable = Variable::new((3, 4));
             let filter = Filter {
                 at: (8, 7),
+                all_at: (3, 12),
                 left: TagElement::Variable(variable),
                 filter: FilterType::Default(DefaultFilter::new(Argument {
                     at: (16, 8),
@@ -1039,6 +1042,7 @@ mod tests {
             let variable = Variable::new((3, 5));
             let filter = Filter {
                 at: (9, 7),
+                all_at: (3, 12),
                 left: TagElement::Variable(variable),
                 filter: FilterType::Default(DefaultFilter::new(Argument {
                     at: (17, 2),
@@ -1062,6 +1066,7 @@ mod tests {
             let variable = Variable::new((3, 5));
             let filter = Filter {
                 at: (9, 7),
+                all_at: (3, 12),
                 left: TagElement::Variable(variable),
                 filter: FilterType::Default(DefaultFilter::new(Argument {
                     at: (17, 3),
@@ -1086,6 +1091,7 @@ mod tests {
             let variable = Variable::new((3, 4));
             let filter = Filter {
                 at: (8, 7),
+                all_at: (3, 11),
                 left: TagElement::Variable(variable),
                 filter: FilterType::Default(DefaultFilter::new(Argument {
                     at: (16, 2),
@@ -1110,6 +1116,7 @@ mod tests {
             let variable = Variable::new((3, 4));
             let filter = Filter {
                 at: (8, 5),
+                all_at: (3, 10),
                 left: TagElement::Variable(variable),
                 filter: FilterType::Lower(LowerFilter),
             };
@@ -1130,6 +1137,7 @@ mod tests {
             let variable = Variable::new((3, 4));
             let filter = Filter {
                 at: (8, 5),
+                all_at: (3, 10),
                 left: TagElement::Variable(variable),
                 filter: FilterType::Lower(LowerFilter),
             };
@@ -1150,6 +1158,7 @@ mod tests {
             let variable = Variable::new((3, 4));
             let default = Filter {
                 at: (8, 7),
+                all_at: (3, 12),
                 left: TagElement::Variable(variable),
                 filter: FilterType::Default(DefaultFilter::new(Argument {
                     at: (16, 8),
@@ -1158,6 +1167,7 @@ mod tests {
             };
             let lower = Filter {
                 at: (25, 5),
+                all_at: (3, 27),
                 left: TagElement::Filter(Box::new(default)),
                 filter: FilterType::Lower(LowerFilter),
             };
@@ -1179,6 +1189,7 @@ mod tests {
             let variable = Variable::new((3, 4));
             let filter = Filter {
                 at: (8, 5),
+                all_at: (3, 10),
                 left: TagElement::Variable(variable),
                 filter: FilterType::Upper(UpperFilter),
             };
@@ -1199,6 +1210,7 @@ mod tests {
             let variable = Variable::new((3, 4));
             let filter = Filter {
                 at: (8, 5),
+                all_at: (3, 10),
                 left: TagElement::Variable(variable),
                 filter: FilterType::Upper(UpperFilter),
             };
