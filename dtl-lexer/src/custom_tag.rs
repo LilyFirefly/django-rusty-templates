@@ -7,7 +7,7 @@ use crate::common::{
     translated_text_content_at,
 };
 use crate::tag::TagParts;
-use crate::types::TemplateString;
+use crate::types::{At, TemplateString};
 
 #[derive(Debug, PartialEq)]
 pub enum SimpleTagTokenType {
@@ -19,13 +19,13 @@ pub enum SimpleTagTokenType {
 
 #[derive(Debug, PartialEq)]
 pub struct SimpleTagToken {
-    pub at: (usize, usize),
+    pub at: At,
     pub token_type: SimpleTagTokenType,
-    pub kwarg: Option<(usize, usize)>,
+    pub kwarg: Option<At>,
 }
 
 impl SimpleTagToken {
-    pub fn content_at(&self) -> (usize, usize) {
+    pub fn content_at(&self) -> At {
         match self.token_type {
             SimpleTagTokenType::Variable => self.at,
             SimpleTagTokenType::Numeric => self.at,
@@ -60,7 +60,7 @@ impl<'t> SimpleTagLexer<'t> {
         }
     }
 
-    fn lex_numeric(&mut self, kwarg: Option<(usize, usize)>) -> SimpleTagToken {
+    fn lex_numeric(&mut self, kwarg: Option<At>) -> SimpleTagToken {
         let (at, byte, rest) = lex_numeric(self.byte, self.rest);
         self.rest = rest;
         self.byte = byte;
@@ -75,7 +75,7 @@ impl<'t> SimpleTagLexer<'t> {
         &mut self,
         chars: &mut std::str::Chars,
         end: char,
-        kwarg: Option<(usize, usize)>,
+        kwarg: Option<At>,
     ) -> Result<SimpleTagToken, SimpleTagLexerError> {
         match lex_text(self.byte, self.rest, chars, end) {
             Ok((at, byte, rest)) => {
@@ -97,7 +97,7 @@ impl<'t> SimpleTagLexer<'t> {
     fn lex_translated(
         &mut self,
         chars: &mut std::str::Chars,
-        kwarg: Option<(usize, usize)>,
+        kwarg: Option<At>,
     ) -> Result<SimpleTagToken, SimpleTagLexerError> {
         match lex_translated(self.byte, self.rest, chars) {
             Ok((at, byte, rest)) => {
@@ -116,7 +116,7 @@ impl<'t> SimpleTagLexer<'t> {
         }
     }
 
-    fn lex_kwarg(&mut self) -> Option<(usize, usize)> {
+    fn lex_kwarg(&mut self) -> Option<At> {
         let index = self.rest.find('=')?;
         match self.rest.find(|c: char| !c.is_xid_continue()) {
             Some(n) if n < index => return None,
@@ -130,7 +130,7 @@ impl<'t> SimpleTagLexer<'t> {
 
     fn lex_variable_or_filter(
         &mut self,
-        kwarg: Option<(usize, usize)>,
+        kwarg: Option<At>,
     ) -> Result<SimpleTagToken, SimpleTagLexerError> {
         let (at, byte, rest) = lex_variable(self.byte, self.rest);
         self.rest = rest;

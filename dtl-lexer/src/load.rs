@@ -1,10 +1,10 @@
 use crate::common::NextChar;
 use crate::tag::TagParts;
-use crate::types::TemplateString;
+use crate::types::{At, TemplateString};
 
 #[derive(Debug, PartialEq)]
 pub struct LoadToken {
-    pub at: (usize, usize),
+    pub at: At,
 }
 
 pub struct LoadLexer<'t> {

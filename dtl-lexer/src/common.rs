@@ -2,6 +2,7 @@ use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 use unicode_xid::UnicodeXID;
 
+use crate::types::At;
 use crate::{END_TRANSLATE_LEN, QUOTE_LEN, START_TRANSLATE_LEN};
 
 pub trait NextChar {
@@ -49,7 +50,7 @@ pub enum LexerError {
     },
 }
 
-pub fn lex_variable(byte: usize, rest: &str) -> ((usize, usize), usize, &str) {
+pub fn lex_variable(byte: usize, rest: &str) -> (At, usize, &str) {
     let mut in_text = None;
     let mut end = 0;
     for c in rest.chars() {
@@ -81,7 +82,7 @@ pub fn lex_text<'t>(
     rest: &'t str,
     chars: &mut std::str::Chars,
     end: char,
-) -> Result<((usize, usize), usize, &'t str), LexerError> {
+) -> Result<(At, usize, &'t str), LexerError> {
     let mut count = 1;
     loop {
         let Some(next) = chars.next() else {
@@ -108,7 +109,7 @@ pub fn lex_translated<'t>(
     byte: usize,
     rest: &'t str,
     chars: &mut std::str::Chars,
-) -> Result<((usize, usize), usize, &'t str), LexerError> {
+) -> Result<(At, usize, &'t str), LexerError> {
     let start = byte;
     let byte = byte + START_TRANSLATE_LEN;
     let rest = &rest[START_TRANSLATE_LEN..];
@@ -135,7 +136,7 @@ pub fn lex_translated<'t>(
     }
 }
 
-pub fn lex_numeric(byte: usize, rest: &str) -> ((usize, usize), usize, &str) {
+pub fn lex_numeric(byte: usize, rest: &str) -> (At, usize, &str) {
     let end = rest
         .find(|c: char| !(c.is_ascii_digit() || c == '-' || c == '.' || c == 'e'))
         .unwrap_or(rest.len());
@@ -186,10 +187,7 @@ pub fn check_variable_attrs(variable: &str, start: usize) -> Result<(), LexerErr
     Ok(())
 }
 
-pub fn lex_variable_argument(
-    byte: usize,
-    rest: &str,
-) -> Result<((usize, usize), usize, &str), LexerError> {
+pub fn lex_variable_argument(byte: usize, rest: &str) -> Result<(At, usize, &str), LexerError> {
     let content = trim_variable(rest);
     check_variable_attrs(content, byte)?;
     let end = content.len();
@@ -197,14 +195,14 @@ pub fn lex_variable_argument(
     Ok((at, byte + end, &rest[end..]))
 }
 
-pub fn text_content_at(at: (usize, usize)) -> (usize, usize) {
+pub fn text_content_at(at: At) -> At {
     let (start, len) = at;
     let start = start + QUOTE_LEN;
     let len = len - 2 * QUOTE_LEN;
     (start, len)
 }
 
-pub fn translated_text_content_at(at: (usize, usize)) -> (usize, usize) {
+pub fn translated_text_content_at(at: At) -> At {
     let (start, len) = at;
     let start = start + START_TRANSLATE_LEN + QUOTE_LEN;
     let len = len - START_TRANSLATE_LEN - END_TRANSLATE_LEN - 2 * QUOTE_LEN;

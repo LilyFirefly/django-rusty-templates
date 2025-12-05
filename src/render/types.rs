@@ -17,7 +17,7 @@ use pyo3::types::{PyBool, PyDict, PyInt, PyString, PyType};
 
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
 use crate::utils::PyResultMethods;
-use dtl_lexer::types::TemplateString;
+use dtl_lexer::types::{At, TemplateString};
 
 #[derive(Debug, Clone)]
 pub struct ForLoop {
@@ -136,9 +136,9 @@ impl Context {
     pub fn push_variables(
         &mut self,
         names: &Vec<String>,
-        names_at: (usize, usize),
+        names_at: At,
         values: Bound<'_, PyAny>,
-        values_at: (usize, usize),
+        values_at: At,
         index: usize,
         template: TemplateString<'_>,
     ) -> Result<(), PyRenderError> {
@@ -392,7 +392,7 @@ fn resolve_python<'t>(value: Bound<'_, PyAny>, context: &Context) -> PyResult<Co
     )
 }
 
-fn resolve_bigint(bigint: BigInt, at: (usize, usize)) -> Result<usize, PyRenderError> {
+fn resolve_bigint(bigint: BigInt, at: At) -> Result<usize, PyRenderError> {
     match bigint.to_isize() {
         Some(n) => {
             let n = n.max(0);
@@ -476,7 +476,7 @@ impl<'t, 'py> Content<'t, 'py> {
     }
 
     /// Convert Content to usize, providing detailed errors if the conversion fails
-    pub fn resolve_usize(self, argument_at: (usize, usize)) -> Result<usize, PyRenderError> {
+    pub fn resolve_usize(self, argument_at: At) -> Result<usize, PyRenderError> {
         match self {
             Self::Int(n) => resolve_bigint(n, argument_at),
             Self::String(s) => match s.as_raw().parse::<BigInt>() {

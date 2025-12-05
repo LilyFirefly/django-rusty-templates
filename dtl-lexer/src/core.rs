@@ -1,4 +1,4 @@
-use crate::types::TemplateString;
+use crate::types::{At, TemplateString};
 use crate::{END_TAG_LEN, START_TAG_LEN};
 
 enum EndTag {
@@ -18,32 +18,32 @@ pub enum TokenType {
 #[derive(Debug, PartialEq, Eq)]
 pub struct Token {
     pub token_type: TokenType,
-    pub at: (usize, usize),
+    pub at: At,
 }
 
 impl Token {
-    fn text(at: (usize, usize)) -> Self {
+    fn text(at: At) -> Self {
         Self {
             at,
             token_type: TokenType::Text,
         }
     }
 
-    fn variable(at: (usize, usize)) -> Self {
+    fn variable(at: At) -> Self {
         Self {
             at,
             token_type: TokenType::Variable,
         }
     }
 
-    fn tag(at: (usize, usize)) -> Self {
+    fn tag(at: At) -> Self {
         Self {
             at,
             token_type: TokenType::Tag,
         }
     }
 
-    fn comment(at: (usize, usize)) -> Self {
+    fn comment(at: At) -> Self {
         Self {
             at,
             token_type: TokenType::Comment,

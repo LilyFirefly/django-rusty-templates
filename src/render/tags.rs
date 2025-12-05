@@ -9,7 +9,7 @@ use pyo3::prelude::*;
 use pyo3::sync::MutexExt;
 use pyo3::types::{PyBool, PyDict, PyList, PyNone, PyString, PyTuple};
 
-use dtl_lexer::types::TemplateString;
+use dtl_lexer::types::{At, TemplateString};
 
 use super::types::{AsBorrowedContent, Content, Context, PyContext};
 use super::{Evaluate, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
@@ -768,7 +768,7 @@ impl Render for For {
 fn call_tag<'t>(
     py: Python<'_>,
     func: &Arc<Py<PyAny>>,
-    at: (usize, usize),
+    at: At,
     template: TemplateString<'t>,
     args: VecDeque<Bound<'_, PyAny>>,
     kwargs: Bound<'_, PyDict>,

@@ -7,7 +7,7 @@ use crate::common::{
     LexerError, NextChar, check_variable_attrs, lex_numeric, lex_text, lex_translated,
     lex_variable_argument, trim_variable,
 };
-use crate::types::TemplateString;
+use crate::types::{At, TemplateString};
 use crate::{END_TRANSLATE_LEN, QUOTE_LEN, START_TRANSLATE_LEN, TemplateContent};
 
 #[derive(Debug, PartialEq, Eq)]
@@ -21,11 +21,11 @@ pub enum ArgumentType {
 #[derive(Debug, PartialEq, Eq)]
 pub struct Argument {
     pub argument_type: ArgumentType,
-    pub at: (usize, usize),
+    pub at: At,
 }
 
 impl Argument {
-    pub fn content_at(&self) -> (usize, usize) {
+    pub fn content_at(&self) -> At {
         match self.argument_type {
             ArgumentType::Variable => self.at,
             ArgumentType::Numeric => self.at,
@@ -54,7 +54,7 @@ impl<'t> TemplateContent<'t> for Argument {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct FilterToken {
-    pub at: (usize, usize),
+    pub at: At,
     pub argument: Option<Argument>,
 }
 
@@ -93,8 +93,6 @@ pub enum VariableLexerError {
         at: SourceSpan,
     },
 }
-
-type At = (usize, usize);
 
 pub fn lex_variable_or_filter(
     variable: &str,
