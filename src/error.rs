@@ -3,7 +3,7 @@ use pyo3::exceptions::PyKeyError;
 use pyo3::prelude::*;
 use thiserror::Error;
 
-use dtl_lexer::types::TemplateString;
+use dtl_lexer::types::{At, TemplateString};
 
 #[derive(Error, Debug)]
 pub enum PyRenderError {
@@ -89,23 +89,11 @@ impl KeyErrorMessage {
 }
 
 pub trait AnnotatePyErr {
-    fn annotate(
-        self,
-        py: Python<'_>,
-        at: (usize, usize),
-        label: &str,
-        template: TemplateString<'_>,
-    ) -> Self;
+    fn annotate(self, py: Python<'_>, at: At, label: &str, template: TemplateString<'_>) -> Self;
 }
 
 impl AnnotatePyErr for PyErr {
-    fn annotate(
-        self,
-        py: Python<'_>,
-        at: (usize, usize),
-        label: &str,
-        template: TemplateString<'_>,
-    ) -> Self {
+    fn annotate(self, py: Python<'_>, at: At, label: &str, template: TemplateString<'_>) -> Self {
         let message = miette!(
             labels = vec![LabeledSpan::at(at, label)],
             "{}",

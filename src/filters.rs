@@ -3,6 +3,7 @@ use std::sync::Arc;
 use pyo3::prelude::*;
 
 use crate::types::Argument;
+use dtl_lexer::types::At;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum FilterType {
@@ -137,12 +138,12 @@ impl WordwrapFilter {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct YesnoFilter {
-    pub at: (usize, usize),
+    pub at: At,
     pub argument: Option<Argument>,
 }
 
 impl YesnoFilter {
-    pub fn new(at: (usize, usize), argument: Option<Argument>) -> Self {
+    pub fn new(at: At, argument: Option<Argument>) -> Self {
         Self { at, argument }
     }
 }

@@ -3,7 +3,7 @@ use thiserror::Error;
 
 use crate::common::{LexerError, NextChar, lex_numeric, lex_text, lex_translated, lex_variable};
 use crate::tag::TagParts;
-use crate::types::TemplateString;
+use crate::types::{At, TemplateString};
 
 #[derive(Clone, Error, Debug, Diagnostic, PartialEq, Eq)]
 pub enum ForLexerError {
@@ -51,12 +51,12 @@ pub enum ForTokenType {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ForVariableNameToken {
-    pub at: (usize, usize),
+    pub at: At,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ForVariableToken {
-    pub at: (usize, usize),
+    pub at: At,
     pub token_type: ForTokenType,
 }
 
@@ -69,7 +69,7 @@ pub struct ForLexer<'t> {
     rest: &'t str,
     byte: usize,
     state: State,
-    previous_at: Option<(usize, usize)>,
+    previous_at: Option<At>,
 }
 
 impl<'t> ForLexer<'t> {

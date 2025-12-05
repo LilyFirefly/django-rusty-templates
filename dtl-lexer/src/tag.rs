@@ -4,7 +4,7 @@ use unicode_xid::UnicodeXID;
 
 use crate::TemplateContent;
 use crate::common::NextChar;
-use crate::types::TemplateString;
+use crate::types::{At, TemplateString};
 
 #[derive(Error, Debug, Diagnostic, Eq, PartialEq)]
 pub enum TagLexerError {
@@ -17,7 +17,7 @@ pub enum TagLexerError {
 
 #[derive(Debug, PartialEq)]
 pub struct TagToken {
-    pub at: (usize, usize),
+    pub at: At,
 }
 
 impl<'t> TemplateContent<'t> for TagToken {
@@ -28,7 +28,7 @@ impl<'t> TemplateContent<'t> for TagToken {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TagParts {
-    pub at: (usize, usize),
+    pub at: At,
 }
 
 impl<'t> TemplateContent<'t> for TagParts {

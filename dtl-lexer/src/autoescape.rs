@@ -2,7 +2,7 @@ use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 
 use crate::tag::TagParts;
-use crate::types::TemplateString;
+use crate::types::{At, TemplateString};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum AutoescapeEnabled {
@@ -21,7 +21,7 @@ impl From<&AutoescapeEnabled> for bool {
 
 #[derive(Debug, PartialEq)]
 pub struct AutoescapeToken {
-    pub at: (usize, usize),
+    pub at: At,
     pub enabled: AutoescapeEnabled,
 }
 

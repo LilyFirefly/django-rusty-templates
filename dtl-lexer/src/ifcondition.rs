@@ -3,7 +3,7 @@ use crate::common::{
     translated_text_content_at,
 };
 use crate::tag::TagParts;
-use crate::types::TemplateString;
+use crate::types::{At, TemplateString};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum IfConditionAtom {
@@ -38,12 +38,12 @@ pub enum IfConditionTokenType {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct IfConditionToken {
-    pub at: (usize, usize),
+    pub at: At,
     pub token_type: IfConditionTokenType,
 }
 
 impl IfConditionToken {
-    pub fn content_at(&self) -> (usize, usize) {
+    pub fn content_at(&self) -> At {
         match self.token_type {
             IfConditionTokenType::Atom(IfConditionAtom::Text) => text_content_at(self.at),
             IfConditionTokenType::Atom(IfConditionAtom::TranslatedText) => {

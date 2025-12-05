@@ -1,25 +1,25 @@
 use num_bigint::BigInt;
 
-use dtl_lexer::types::Variable;
+use dtl_lexer::types::{At, Variable};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Text {
-    pub at: (usize, usize),
+    pub at: At,
 }
 
 impl Text {
-    pub fn new(at: (usize, usize)) -> Self {
+    pub fn new(at: At) -> Self {
         Self { at }
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TranslatedText {
-    pub at: (usize, usize),
+    pub at: At,
 }
 
 impl TranslatedText {
-    pub fn new(at: (usize, usize)) -> Self {
+    pub fn new(at: At) -> Self {
         Self { at }
     }
 }
@@ -36,7 +36,7 @@ pub enum ArgumentType {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Argument {
-    pub at: (usize, usize),
+    pub at: At,
     pub argument_type: ArgumentType,
 }
 

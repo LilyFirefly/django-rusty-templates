@@ -41,10 +41,10 @@ use dtl_lexer::ifcondition::{
 };
 use dtl_lexer::load::{LoadLexer, LoadToken};
 use dtl_lexer::tag::{TagLexerError, TagParts, lex_tag};
-use dtl_lexer::types::TemplateString;
+use dtl_lexer::types::{At, TemplateString};
 use dtl_lexer::variable::{
     Argument as ArgumentToken, ArgumentType as ArgumentTokenType, VariableLexerError,
-    VariableToken, lex_variable,
+    VariableToken, lex_variable_or_filter,
 };
 
 use crate::template::django_rusty_templates::Engine;
@@ -104,7 +104,7 @@ fn unexpected_argument(filter: &'static str, right: Argument) -> ParseError {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Filter {
-    pub at: (usize, usize),
+    pub at: At,
     pub left: TagElement,
     pub filter: FilterType,
 }
@@ -112,7 +112,7 @@ pub struct Filter {
 impl Filter {
     pub fn new(
         parser: &Parser,
-        at: (usize, usize),
+        at: At,
         left: TagElement,
         right: Option<Argument>,
     ) -> Result<Self, ParseError> {
@@ -195,7 +195,7 @@ impl Filter {
     }
 }
 
-fn parse_numeric(content: &str, at: (usize, usize)) -> Result<TagElement, ParseError> {
+fn parse_numeric(content: &str, at: At) -> Result<TagElement, ParseError> {
     match content.parse::<BigInt>() {
         Ok(n) => Ok(TagElement::Int(n)),
         Err(_) => match content.parse::<f64>() {
@@ -250,7 +250,7 @@ pub enum IfCondition {
 fn parse_if_condition(
     parser: &mut Parser,
     parts: TagParts,
-    at: (usize, usize),
+    at: At,
 ) -> Result<IfCondition, ParseError> {
     let mut lexer = IfConditionLexer::new(parser.template, parts).peekable();
     if lexer.peek().is_none() {
@@ -263,7 +263,7 @@ fn parse_if_binding_power(
     parser: &mut Parser,
     lexer: &mut Peekable<IfConditionLexer>,
     min_binding_power: u8,
-    at: (usize, usize),
+    at: At,
 ) -> Result<IfCondition, ParseError> {
     let Some(token) = lexer.next().transpose()? else {
         return Err(ParseError::UnexpectedEndExpression { at: at.into() });
@@ -375,19 +375,19 @@ impl IfConditionOperatorMethods for IfConditionOperator {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ForIterable {
     pub iterable: TagElement,
-    pub at: (usize, usize),
+    pub at: At,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ForNames {
     pub names: Vec<String>,
-    pub at: (usize, usize),
+    pub at: At,
 }
 
 fn parse_for_loop(
     parser: &mut Parser,
     parts: TagParts,
-    at: (usize, usize),
+    at: At,
 ) -> Result<(ForIterable, ForNames, bool), ParseError> {
     let mut lexer = ForLexer::new(parser.template, parts);
     let mut variable_names = Vec::new();
@@ -470,7 +470,7 @@ pub struct For {
 #[derive(Clone, Debug)]
 pub struct SimpleTag {
     pub func: Arc<Py<PyAny>>,
-    pub at: (usize, usize),
+    pub at: At,
     pub takes_context: bool,
     pub args: Vec<TagElement>,
     pub kwargs: Vec<(String, TagElement)>,
@@ -496,7 +496,7 @@ impl PartialEq for SimpleTag {
 pub struct SimpleBlockTag {
     pub func: Arc<Py<PyAny>>,
     pub nodes: Vec<TokenTree>,
-    pub at: (usize, usize),
+    pub at: At,
     pub takes_context: bool,
     pub args: Vec<TagElement>,
     pub kwargs: Vec<(String, TagElement)>,
@@ -567,7 +567,7 @@ impl EndTagType {
 
 #[derive(PartialEq, Eq)]
 struct EndTag {
-    at: (usize, usize),
+    at: At,
     end: EndTagType,
     parts: TagParts,
 }
@@ -993,7 +993,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         &mut self,
         until: Vec<EndTagType>,
         start: Cow<'static, str>,
-        start_at: (usize, usize),
+        start_at: At,
     ) -> Result<(Vec<TokenTree>, EndTag), PyParseError> {
         let mut nodes = Vec::new();
         while let Some(token) = self.lexer.next() {
@@ -1041,7 +1041,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         .into())
     }
 
-    fn parse_for_variable(&self, at: (usize, usize)) -> Either<Variable, ForVariable> {
+    fn parse_for_variable(&self, at: At) -> Either<Variable, ForVariable> {
         let mut parts = self.template.content(at).split('.');
         if self.forloop_depth == 0
             || parts
@@ -1090,14 +1090,15 @@ impl<'t, 'py> Parser<'t, 'py> {
     fn parse_variable(
         &self,
         variable: &str,
-        at: (usize, usize),
+        at: At,
         start: usize,
     ) -> Result<TagElement, ParseError> {
-        let Some((variable_token, filter_lexer)) = lex_variable(variable, start)? else {
+        let Some((variable_token, at, filter_lexer)) = lex_variable_or_filter(variable, start)?
+        else {
             return Err(ParseError::EmptyVariable { at: at.into() });
         };
         let mut var = match variable_token {
-            VariableToken::Variable(var) => self.parse_for_variable(var.at).into(),
+            VariableToken::Variable => self.parse_for_variable(at).into(),
             VariableToken::Int(n) => TagElement::Int(n),
             VariableToken::Float(f) => TagElement::Float(f),
         };
@@ -1116,7 +1117,7 @@ impl<'t, 'py> Parser<'t, 'py> {
     fn parse_tag(
         &mut self,
         tag: &'t str,
-        at: (usize, usize),
+        at: At,
     ) -> Result<Either<TokenTree, EndTag>, PyParseError> {
         let maybe_tag = match lex_tag(tag, at.0 + START_TAG_LEN) {
             Ok(maybe_tag) => maybe_tag,
@@ -1204,7 +1205,7 @@ impl<'t, 'py> Parser<'t, 'py> {
 
         let parts_at = parts.at;
         let mut prev_at = parts.at;
-        let mut seen_kwargs: HashMap<&str, (usize, usize)> = HashMap::new();
+        let mut seen_kwargs: HashMap<&str, At> = HashMap::new();
         let params_count = context.params.len();
         let mut tokens =
             SimpleTagLexer::new(self.template, parts).collect::<Result<Vec<_>, _>>()?;
@@ -1296,7 +1297,7 @@ impl<'t, 'py> Parser<'t, 'py> {
     fn parse_simple_tag(
         &self,
         context: &SimpleTagContext,
-        at: (usize, usize),
+        at: At,
         parts: TagParts,
     ) -> Result<TokenTree, PyParseError> {
         let (args, kwargs, target_var) = self.parse_custom_tag_parts(parts, context)?;
@@ -1316,7 +1317,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         context: SimpleTagContext,
         tag_name: String,
         end_tag_name: String,
-        at: (usize, usize),
+        at: At,
         parts: TagParts,
     ) -> Result<TokenTree, PyParseError> {
         let (args, kwargs, target_var) = self.parse_custom_tag_parts(parts, &context)?;
@@ -1337,11 +1338,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         Ok(TokenTree::Tag(Tag::SimpleBlockTag(tag)))
     }
 
-    fn parse_load(
-        &mut self,
-        at: (usize, usize),
-        parts: TagParts,
-    ) -> Result<TokenTree, PyParseError> {
+    fn parse_load(&mut self, at: At, parts: TagParts) -> Result<TokenTree, PyParseError> {
         let tokens: Vec<_> = LoadLexer::new(self.template, parts).collect();
         let mut rev = tokens.iter().rev();
         if let (Some(last), Some(prev)) = (rev.next(), rev.next())
@@ -1384,7 +1381,7 @@ impl<'t, 'py> Parser<'t, 'py> {
     #[allow(clippy::too_many_lines)]
     fn load_tag(
         &mut self,
-        at: (usize, usize),
+        at: At,
         name: &str,
         tag: &Bound<'py, PyAny>,
     ) -> Result<(), PyParseError> {
@@ -1517,7 +1514,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         library.getattr(intern!(self.py, "filters"))?.extract()
     }
 
-    fn parse_url(&self, at: (usize, usize), parts: TagParts) -> Result<TokenTree, ParseError> {
+    fn parse_url(&self, at: At, parts: TagParts) -> Result<TokenTree, ParseError> {
         let mut lexer = SimpleTagLexer::new(self.template, parts);
         let Some(view_token) = lexer.next() else {
             return Err(ParseError::UrlTagNoArguments { at: at.into() });
@@ -1578,11 +1575,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         Ok(TokenTree::Tag(Tag::Url(url)))
     }
 
-    fn parse_autoescape(
-        &mut self,
-        at: (usize, usize),
-        parts: TagParts,
-    ) -> Result<TokenTree, PyParseError> {
+    fn parse_autoescape(&mut self, at: At, parts: TagParts) -> Result<TokenTree, PyParseError> {
         let token = lex_autoescape_argument(self.template, parts).map_err(ParseError::from)?;
         let (nodes, _) = self.parse_until(vec![EndTagType::Autoescape], "autoescape".into(), at)?;
         Ok(TokenTree::Tag(Tag::Autoescape {
@@ -1593,7 +1586,7 @@ impl<'t, 'py> Parser<'t, 'py> {
 
     fn parse_if(
         &mut self,
-        at: (usize, usize),
+        at: At,
         parts: TagParts,
         start: &'static str,
     ) -> Result<TokenTree, PyParseError> {
@@ -1631,11 +1624,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         }))
     }
 
-    fn parse_for(
-        &mut self,
-        at: (usize, usize),
-        parts: TagParts,
-    ) -> Result<TokenTree, PyParseError> {
+    fn parse_for(&mut self, at: At, parts: TagParts) -> Result<TokenTree, PyParseError> {
         self.forloop_depth += 1;
         let (iterable, variables, reversed) = parse_for_loop(self, parts, at)?;
         let (nodes, end_tag) = self.parse_until(
