@@ -535,6 +535,7 @@ pub enum Tag {
     SimpleTag(SimpleTag),
     SimpleBlockTag(SimpleBlockTag),
     Url(Url),
+    CsrfToken,
 }
 
 #[derive(PartialEq, Eq)]
@@ -1131,6 +1132,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         };
         Ok(match self.template.content(tag.at) {
             "url" => Either::Left(self.parse_url(at, parts)?),
+            "csrf_token" => Either::Left(TokenTree::Tag(Tag::CsrfToken)),
             "load" => Either::Left(self.parse_load(at, parts)?),
             "autoescape" => Either::Left(self.parse_autoescape(at, parts)?),
             "endautoescape" => Either::Right(EndTag {
