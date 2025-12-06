@@ -767,6 +767,16 @@ impl Render for For {
     }
 }
 
+impl Include {
+    fn template_at(&self) -> At {
+        match &self.template_name {
+            TagElement::Variable(variable) => variable.at,
+            TagElement::Filter(filter) => filter.all_at,
+            _ => unreachable!("Only variables and filters can resolve to None (not in context)"),
+        }
+    }
+}
+
 impl Render for Include {
     fn render<'t>(
         &self,
@@ -778,14 +788,13 @@ impl Render for Include {
             self.template_name
                 .resolve(py, template, context, ResolveFailures::Raise)?
         else {
-            let at = match &self.template_name {
-                TagElement::Variable(variable) => variable.at,
-                TagElement::Filter(filter) => filter.all_at,
-                _ => unreachable!(),
-            };
-            return Err(TemplateDoesNotExist::new_err("No template names provided")
-                .annotate(py, at, "This variable is not in the context", template)
-                .into());
+            let error = TemplateDoesNotExist::new_err("No template names provided").annotate(
+                py,
+                self.template_at(),
+                "This variable is not in the context",
+                template,
+            );
+            return Err(error.into());
         };
         let include = match template_name {
             Content::String(content) => content.content(),
