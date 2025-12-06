@@ -777,6 +777,22 @@ impl Include {
             _ => unreachable!("Only variables and filters can resolve to None (not in context)"),
         }
     }
+
+    fn invalid_template_name(
+        &self,
+        py: Python<'_>,
+        content: &str,
+        template: TemplateString<'_>,
+    ) -> PyRenderError {
+        PyTypeError::new_err("Included template name must be a string or iterable of strings.")
+            .annotate(
+                py,
+                self.template_at(),
+                &format!("invalid template name: {content}"),
+                template,
+            )
+            .into()
+    }
 }
 
 impl Render for Include {
@@ -810,20 +826,12 @@ impl Render for Include {
                             .expect("PyString should be compatible with Cow<str>"),
                     )?
                 } else {
-                    let templates = match content.extract::<Vec<String>>() {
-                        Ok(templates) => templates,
-                        Err(_) => {
-                            let error = PyTypeError::new_err(
-                                "Included template name must be a string or iterable of strings.",
-                            )
-                            .annotate(
-                                py,
-                                self.template_at(),
-                                &format!("invalid template name: {content}"),
-                                template,
-                            );
-                            return Err(error.into());
-                        }
+                    let Ok(templates) = content.extract::<Vec<String>>() else {
+                        return Err(self.invalid_template_name(
+                            py,
+                            &format!("{content}"),
+                            template,
+                        ));
                     };
                     select_template(self.engine.clone(), py, templates)?
                 }
