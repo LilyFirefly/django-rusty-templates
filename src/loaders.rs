@@ -6,9 +6,12 @@ use cached::proc_macro::cached;
 use encoding_rs::Encoding;
 use pyo3::exceptions::PyUnicodeError;
 use pyo3::prelude::*;
+use pyo3::sync::PyOnceLock;
 use sugar_path::SugarPath;
 
 use crate::template::django_rusty_templates::{Engine, Template};
+
+static APPS: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LoaderError {
@@ -50,8 +53,7 @@ fn get_app_template_dir(path: Bound<'_, PyAny>, dirname: &str) -> PyResult<Optio
     convert = r##"{ dirname.to_string() }"## // Convert &str to String
 )]
 fn get_app_template_dirs(py: Python<'_>, dirname: &str) -> PyResult<Vec<PathBuf>> {
-    let apps_module = PyModule::import(py, "django.apps")?;
-    let apps = apps_module.getattr("apps")?;
+    let apps = APPS.import(py, "django.apps", "apps")?;
     let app_configs = apps.call_method0("get_app_configs")?;
 
     let mut template_dirs = Vec::new();

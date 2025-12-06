@@ -2,6 +2,7 @@ use std::borrow::Cow;
 
 use pyo3::intern;
 use pyo3::prelude::*;
+use pyo3::sync::PyOnceLock;
 use pyo3::types::PyString;
 
 use dtl_lexer::types::TemplateString;
@@ -18,10 +19,11 @@ use crate::types::Text;
 use crate::types::TranslatedText;
 use dtl_lexer::types::Variable;
 
+static GETTEXT: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+
 /// Helper function to translate a string using Django's gettext
 pub fn gettext(py: Python<'_>, text: &str) -> PyResult<String> {
-    let django_translation = py.import("django.utils.translation")?;
-    let get_text = django_translation.getattr("gettext")?;
+    let get_text = GETTEXT.import(py, "django.utils.translation", "gettext")?;
     get_text.call1((text,))?.extract::<String>()
 }
 
