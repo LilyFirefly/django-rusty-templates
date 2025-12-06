@@ -43,8 +43,7 @@ use dtl_lexer::load::{LoadLexer, LoadToken};
 use dtl_lexer::tag::{TagLexerError, TagParts, lex_tag};
 use dtl_lexer::types::{At, TemplateString};
 use dtl_lexer::variable::{
-    Argument as ArgumentToken, ArgumentType as ArgumentTokenType, VariableLexerError,
-    VariableToken, lex_variable_or_filter,
+    Argument as ArgumentToken, VariableLexerError, VariableToken, lex_variable_or_filter,
 };
 
 use crate::template::django_rusty_templates::Engine;
@@ -60,24 +59,27 @@ use dtl_lexer::types::Variable;
 trait Parse<R> {
     fn parse(&self, parser: &Parser) -> Result<R, ParseError>;
 }
-impl Parse<Argument> for ArgumentToken {
+impl Parse<Argument> for ArgumentToken<'_> {
     fn parse(&self, parser: &Parser) -> Result<Argument, ParseError> {
         Ok(Argument {
-            at: self.at,
-            argument_type: match self.argument_type {
-                ArgumentTokenType::Variable => parser.parse_for_variable(self.at).into(),
-                ArgumentTokenType::Text => ArgumentType::Text(Text::new(self.content_at())),
-                ArgumentTokenType::Numeric => {
-                    match parser.template.content(self.at).parse::<BigInt>() {
-                        Ok(n) => ArgumentType::Int(n),
-                        Err(_) => match parser.template.content(self.at).parse::<f64>() {
-                            Ok(f) => ArgumentType::Float(f),
-                            Err(_) => return Err(ParseError::InvalidNumber { at: self.at.into() }),
-                        },
-                    }
-                }
-                ArgumentTokenType::TranslatedText => {
-                    ArgumentType::TranslatedText(TranslatedText::new(self.content_at()))
+            at: match self {
+                ArgumentToken::Numeric(at, _) => *at,
+                ArgumentToken::Text(at, _) => *at,
+                ArgumentToken::TranslatedText(at, _) => *at,
+                ArgumentToken::Variable(var) => var.at,
+            },
+            argument_type: match self {
+                ArgumentToken::Variable(var) => parser.parse_for_variable(*var).into(),
+                ArgumentToken::Text(at, _) => ArgumentType::Text(Text::new(*at)),
+                ArgumentToken::Numeric(at, text_num) => match text_num.parse::<BigInt>() {
+                    Ok(n) => ArgumentType::Int(n),
+                    Err(_) => match parser.template.content(*at).parse::<f64>() {
+                        Ok(f) => ArgumentType::Float(f),
+                        Err(_) => return Err(ParseError::InvalidNumber { at: (*at).into() }),
+                    },
+                },
+                ArgumentToken::TranslatedText(at, _) => {
+                    ArgumentType::TranslatedText(TranslatedText::new(*at))
                 }
             },
         })
@@ -1041,8 +1043,8 @@ impl<'t, 'py> Parser<'t, 'py> {
         .into())
     }
 
-    fn parse_for_variable(&self, at: At) -> Either<Variable, ForVariable> {
-        let mut parts = self.template.content(at).split('.');
+    fn parse_for_variable(&self, variable: Variable) -> Either<Variable, ForVariable> {
+        let mut parts = variable.parts(self.template).map(|(x, _)| x);
         if self.forloop_depth == 0
             || parts
                 .next()
@@ -1050,9 +1052,9 @@ impl<'t, 'py> Parser<'t, 'py> {
                 .trim()
                 != "forloop"
         {
-            return Either::Left(Variable::new(at));
+            return Either::Left(Variable::new(variable.at));
         }
-        let Some(part) = parts.next_back() else {
+        let Some(part) = parts.next() else {
             return Either::Right(ForVariable {
                 variant: ForVariableName::Object,
                 parent_count: 0,
@@ -1066,12 +1068,12 @@ impl<'t, 'py> Parser<'t, 'py> {
             "first" => ForVariableName::First,
             "last" => ForVariableName::Last,
             "parentloop" => ForVariableName::Object,
-            _ => return Either::Left(Variable::new(at)),
+            _ => return Either::Left(Variable::new(variable.at)),
         };
         let parts: Vec<_> = parts.collect();
         for part in &parts {
             if part.trim() != "parentloop" {
-                return Either::Left(Variable::new(at));
+                return Either::Left(Variable::new(variable.at));
             }
         }
         let mut parent_count = parts.len();
@@ -1079,7 +1081,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             parent_count += 1;
         }
         if parent_count > self.forloop_depth {
-            return Either::Left(Variable::new(at));
+            return Either::Left(Variable::new(variable.at));
         }
         Either::Right(ForVariable {
             variant,
@@ -1093,12 +1095,11 @@ impl<'t, 'py> Parser<'t, 'py> {
         at: At,
         start: usize,
     ) -> Result<TagElement, ParseError> {
-        let Some((variable_token, at, filter_lexer)) = lex_variable_or_filter(variable, start)?
-        else {
+        let Some((variable_token, filter_lexer)) = lex_variable_or_filter(variable, start)? else {
             return Err(ParseError::EmptyVariable { at: at.into() });
         };
         let mut var = match variable_token {
-            VariableToken::Variable => self.parse_for_variable(at).into(),
+            VariableToken::Variable(var) => self.parse_for_variable(var).into(),
             VariableToken::Int(n) => TagElement::Int(n),
             VariableToken::Float(f) => TagElement::Float(f),
         };
