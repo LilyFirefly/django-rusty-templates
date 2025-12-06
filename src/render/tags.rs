@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use num_bigint::{BigInt, Sign};
 use num_traits::cast::ToPrimitive;
-use pyo3::exceptions::PyAttributeError;
+use pyo3::exceptions::{PyAttributeError, PyTypeError};
 use pyo3::prelude::*;
 use pyo3::sync::{MutexExt, PyOnceLock};
 use pyo3::types::{PyBool, PyDict, PyList, PyNone, PyString, PyTuple};
@@ -15,7 +15,9 @@ use super::types::{AsBorrowedContent, Content, Context, PyContext};
 use super::{Evaluate, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
 use crate::parse::{For, IfCondition, Include, SimpleBlockTag, SimpleTag, Tag, TagElement, Url};
-use crate::template::django_rusty_templates::{NoReverseMatch, TemplateDoesNotExist, get_template};
+use crate::template::django_rusty_templates::{
+    NoReverseMatch, TemplateDoesNotExist, get_template, select_template,
+};
 use crate::utils::PyResultMethods;
 
 static REVERSE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
@@ -797,10 +799,37 @@ impl Render for Include {
             return Err(error.into());
         };
         let include = match template_name {
-            Content::String(content) => content.content(),
-            _ => todo!(),
+            Content::String(content) => get_template(self.engine.clone(), py, content.content())?,
+            Content::Py(content) => {
+                if content.is_instance_of::<PyString>() {
+                    get_template(
+                        self.engine.clone(),
+                        py,
+                        content
+                            .extract()
+                            .expect("PyString should be compatible with Cow<str>"),
+                    )?
+                } else {
+                    let templates = match content.extract::<Vec<String>>() {
+                        Ok(templates) => templates,
+                        Err(_) => {
+                            let error = PyTypeError::new_err(
+                                "Included template name must be a string or iterable of strings.",
+                            )
+                            .annotate(
+                                py,
+                                self.template_at(),
+                                &format!("invalid template name: {content}"),
+                                template,
+                            );
+                            return Err(error.into());
+                        }
+                    };
+                    select_template(self.engine.clone(), py, templates)?
+                }
+            }
+            _ => std::todo!(),
         };
-        let include = get_template(self.engine.clone(), py, include)?;
         include
             .render(py, context)
             .map(|content| Cow::Owned(content.into_owned()))
