@@ -4,9 +4,9 @@ use std::sync::Arc;
 
 use num_bigint::{BigInt, Sign};
 use num_traits::cast::ToPrimitive;
-use pyo3::exceptions::PyAttributeError;
+use pyo3::exceptions::{PyAttributeError, PyTypeError};
 use pyo3::prelude::*;
-use pyo3::sync::MutexExt;
+use pyo3::sync::{MutexExt, PyOnceLock};
 use pyo3::types::{PyBool, PyDict, PyList, PyNone, PyString, PyTuple};
 
 use dtl_lexer::types::{At, TemplateString};
@@ -14,9 +14,13 @@ use dtl_lexer::types::{At, TemplateString};
 use super::types::{AsBorrowedContent, Content, Context, PyContext};
 use super::{Evaluate, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
-use crate::parse::{For, IfCondition, SimpleBlockTag, SimpleTag, Tag, TagElement, Url};
-use crate::template::django_rusty_templates::NoReverseMatch;
+use crate::parse::{For, IfCondition, Include, SimpleBlockTag, SimpleTag, Tag, TagElement, Url};
+use crate::template::django_rusty_templates::{
+    NoReverseMatch, TemplateDoesNotExist, get_template, select_template,
+};
 use crate::utils::PyResultMethods;
+
+static PROMISE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 
 fn current_app(py: Python, request: Option<&Py<PyAny>>) -> PyResult<Py<PyAny>> {
     let Some(request) = request else {
@@ -652,6 +656,7 @@ impl Render for Tag {
                 }
             }
             Self::For(for_tag) => for_tag.render(py, template, context)?,
+            Self::Include(include_tag) => include_tag.render(py, template, context)?,
             Self::Load => Cow::Borrowed(""),
             Self::SimpleTag(simple_tag) => simple_tag.render(py, template, context)?,
             Self::SimpleBlockTag(simple_tag) => simple_tag.render(py, template, context)?,
@@ -762,6 +767,104 @@ impl Render for For {
                 unreachable!("float, int and bool literals are not iterable")
             }
         }
+    }
+}
+
+impl Include {
+    fn template_at(&self) -> At {
+        match &self.template_name {
+            TagElement::Text(text) => text.at,
+            TagElement::Variable(variable) => variable.at,
+            TagElement::Filter(filter) => filter.all_at,
+            TagElement::ForVariable(variable) => variable.at,
+            _ => unreachable!(),
+        }
+    }
+
+    fn invalid_template_name(
+        &self,
+        py: Python<'_>,
+        content: &str,
+        template: TemplateString<'_>,
+    ) -> PyRenderError {
+        PyTypeError::new_err("Included template name must be a string or iterable of strings.")
+            .annotate(
+                py,
+                self.template_at(),
+                &format!("invalid template name: {content}"),
+                template,
+            )
+            .into()
+    }
+}
+
+impl Render for Include {
+    fn render<'t>(
+        &self,
+        py: Python<'_>,
+        template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> RenderResult<'t> {
+        let Some(template_name) =
+            self.template_name
+                .resolve(py, template, context, ResolveFailures::Raise)?
+        else {
+            let error = TemplateDoesNotExist::new_err("No template names provided").annotate(
+                py,
+                self.template_at(),
+                "This variable is not in the context",
+                template,
+            );
+            return Err(error.into());
+        };
+        let include = match template_name {
+            Content::String(content) => get_template(self.engine.clone(), py, content.content()),
+            Content::Py(content) => {
+                if content.is_instance_of::<PyString>() {
+                    get_template(
+                        self.engine.clone(),
+                        py,
+                        content
+                            .extract()
+                            .expect("PyString should be compatible with Cow<str>"),
+                    )
+                } else {
+                    let promise = PROMISE.import(py, "django.utils.functional", "Promise")?;
+                    if content.is_instance(promise)? {
+                        return Err(PyTypeError::new_err(
+                            "Included template name cannot be a translatable string.",
+                        )
+                        .annotate(
+                            py,
+                            self.template_at(),
+                            &format!("invalid template name: {content:?}"),
+                            template,
+                        )
+                        .into());
+                    }
+                    let Ok(templates) = content.extract::<Vec<String>>() else {
+                        return Err(self.invalid_template_name(
+                            py,
+                            &format!("{content}"),
+                            template,
+                        ));
+                    };
+                    select_template(self.engine.clone(), py, templates)
+                }
+            }
+            Content::Int(content) => {
+                return Err(self.invalid_template_name(py, &format!("{content}"), template));
+            }
+            Content::Float(content) => {
+                return Err(self.invalid_template_name(py, &format!("{content}"), template));
+            }
+            Content::Bool(true) => return Err(self.invalid_template_name(py, "True", template)),
+            Content::Bool(false) => return Err(self.invalid_template_name(py, "False", template)),
+        }
+        .map_err(|error| error.annotate(py, self.template_at(), "here", template))?;
+        include
+            .render(py, context)
+            .map(|content| Cow::Owned(content.into_owned()))
     }
 }
 
