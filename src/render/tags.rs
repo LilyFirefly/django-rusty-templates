@@ -20,6 +20,7 @@ use crate::template::django_rusty_templates::{
 };
 use crate::utils::PyResultMethods;
 
+static PROMISE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static REVERSE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 
 fn current_app(py: Python, request: Option<&Py<PyAny>>) -> PyResult<Py<PyAny>> {
@@ -773,7 +774,6 @@ impl Include {
     fn template_at(&self) -> At {
         match &self.template_name {
             TagElement::Text(text) => text.at,
-            TagElement::TranslatedText(text) => text.at,
             TagElement::Variable(variable) => variable.at,
             TagElement::Filter(filter) => filter.all_at,
             TagElement::ForVariable(variable) => variable.at,
@@ -829,6 +829,19 @@ impl Render for Include {
                             .expect("PyString should be compatible with Cow<str>"),
                     )
                 } else {
+                    let promise = PROMISE.import(py, "django.utils.functional", "Promise")?;
+                    if content.is_instance(promise)? {
+                        return Err(PyTypeError::new_err(
+                            "Included template name cannot be a translatable string.",
+                        )
+                        .annotate(
+                            py,
+                            self.template_at(),
+                            &format!("invalid template name: {content:?}"),
+                            template,
+                        )
+                        .into());
+                    }
                     let Ok(templates) = content.extract::<Vec<String>>() else {
                         return Err(self.invalid_template_name(
                             py,

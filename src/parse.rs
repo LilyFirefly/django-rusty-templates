@@ -260,9 +260,6 @@ impl Parse<TagElement> for IncludeTemplateToken {
         let content = parser.template.content(content_at);
         match self.token_type {
             IncludeTemplateTokenType::Text => Ok(TagElement::Text(Text::new(content_at))),
-            IncludeTemplateTokenType::TranslatedText => {
-                Ok(TagElement::TranslatedText(Text::new(content_at)))
-            }
             IncludeTemplateTokenType::Variable => parser.parse_variable(content, content_at, start),
         }
     }
