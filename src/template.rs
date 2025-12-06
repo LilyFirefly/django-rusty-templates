@@ -14,7 +14,7 @@ pub mod django_rusty_templates {
     use pyo3::import_exception;
     use pyo3::intern;
     use pyo3::prelude::*;
-    use pyo3::sync::MutexExt;
+    use pyo3::sync::{MutexExt, PyOnceLock};
     use pyo3::types::{PyBool, PyDict, PyIterator, PyList, PyString, PyTuple};
 
     use crate::error::RenderError;
@@ -31,6 +31,8 @@ pub mod django_rusty_templates {
     import_exception!(django.template.exceptions, TemplateSyntaxError);
     import_exception!(django.template.library, InvalidTemplateLibrary);
     import_exception!(django.urls, NoReverseMatch);
+
+    static IMPORT_STRING: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 
     trait WithSourceCode {
         fn with_source_code(
@@ -282,8 +284,8 @@ pub mod django_rusty_templates {
             };
             let (context_processors, loaded_context_processors) = match context_processors {
                 Some(context_processors) => {
-                    let utils = py.import("django.utils.module_loading")?;
-                    let import_string = utils.getattr("import_string")?;
+                    let import_string =
+                        IMPORT_STRING.import(py, "django.utils.module_loading", "import_string")?;
                     let loaded = context_processors
                         .try_iter()?
                         .map(|processor| {

@@ -6,7 +6,7 @@ use num_bigint::{BigInt, Sign};
 use num_traits::cast::ToPrimitive;
 use pyo3::exceptions::PyAttributeError;
 use pyo3::prelude::*;
-use pyo3::sync::MutexExt;
+use pyo3::sync::{MutexExt, PyOnceLock};
 use pyo3::types::{PyBool, PyDict, PyList, PyNone, PyString, PyTuple};
 
 use dtl_lexer::types::{At, TemplateString};
@@ -17,6 +17,8 @@ use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
 use crate::parse::{For, IfCondition, SimpleBlockTag, SimpleTag, Tag, TagElement, Url};
 use crate::template::django_rusty_templates::NoReverseMatch;
 use crate::utils::PyResultMethods;
+
+static REVERSE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 
 fn current_app(py: Python, request: Option<&Py<PyAny>>) -> PyResult<Py<PyAny>> {
     let Some(request) = request else {
@@ -51,8 +53,7 @@ impl Resolve for Url {
             Some(view_name) => view_name,
             None => "".as_content(),
         };
-        let urls = py.import("django.urls")?;
-        let reverse = urls.getattr("reverse")?;
+        let reverse = REVERSE.import(py, "django.urls", "reverse")?;
 
         let current_app = current_app(py, context.request.as_ref())?;
         let url = if self.kwargs.is_empty() {

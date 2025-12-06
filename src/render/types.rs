@@ -12,12 +12,14 @@ use num_traits::{ToPrimitive, Zero};
 use pyo3::exceptions::{PyAttributeError, PyKeyError, PyTypeError};
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::sync::MutexExt;
+use pyo3::sync::{MutexExt, PyOnceLock};
 use pyo3::types::{PyBool, PyDict, PyInt, PyString, PyType};
 
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
 use crate::utils::PyResultMethods;
 use dtl_lexer::types::{At, TemplateString};
+
+static MARK_SAFE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 
 #[derive(Debug, Clone)]
 pub struct ForLoop {
@@ -548,12 +550,9 @@ impl<'t, 'py> Content<'t, 'py> {
                     let string = s
                         .into_pyobject(py)
                         .expect("A string can always be converted to a Python str.");
-                    let safestring = py
-                        .import(intern!(py, "django.utils.safestring"))
-                        .expect("Should be able to import `django.utils.safestring`");
-                    let mark_safe = safestring
-                        .getattr(intern!(py, "mark_safe"))
-                        .expect("`safestring` should have a `mark_safe` function");
+                    let mark_safe = MARK_SAFE
+                        .import(py, "django.utils.safestring", "mark_safe")
+                        .expect("Should be able to import `django.utils.safestring.mark_safe`");
                     mark_safe
                         .call1((string,))
                         .expect("`mark_safe` should not raise if given a string")
