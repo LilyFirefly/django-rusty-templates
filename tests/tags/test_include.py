@@ -1,5 +1,6 @@
 import pytest
 from django.template.exceptions import TemplateDoesNotExist, TemplateSyntaxError
+from django.utils.translation import gettext_lazy
 
 
 def test_include(assert_render):
@@ -288,3 +289,56 @@ def test_include_bool_filter_false(template_engine):
             template.render({"b": ["a", "b"]})
 
         assert str(exc_info.value) == rusty_message
+
+
+def test_include_translated(template_engine):
+    template = "{% include _('basic.txt') %}"
+    rusty_message = """\
+  × Included template name cannot be a translatable string.
+   ╭────
+ 1 │ {% include _('basic.txt') %}
+   ·            ───────┬──────
+   ·                   ╰── invalid template name
+   ╰────
+"""
+
+    if template_engine.name == "rusty":
+        with pytest.raises(TemplateSyntaxError) as exc_info:
+            template_engine.from_string(template)
+
+        assert str(exc_info.value) == rusty_message
+
+    else:
+        template = template_engine.from_string(template)
+
+        # IsADirectoryError on Unix
+        # PermissionError on Windows
+        with pytest.raises((IsADirectoryError, PermissionError)):
+            template.render({})
+
+
+def test_include_translated_variable(template_engine):
+    template = "{% include translated %}"
+    rusty_message = """\
+  × Included template name cannot be a translatable string.
+   ╭────
+ 1 │ {% include translated %}
+   ·            ─────┬────
+   ·                 ╰── invalid template name: 'basic.txt'
+   ╰────
+"""
+
+    context = {"translated": gettext_lazy("basic.txt")}
+    template = template_engine.from_string(template)
+
+    if template_engine.name == "rusty":
+        with pytest.raises(TypeError) as exc_info:
+            template.render(context)
+
+        assert str(exc_info.value) == rusty_message
+
+    else:
+        # IsADirectoryError on Unix
+        # PermissionError on Windows
+        with pytest.raises((IsADirectoryError, PermissionError)):
+            template.render(context)
