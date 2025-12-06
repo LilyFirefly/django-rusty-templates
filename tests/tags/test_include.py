@@ -97,6 +97,66 @@ def test_include_missing_filter_variable(assert_render_error):
     )
 
 
+def test_include_missing_template_string(assert_render_error):
+    template = "{% include 'missing.txt' %}"
+    django_message = "missing.txt"
+    rusty_message = """\
+  × missing.txt
+   ╭────
+ 1 │ {% include 'missing.txt' %}
+   ·             ─────┬─────
+   ·                  ╰── here
+   ╰────
+"""
+    assert_render_error(
+        template=template,
+        context={},
+        exception=TemplateDoesNotExist,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
+def test_include_missing_template_variable(assert_render_error):
+    template = "{% include missing %}"
+    django_message = "missing.txt"
+    rusty_message = """\
+  × missing.txt
+   ╭────
+ 1 │ {% include missing %}
+   ·            ───┬───
+   ·               ╰── here
+   ╰────
+"""
+    assert_render_error(
+        template=template,
+        context={"missing": "missing.txt"},
+        exception=TemplateDoesNotExist,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
+def test_include_missing_template_variable_list(assert_render_error):
+    template = "{% include missing %}"
+    django_message = "missing.txt, missing2.txt"
+    rusty_message = """\
+  × missing.txt, missing2.txt
+   ╭────
+ 1 │ {% include missing %}
+   ·            ───┬───
+   ·               ╰── here
+   ╰────
+"""
+    assert_render_error(
+        template=template,
+        context={"missing": ["missing.txt", "missing2.txt"]},
+        exception=TemplateDoesNotExist,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
 def test_include_numeric(template_engine):
     template = "{% include 1 %}"
     django_message = "'int' object is not iterable"

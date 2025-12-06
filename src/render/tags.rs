@@ -772,10 +772,12 @@ impl Render for For {
 impl Include {
     fn template_at(&self) -> At {
         match &self.template_name {
+            TagElement::Text(text) => text.at,
+            TagElement::TranslatedText(text) => text.at,
             TagElement::Variable(variable) => variable.at,
             TagElement::Filter(filter) => filter.all_at,
             TagElement::ForVariable(variable) => variable.at,
-            _ => unreachable!("Only variables and filters can resolve to None (not in context)"),
+            _ => unreachable!(),
         }
     }
 
@@ -816,7 +818,7 @@ impl Render for Include {
             return Err(error.into());
         };
         let include = match template_name {
-            Content::String(content) => get_template(self.engine.clone(), py, content.content())?,
+            Content::String(content) => get_template(self.engine.clone(), py, content.content()),
             Content::Py(content) => {
                 if content.is_instance_of::<PyString>() {
                     get_template(
@@ -825,7 +827,7 @@ impl Render for Include {
                         content
                             .extract()
                             .expect("PyString should be compatible with Cow<str>"),
-                    )?
+                    )
                 } else {
                     let Ok(templates) = content.extract::<Vec<String>>() else {
                         return Err(self.invalid_template_name(
@@ -834,7 +836,7 @@ impl Render for Include {
                             template,
                         ));
                     };
-                    select_template(self.engine.clone(), py, templates)?
+                    select_template(self.engine.clone(), py, templates)
                 }
             }
             Content::Int(content) => {
@@ -845,7 +847,8 @@ impl Render for Include {
             }
             Content::Bool(true) => return Err(self.invalid_template_name(py, "True", template)),
             Content::Bool(false) => return Err(self.invalid_template_name(py, "False", template)),
-        };
+        }
+        .map_err(|error| error.annotate(py, self.template_at(), "here", template))?;
         include
             .render(py, context)
             .map(|content| Cow::Owned(content.into_owned()))
