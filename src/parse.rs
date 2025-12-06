@@ -1123,6 +1123,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             return Either::Right(ForVariable {
                 variant: ForVariableName::Object,
                 parent_count: 0,
+                at,
             });
         };
         let variant = match part.trim() {
@@ -1151,6 +1152,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         Either::Right(ForVariable {
             variant,
             parent_count,
+            at,
         })
     }
 

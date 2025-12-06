@@ -142,3 +142,89 @@ def test_include_numeric_variable(assert_render_error):
         django_message=django_message,
         rusty_message=rusty_message,
     )
+
+
+def test_include_integer_filter(assert_render_error):
+    template = "{% include numeric|add:3 %}"
+    django_message = "'int' object is not iterable"
+    rusty_message = """\
+  × Included template name must be a string or iterable of strings.
+   ╭────
+ 1 │ {% include numeric|add:3 %}
+   ·            ─────┬─────
+   ·                 ╰── invalid template name: 5
+   ╰────
+"""
+    assert_render_error(
+        template=template,
+        context={"numeric": 2},
+        exception=TypeError,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
+def test_include_float_filter(assert_render_error):
+    template = "{% include missing|default:3.2 %}"
+    django_message = "'float' object is not iterable"
+    rusty_message = """\
+  × Included template name must be a string or iterable of strings.
+   ╭────
+ 1 │ {% include missing|default:3.2 %}
+   ·            ───────┬───────
+   ·                   ╰── invalid template name: 3.2
+   ╰────
+"""
+    assert_render_error(
+        template=template,
+        context={},
+        exception=TypeError,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
+def test_include_bool_filter_true(assert_render_error):
+    template = "{% for a in b %}{% include forloop.first %}{% endfor %}"
+    django_message = "'bool' object is not iterable"
+    rusty_message = """\
+  × Included template name must be a string or iterable of strings.
+   ╭────
+ 1 │ {% for a in b %}{% include forloop.first %}{% endfor %}
+   ·                            ──────┬──────
+   ·                                  ╰── invalid template name: True
+   ╰────
+"""
+    assert_render_error(
+        template=template,
+        context={"b": ["a"]},
+        exception=TypeError,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
+def test_include_bool_filter_false(template_engine):
+    template = "{% for a in b %}{% include forloop.last %}{% endfor %}"
+    django_message = "No template names provided"
+    rusty_message = """\
+  × Included template name must be a string or iterable of strings.
+   ╭────
+ 1 │ {% for a in b %}{% include forloop.last %}{% endfor %}
+   ·                            ──────┬─────
+   ·                                  ╰── invalid template name: False
+   ╰────
+"""
+    template = template_engine.from_string(template)
+
+    if template_engine.name == "django":
+        with pytest.raises(TemplateDoesNotExist) as exc_info:
+            template.render({"b": ["a", "b"]})
+
+        assert str(exc_info.value) == django_message
+
+    else:
+        with pytest.raises(TypeError) as exc_info:
+            template.render({"b": ["a", "b"]})
+
+        assert str(exc_info.value) == rusty_message

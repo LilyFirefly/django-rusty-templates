@@ -774,6 +774,7 @@ impl Include {
         match &self.template_name {
             TagElement::Variable(variable) => variable.at,
             TagElement::Filter(filter) => filter.all_at,
+            TagElement::ForVariable(variable) => variable.at,
             _ => unreachable!("Only variables and filters can resolve to None (not in context)"),
         }
     }
@@ -836,7 +837,14 @@ impl Render for Include {
                     select_template(self.engine.clone(), py, templates)?
                 }
             }
-            _ => std::todo!(),
+            Content::Int(content) => {
+                return Err(self.invalid_template_name(py, &format!("{content}"), template));
+            }
+            Content::Float(content) => {
+                return Err(self.invalid_template_name(py, &format!("{content}"), template));
+            }
+            Content::Bool(true) => return Err(self.invalid_template_name(py, "True", template)),
+            Content::Bool(false) => return Err(self.invalid_template_name(py, "False", template)),
         };
         include
             .render(py, context)
