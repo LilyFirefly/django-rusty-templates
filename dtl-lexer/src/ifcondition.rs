@@ -68,18 +68,18 @@ impl<'t> IfConditionLexer<'t> {
     }
 
     fn lex_condition(&mut self) -> Result<IfConditionToken, LexerError> {
-        let mut chars = self.rest.chars();
+        let mut chars = self.rest.chars().enumerate();
         let token = match chars.next().expect("self.rest is not empty") {
-            '_' => {
-                if let Some('(') = chars.next() {
-                    self.lex_translated(&mut chars)?
+            (_, '_') => {
+                if let Some((idx, '(')) = chars.next() {
+                    self.lex_translated(&self.rest[idx..])?
                 } else {
                     self.lex_variable()
                 }
             }
-            '"' => self.lex_text(&mut chars, '"')?,
-            '\'' => self.lex_text(&mut chars, '\'')?,
-            '0'..='9' | '-' => self.lex_numeric(),
+            (idx, '"') => self.lex_text(&self.rest[idx + 1..], '"')?,
+            (idx, '\'') => self.lex_text(&self.rest[idx + 1..], '\'')?,
+            (_, '0'..='9' | '-') => self.lex_numeric(),
             _ => self.lex_variable(),
         };
         self.lex_remainder()?;
@@ -97,7 +97,7 @@ impl<'t> IfConditionLexer<'t> {
     }
 
     fn lex_numeric(&mut self) -> IfConditionToken {
-        let (at, byte, rest) = lex_numeric(self.byte, self.rest);
+        let (at, _, byte, rest) = lex_numeric(self.byte, self.rest);
         self.rest = rest;
         self.byte = byte;
         IfConditionToken {
@@ -106,13 +106,9 @@ impl<'t> IfConditionLexer<'t> {
         }
     }
 
-    fn lex_text(
-        &mut self,
-        chars: &mut std::str::Chars,
-        end: char,
-    ) -> Result<IfConditionToken, LexerError> {
-        match lex_text(self.byte, self.rest, chars, end) {
-            Ok((at, byte, rest)) => {
+    fn lex_text(&mut self, token: &'t str, end: char) -> Result<IfConditionToken, LexerError> {
+        match lex_text(self.byte, self.rest, token, end) {
+            Ok((at, _, byte, rest)) => {
                 self.rest = rest;
                 self.byte = byte;
                 Ok(IfConditionToken {
@@ -127,12 +123,9 @@ impl<'t> IfConditionLexer<'t> {
         }
     }
 
-    fn lex_translated(
-        &mut self,
-        chars: &mut std::str::Chars,
-    ) -> Result<IfConditionToken, LexerError> {
-        match lex_translated(self.byte, self.rest, chars) {
-            Ok((at, byte, rest)) => {
+    fn lex_translated(&mut self, _token: &'t str) -> Result<IfConditionToken, LexerError> {
+        match lex_translated(self.byte, self.rest) {
+            Ok((at, _, byte, rest)) => {
                 self.rest = rest;
                 self.byte = byte;
                 Ok(IfConditionToken {
