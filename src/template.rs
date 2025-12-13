@@ -254,6 +254,50 @@ pub mod django_rusty_templates {
         }
     }
 
+    pub fn get_template(
+        engine: Arc<Engine>,
+        py: Python<'_>,
+        template_name: Cow<str>,
+    ) -> PyResult<Template> {
+        let mut tried = Vec::new();
+        let mut loaders = engine
+            .template_loaders
+            .lock_py_attached(py)
+            .expect("Mutex should not be poisoned");
+        for loader in loaders.iter_mut() {
+            match loader.get_template(py, &template_name, engine.clone()) {
+                Ok(template) => return template,
+                Err(e) => tried.push(e.tried),
+            }
+        }
+        drop(loaders);
+        Err(TemplateDoesNotExist::new_err((
+            template_name.into_owned(),
+            tried,
+        )))
+    }
+
+    pub fn select_template(
+        engine: Arc<Engine>,
+        py: Python<'_>,
+        template_name_list: Vec<String>,
+    ) -> PyResult<Template> {
+        if template_name_list.is_empty() {
+            return Err(TemplateDoesNotExist::new_err("No template names provided"));
+        }
+        let mut not_found = Vec::new();
+        for template_name in template_name_list {
+            match get_template(engine.clone(), py, Cow::Owned(template_name)) {
+                Ok(template) => return Ok(template),
+                Err(e) if e.is_instance_of::<TemplateDoesNotExist>(py) => {
+                    not_found.push(e.value(py).to_string());
+                }
+                Err(e) => return Err(e),
+            }
+        }
+        Err(TemplateDoesNotExist::new_err(not_found.join(", ")))
+    }
+
     #[derive(Debug)]
     #[pyclass(name = "Engine")]
     pub struct PyEngine {
@@ -350,20 +394,7 @@ pub mod django_rusty_templates {
         ///
         /// See <https://docs.djangoproject.com/en/stable/ref/templates/api/#django.template.Engine.get_template>
         pub fn get_template(&self, py: Python<'_>, template_name: String) -> PyResult<Template> {
-            let mut tried = Vec::new();
-            let mut loaders = self
-                .engine
-                .template_loaders
-                .lock_py_attached(py)
-                .expect("Mutex should not be poisoned");
-            for loader in loaders.iter_mut() {
-                match loader.get_template(py, &template_name, self.engine.clone()) {
-                    Ok(template) => return template,
-                    Err(e) => tried.push(e.tried),
-                }
-            }
-            drop(loaders);
-            Err(TemplateDoesNotExist::new_err((template_name, tried)))
+            get_template(self.engine.clone(), py, Cow::Owned(template_name))
         }
 
         /// Given a list of template names, return the first that can be loaded.
@@ -374,20 +405,7 @@ pub mod django_rusty_templates {
             py: Python<'_>,
             template_name_list: Vec<String>,
         ) -> PyResult<Template> {
-            if template_name_list.is_empty() {
-                return Err(TemplateDoesNotExist::new_err("No template names provided"));
-            }
-            let mut not_found = Vec::new();
-            for template_name in template_name_list {
-                match self.get_template(py, template_name) {
-                    Ok(template) => return Ok(template),
-                    Err(e) if e.is_instance_of::<TemplateDoesNotExist>(py) => {
-                        not_found.push(e.value(py).to_string());
-                    }
-                    Err(e) => return Err(e),
-                }
-            }
-            Err(TemplateDoesNotExist::new_err(not_found.join(", ")))
+            select_template(self.engine.clone(), py, template_name_list)
         }
 
         #[allow(clippy::wrong_self_convention)] // We're implementing a Django interface

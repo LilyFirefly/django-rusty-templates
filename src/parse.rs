@@ -39,6 +39,10 @@ use dtl_lexer::forloop::{ForLexer, ForLexerError, ForLexerInError, ForTokenType}
 use dtl_lexer::ifcondition::{
     IfConditionAtom, IfConditionLexer, IfConditionOperator, IfConditionTokenType,
 };
+use dtl_lexer::include::{
+    IncludeLexer, IncludeLexerError, IncludeTemplateToken, IncludeTemplateTokenType, IncludeToken,
+    IncludeWithToken,
+};
 use dtl_lexer::load::{LoadLexer, LoadToken};
 use dtl_lexer::tag::{TagLexerError, TagParts, lex_tag};
 use dtl_lexer::types::{At, TemplateString};
@@ -105,6 +109,7 @@ fn unexpected_argument(filter: &'static str, right: Argument) -> ParseError {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Filter {
     pub at: At,
+    pub all_at: At,
     pub left: TagElement,
     pub filter: FilterType,
 }
@@ -113,6 +118,7 @@ impl Filter {
     pub fn new(
         parser: &Parser,
         at: At,
+        all_at: At,
         left: TagElement,
         right: Option<Argument>,
     ) -> Result<Self, ParseError> {
@@ -191,7 +197,12 @@ impl Filter {
                 FilterType::External(ExternalFilter::new(external, right))
             }
         };
-        Ok(Self { at, left, filter })
+        Ok(Self {
+            at,
+            all_at,
+            left,
+            filter,
+        })
     }
 }
 
@@ -217,6 +228,18 @@ impl Parse<TagElement> for SimpleTagToken {
                 Ok(TagElement::TranslatedText(Text::new(content_at)))
             }
             SimpleTagTokenType::Variable => parser.parse_variable(content, content_at, start),
+        }
+    }
+}
+
+impl Parse<TagElement> for IncludeTemplateToken {
+    fn parse(&self, parser: &Parser) -> Result<TagElement, ParseError> {
+        let content_at = self.content_at();
+        let (start, _len) = content_at;
+        let content = parser.template.content(content_at);
+        match self.token_type {
+            IncludeTemplateTokenType::Text => Ok(TagElement::Text(Text::new(content_at))),
+            IncludeTemplateTokenType::Variable => parser.parse_variable(content, content_at, start),
         }
     }
 }
@@ -468,6 +491,27 @@ pub struct For {
 }
 
 #[derive(Clone, Debug)]
+pub struct Include {
+    pub template_name: TagElement,
+    pub engine: Arc<Engine>,
+    pub only: bool,
+    pub kwargs: Vec<(At, TagElement)>,
+}
+
+impl PartialEq for Include {
+    fn eq(&self, other: &Self) -> bool {
+        // We use `Arc::ptr_eq` here to avoid needing the `py` token for true
+        // equality comparison between two `Py` smart pointers.
+        //
+        // We only use `eq` in tests, so this concession is acceptable here.
+        self.only == other.only
+            && self.template_name.eq(&other.template_name)
+            && self.kwargs == other.kwargs
+            && Arc::ptr_eq(&self.engine, &other.engine)
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct SimpleTag {
     pub func: Arc<Py<PyAny>>,
     pub at: At,
@@ -531,6 +575,7 @@ pub enum Tag {
         falsey: Option<Vec<TokenTree>>,
     },
     For(For),
+    Include(Include),
     Load,
     SimpleTag(SimpleTag),
     SimpleBlockTag(SimpleBlockTag),
@@ -678,6 +723,9 @@ pub enum ParseError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     ForParseError(#[from] ForParseError),
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    IncludeLexerError(#[from] IncludeLexerError),
     #[error("{literal} is not iterable")]
     NotIterable {
         literal: String,
@@ -727,6 +775,11 @@ pub enum ParseError {
         tag_at: SourceSpan,
         #[label("library")]
         library_at: SourceSpan,
+    },
+    #[error("Expected a keyword argument")]
+    MissingKeywordArgument {
+        #[label("after this")]
+        at: SourceSpan,
     },
     #[error("'{library}' is not a registered tag library.")]
     MissingTagLibrary {
@@ -1056,6 +1109,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             return Either::Right(ForVariable {
                 variant: ForVariableName::Object,
                 parent_count: 0,
+                at,
             });
         };
         let variant = match part.trim() {
@@ -1084,6 +1138,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         Either::Right(ForVariable {
             variant,
             parent_count,
+            at,
         })
     }
 
@@ -1108,7 +1163,8 @@ impl<'t, 'py> Parser<'t, 'py> {
                 None => None,
                 Some(ref a) => Some(a.parse(self)?),
             };
-            let filter = Filter::new(self, filter_token.at, var, argument)?;
+            let filter_at = (at.0, filter_token.at.0 - at.0 + filter_token.at.1);
+            let filter = Filter::new(self, filter_token.at, filter_at, var, argument)?;
             var = TagElement::Filter(Box::new(filter));
         }
         Ok(var)
@@ -1170,6 +1226,7 @@ impl<'t, 'py> Parser<'t, 'py> {
                 at,
                 parts,
             }),
+            "include" => Either::Left(self.parse_include(at, parts)?),
             tag_name => match self.external_tags.get(tag_name) {
                 Some(TagContext::Simple(context)) => {
                     Either::Left(self.parse_simple_tag(context, at, parts)?)
@@ -1575,6 +1632,41 @@ impl<'t, 'py> Parser<'t, 'py> {
         Ok(TokenTree::Tag(Tag::Url(url)))
     }
 
+    fn parse_include(&self, at: (usize, usize), parts: TagParts) -> Result<TokenTree, ParseError> {
+        let mut lexer = IncludeLexer::new(self.template, parts);
+        let Some(template_token) = lexer.lex_template()? else {
+            return Err(ParseError::MissingArgument { at: at.into() });
+        };
+        let template_name = template_token.parse(self)?;
+        let mut only = false;
+        let mut kwargs = Vec::new();
+        match lexer.lex_with()? {
+            IncludeWithToken::None => {}
+            IncludeWithToken::Only => only = true,
+            IncludeWithToken::With(at) => {
+                for token in lexer {
+                    match token? {
+                        IncludeToken::Only => only = true,
+                        IncludeToken::Kwarg { kwarg_at, token } => {
+                            let element = token.parse(self)?;
+                            kwargs.push((kwarg_at, element));
+                        }
+                    }
+                }
+                if kwargs.is_empty() {
+                    return Err(ParseError::MissingKeywordArgument { at: at.into() });
+                }
+            }
+        }
+        let include = Include {
+            template_name,
+            engine: self.engine.clone(),
+            kwargs,
+            only,
+        };
+        Ok(TokenTree::Tag(Tag::Include(include)))
+    }
+
     fn parse_autoescape(&mut self, at: At, parts: TagParts) -> Result<TokenTree, PyParseError> {
         let token = lex_autoescape_argument(self.template, parts).map_err(ParseError::from)?;
         let (nodes, _) = self.parse_until(vec![EndTagType::Autoescape], "autoescape".into(), at)?;
@@ -1812,6 +1904,7 @@ mod tests {
             assert!(external.is_none(py));
             let bar = TokenTree::Filter(Box::new(Filter {
                 at: (7, 3),
+                all_at: (3, 7),
                 left: TagElement::Variable(foo),
                 filter: FilterType::External(ExternalFilter {
                     filter: external,
@@ -1863,6 +1956,7 @@ mod tests {
             assert!(external.is_none(py));
             let bar = TagElement::Filter(Box::new(Filter {
                 at: (7, 3),
+                all_at: (3, 7),
                 left: foo,
                 filter: FilterType::External(ExternalFilter {
                     filter: external,
@@ -1873,6 +1967,7 @@ mod tests {
             assert!(external.is_none(py));
             let baz = TokenTree::Filter(Box::new(Filter {
                 at: (11, 3),
+                all_at: (3, 11),
                 left: bar,
                 filter: FilterType::External(ExternalFilter {
                     filter: external,
@@ -1900,6 +1995,7 @@ mod tests {
             assert!(external.is_none(py));
             let bar = TokenTree::Filter(Box::new(Filter {
                 at: (7, 3),
+                all_at: (3, 7),
                 left: foo,
                 filter: FilterType::External(ExternalFilter {
                     filter: external,
@@ -1933,6 +2029,7 @@ mod tests {
             assert!(external.is_none(py));
             let bar = TokenTree::Filter(Box::new(Filter {
                 at: (7, 3),
+                all_at: (3, 7),
                 left: foo,
                 filter: FilterType::External(ExternalFilter {
                     filter: external,
@@ -1963,6 +2060,7 @@ mod tests {
             assert!(external.is_none(py));
             let bar = TokenTree::Filter(Box::new(Filter {
                 at: (7, 3),
+                all_at: (3, 7),
                 left: foo,
                 filter: FilterType::External(ExternalFilter {
                     filter: external,
@@ -1996,6 +2094,7 @@ mod tests {
             assert!(external.is_none(py));
             let bar = TokenTree::Filter(Box::new(Filter {
                 at: (7, 3),
+                all_at: (3, 7),
                 left: foo,
                 filter: FilterType::External(ExternalFilter {
                     filter: external,
@@ -2025,6 +2124,7 @@ mod tests {
             assert!(external.is_none(py));
             let bar = TokenTree::Filter(Box::new(Filter {
                 at: (7, 3),
+                all_at: (3, 7),
                 left: foo,
                 filter: FilterType::External(ExternalFilter {
                     filter: external,
@@ -2054,6 +2154,7 @@ mod tests {
             assert!(external.is_none(py));
             let bar = TokenTree::Filter(Box::new(Filter {
                 at: (7, 3),
+                all_at: (3, 7),
                 left: foo,
                 filter: FilterType::External(ExternalFilter {
                     filter: external,
@@ -2113,6 +2214,7 @@ mod tests {
             let baz = Variable { at: (15, 3) };
             let bar = TokenTree::Filter(Box::new(Filter {
                 at: (7, 7),
+                all_at: (3, 11),
                 left: foo,
                 filter: FilterType::Default(DefaultFilter::new(Argument {
                     at: (15, 3),
@@ -2274,6 +2376,7 @@ mod tests {
             let home = Text { at: (31, 4) };
             let default = Box::new(Filter {
                 at: (22, 7),
+                all_at: (7, 22),
                 left: some_view_name,
                 filter: FilterType::Default(DefaultFilter::new(Argument {
                     at: (30, 6),
@@ -2338,6 +2441,7 @@ mod tests {
                     TagElement::Text(Text { at: (23, 3) }),
                     TagElement::Filter(Box::new(Filter {
                         at: (32, 7),
+                        all_at: (28, 11),
                         left: TagElement::Variable(Variable { at: (28, 3) }),
                         filter: FilterType::Default(DefaultFilter::new(Argument {
                             at: (40, 6),
@@ -2550,6 +2654,30 @@ mod tests {
                     kwargs: Vec::new(),
                     nodes: Vec::new(),
                     target_var: Some("foo".to_string()),
+                },
+            );
+        });
+    }
+
+    #[test]
+    fn test_include_tag_partial_eq() {
+        Python::initialize();
+
+        Python::attach(|_| {
+            let engine: Arc<Engine> = Engine::empty().into();
+            let template_name = TagElement::Float(1.1);
+            assert_eq!(
+                Include {
+                    template_name: template_name.clone(),
+                    only: false,
+                    kwargs: Vec::new(),
+                    engine: engine.clone(),
+                },
+                Include {
+                    template_name,
+                    only: false,
+                    kwargs: Vec::new(),
+                    engine,
                 },
             );
         });
