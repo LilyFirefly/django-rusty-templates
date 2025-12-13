@@ -526,7 +526,10 @@ impl PartialEq for Include {
         // equality comparison between two `Py` smart pointers.
         //
         // We only use `eq` in tests, so this concession is acceptable here.
-        self.template_name.eq(&other.template_name) && Arc::ptr_eq(&self.engine, &other.engine)
+        self.only == other.only
+            && self.template_name.eq(&other.template_name)
+            && self.kwargs == other.kwargs
+            && Arc::ptr_eq(&self.engine, &other.engine)
     }
 }
 
@@ -2685,6 +2688,30 @@ mod tests {
                     kwargs: Vec::new(),
                     nodes: Vec::new(),
                     target_var: Some("foo".to_string()),
+                },
+            );
+        });
+    }
+
+    #[test]
+    fn test_include_tag_partial_eq() {
+        Python::initialize();
+
+        Python::attach(|_| {
+            let engine: Arc<Engine> = Engine::empty().into();
+            let template_name = TagElement::Float(1.1);
+            assert_eq!(
+                Include {
+                    template_name: template_name.clone(),
+                    only: false,
+                    kwargs: Vec::new(),
+                    engine: engine.clone(),
+                },
+                Include {
+                    template_name,
+                    only: false,
+                    kwargs: Vec::new(),
+                    engine,
                 },
             );
         });
