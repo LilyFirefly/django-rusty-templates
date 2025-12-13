@@ -47,7 +47,8 @@ use dtl_lexer::tag::ifcondition::{
     IfConditionAtom, IfConditionLexer, IfConditionOperator, IfConditionTokenType,
 };
 use dtl_lexer::tag::include::{
-    IncludeLexer, IncludeLexerError, IncludeTemplateToken, IncludeTemplateTokenType,
+    IncludeLexer, IncludeLexerError, IncludeTemplateToken, IncludeTemplateTokenType, IncludeToken,
+    IncludeWithToken,
 };
 use dtl_lexer::tag::load::{LoadLexer, LoadToken};
 use dtl_lexer::tag::{TagLexerError, TagParts, lex_tag};
@@ -515,6 +516,8 @@ pub struct For {
 pub struct Include {
     pub template_name: TagElement,
     pub engine: Arc<Engine>,
+    pub only: bool,
+    pub kwargs: Vec<(At, TagElement)>,
 }
 
 impl PartialEq for Include {
@@ -791,6 +794,11 @@ pub enum ParseError {
         tag_at: SourceSpan,
         #[label("library")]
         library_at: SourceSpan,
+    },
+    #[error("Expected a keyword argument")]
+    MissingKeywordArgument {
+        #[label("after this")]
+        at: SourceSpan,
     },
     #[error("'{library}' is not a registered tag library.")]
     MissingTagLibrary {
@@ -1643,21 +1651,37 @@ impl<'t, 'py> Parser<'t, 'py> {
         Ok(TokenTree::Tag(Tag::Url(url)))
     }
 
-    fn parse_include(
-        &self,
-        at: At,
-        parts: TagParts,
-    ) -> Result<TokenTree, PyParseError> {
+    fn parse_include(&self, at: At, parts: TagParts) -> Result<TokenTree, ParseError> {
         let mut lexer = IncludeLexer::new(self.template, parts);
-        let template_token = match lexer.lex_template() {
-            Ok(Some(template_token)) => template_token,
-            Ok(None) => return Err(ParseError::MissingArgument { at: at.into() }.into()),
-            Err(lex_error) => return Err(ParseError::from(lex_error).into()),
+        let Some(template_token) = lexer.lex_template()? else {
+            return Err(ParseError::MissingArgument { at: at.into() });
         };
         let template_name = template_token.parse(self)?;
+        let mut only = false;
+        let mut kwargs = Vec::new();
+        match lexer.lex_with()? {
+            IncludeWithToken::None => {}
+            IncludeWithToken::Only => only = true,
+            IncludeWithToken::With(at) => {
+                for token in lexer {
+                    match token? {
+                        IncludeToken::Only => only = true,
+                        IncludeToken::Kwarg { kwarg_at, token } => {
+                            let element = token.parse(self)?;
+                            kwargs.push((kwarg_at, element));
+                        }
+                    }
+                }
+                if kwargs.is_empty() {
+                    return Err(ParseError::MissingKeywordArgument { at: at.into() });
+                }
+            }
+        }
         let include = Include {
             template_name,
             engine: self.engine.clone(),
+            kwargs,
+            only,
         };
         Ok(TokenTree::Tag(Tag::Include(include)))
     }

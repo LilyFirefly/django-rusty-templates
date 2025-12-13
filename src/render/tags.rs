@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
 use num_bigint::{BigInt, Sign};
@@ -862,9 +862,42 @@ impl Render for Include {
             Content::Bool(false) => return Err(self.invalid_template_name(py, "False", template)),
         }
         .map_err(|error| error.annotate(py, self.template_at(), "here", template))?;
-        include
-            .render(py, context)
-            .map(|content| Cow::Owned(content.into_owned()))
+        match self.only {
+            false => {
+                for (index, (at, element)) in self.kwargs.iter().enumerate() {
+                    let key = template.content(*at).to_string();
+                    if let Some(value) =
+                        element.resolve(py, template, context, ResolveFailures::Raise)?
+                    {
+                        context.push_variable(key, value.to_py(py), index);
+                    }
+                }
+                let rendered = include
+                    .render(py, context)
+                    .map(|content| Cow::Owned(content.into_owned()));
+                context.pop_variables();
+                rendered
+            }
+            true => {
+                let mut inner_context = HashMap::new();
+                for (at, element) in &self.kwargs {
+                    let key = template.content(*at).to_string();
+                    if let Some(value) =
+                        element.resolve(py, template, context, ResolveFailures::Raise)?
+                    {
+                        inner_context.insert(key, value.to_py(py).unbind());
+                    }
+                }
+                let request = context
+                    .request
+                    .as_ref()
+                    .map(|request| request.clone_ref(py));
+                let mut context = Context::new(inner_context, request, context.autoescape);
+                include
+                    .render(py, &mut context)
+                    .map(|content| Cow::Owned(content.into_owned()))
+            }
+        }
     }
 }
 

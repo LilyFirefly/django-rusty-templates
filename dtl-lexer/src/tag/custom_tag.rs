@@ -33,6 +33,13 @@ impl SimpleTagToken {
             SimpleTagTokenType::TranslatedText => translated_text_content_at(self.at),
         }
     }
+
+    pub fn all_at(&self) -> At {
+        match self.kwarg {
+            None => self.at,
+            Some(kwarg_at) => (kwarg_at.0, self.at.0 - kwarg_at.0 + self.at.1),
+        }
+    }
 }
 
 #[derive(Error, Debug, Diagnostic, PartialEq, Eq)]

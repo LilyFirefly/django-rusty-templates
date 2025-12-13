@@ -24,6 +24,34 @@ def test_include_list(assert_render):
     assert_render(template=template, context=context, expected=expected)
 
 
+def test_include_with_extra_context(assert_render):
+    template = "{% include 'name_snippet.txt' with person='Lily' greeting='Hello' %}{{ person }}"
+    context = {"person": "Jacob"}
+    expected = "Hello, Lily!\nJacob"
+    assert_render(template=template, context=context, expected=expected)
+
+
+def test_include_with_extra_context_only(assert_render):
+    template = "{% include 'name_snippet.txt' with greeting='Hi' only %}"
+    context = {"person": "Jacob"}
+    expected = "Hi, friend!\n"
+    assert_render(template=template, context=context, expected=expected)
+
+
+def test_include_with_empty_extra_context_only(assert_render):
+    template = "{% include 'name_snippet.txt' only %}"
+    context = {"person": "Jacob"}
+    expected = ", friend!\n"
+    assert_render(template=template, context=context, expected=expected)
+
+
+def test_include_with_extra_context_only_kwarg(assert_render):
+    template = "{% include 'name_snippet.txt' with greeting='Hi' only='only' %}"
+    context = {"person": "Jacob"}
+    expected = "Hi, Jacob!\n"
+    assert_render(template=template, context=context, expected=expected)
+
+
 def test_empty_include(assert_parse_error):
     template = "{% include %}"
     django_message = "'include' tag takes at least one argument: the name of the template to be included."
@@ -51,6 +79,154 @@ def test_template_name_keyword(assert_parse_error):
  1 │ {% include template_name='basic.txt' %}
    ·            ──────┬──────
    ·                  ╰── here
+   ╰────
+"""
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_missing_with(assert_parse_error):
+    template = "{% include 'basic.txt' user='Lily' %}"
+    django_message = "Unknown argument for 'include' tag: \"user='Lily'\"."
+    rusty_message = """\
+  × Unexpected argument
+   ╭────
+ 1 │ {% include 'basic.txt' user='Lily' %}
+   ·                        ─────┬─────
+   ·                             ╰── here
+   ╰────
+  help: Try adding the 'with' keyword before the argument.
+"""
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_missing_with_positional_variable(assert_parse_error):
+    template = "{% include 'basic.txt' user %}"
+    django_message = "Unknown argument for 'include' tag: 'user'."
+    rusty_message = """\
+  × Unexpected argument
+   ╭────
+ 1 │ {% include 'basic.txt' user %}
+   ·                        ──┬─
+   ·                          ╰── here
+   ╰────
+  help: Try adding the 'with' keyword before the argument.
+"""
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_missing_with_positional_string(assert_parse_error):
+    template = "{% include 'basic.txt' 'Lily' %}"
+    django_message = "Unknown argument for 'include' tag: \"'Lily'\"."
+    rusty_message = """\
+  × Unexpected argument
+   ╭────
+ 1 │ {% include 'basic.txt' 'Lily' %}
+   ·                        ───┬──
+   ·                           ╰── here
+   ╰────
+  help: Try adding the 'with' keyword before the argument.
+"""
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_with_missing_kwarg(assert_parse_error):
+    template = "{% include 'basic.txt' with %}"
+    django_message = "\"with\" in 'include' tag needs at least one keyword argument."
+    rusty_message = """\
+  × Expected a keyword argument
+   ╭────
+ 1 │ {% include 'basic.txt' with %}
+   ·                        ──┬─
+   ·                          ╰── after this
+   ╰────
+"""
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_with_only(assert_parse_error):
+    template = "{% include 'basic.txt' with only %}"
+    django_message = "\"with\" in 'include' tag needs at least one keyword argument."
+    rusty_message = """\
+  × Expected a keyword argument
+   ╭────
+ 1 │ {% include 'basic.txt' with only %}
+   ·                        ──┬─
+   ·                          ╰── after this
+   ╰────
+"""
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_with_kwarg_after_only(assert_parse_error):
+    template = "{% include 'name_snippet.txt' with person='Lily' only greeting='Hi' %}"
+    django_message = "Unknown argument for 'include' tag: \"greeting='Hi'\"."
+    rusty_message = """\
+  × Unexpected argument
+   ╭────
+ 1 │ {% include 'name_snippet.txt' with person='Lily' only greeting='Hi' %}
+   ·                                                       ──────┬──────
+   ·                                                             ╰── here
+   ╰────
+  help: Try moving the argument before the 'only' option
+"""
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_with_positional_arg(assert_parse_error):
+    template = "{% include 'basic.txt' with user %}"
+    django_message = "\"with\" in 'include' tag needs at least one keyword argument."
+    rusty_message = """\
+  × Expected a keyword argument
+   ╭────
+ 1 │ {% include 'basic.txt' with user %}
+   ·                             ──┬─
+   ·                               ╰── here
+   ╰────
+"""
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_with_positional_arg_after_kwarg(assert_parse_error):
+    template = "{% include 'name_snippet.txt' with person='Lily' greeting %}"
+    django_message = "Unknown argument for 'include' tag: 'greeting'."
+    rusty_message = """\
+  × Expected a keyword argument
+   ╭────
+ 1 │ {% include 'name_snippet.txt' with person='Lily' greeting %}
+   ·                                                  ────┬───
+   ·                                                      ╰── here
+   ╰────
+"""
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_with_broken_keyword_argument(assert_parse_error):
+    template = "{% include 'name_snippet.txt' with person='Lily %}"
+    django_message = "Could not parse the remainder: ''Lily' from ''Lily'"
+    rusty_message = """\
+  × Expected a complete string literal
+   ╭────
+ 1 │ {% include 'name_snippet.txt' with person='Lily %}
+   ·                                           ──┬──
+   ·                                             ╰── here
    ╰────
 """
     assert_parse_error(
