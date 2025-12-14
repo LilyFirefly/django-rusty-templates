@@ -96,6 +96,8 @@ def main():
                 "--depth",
                 "1",
                 "--no-tags",
+                "--branch",
+                "stable/5.2.x",
                 "https://github.com/django/django.git",
                 str(DJANGO_REPO_CACHE),
             ],
