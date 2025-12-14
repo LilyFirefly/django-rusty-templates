@@ -128,11 +128,11 @@ def main():
     )
     print(result.stderr, end="", file=sys.stderr)
 
-    summary, formatted_test_output = parse_test_output(result.stderr)
-    log(_format_passing_test_pct(summary))
-    log(_format_summary(summary))
-
     if args.parsed_output:
+        summary, formatted_test_output = parse_test_output(result.stderr)
+        log(_format_passing_test_pct(summary))
+        log(_format_summary(summary))
+
         Path(args.parsed_output).write_text(formatted_test_output)
         log(f"Parsed output written to {args.parsed_output}")
 
