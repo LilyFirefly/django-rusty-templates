@@ -11,7 +11,7 @@ use dtl_lexer::types::At;
 #[derive(Error, Debug, Diagnostic, PartialEq, Eq)]
 pub enum RelativePathError {
     #[error(
-        "The relative path {template_path} points outside the file hierarchy that template '{origin}' is in."
+        "The relative path '{template_path}' points outside the file hierarchy that template '{origin}' is in."
     )]
     Outside {
         #[label("relative path")]
@@ -19,7 +19,7 @@ pub enum RelativePathError {
         origin: PathBuf,
         template_path: String,
     },
-    #[error("The relative path {path} cannot be evaluated due to an unknown template origin.")]
+    #[error("The relative path '{path}' cannot be evaluated due to an unknown template origin.")]
     UnknownOrigin {
         path: String,
         #[label("here")]

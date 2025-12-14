@@ -245,7 +245,7 @@ def test_relative_from_string_template(assert_parse_error):
     template = "{% include './adjacent.txt' %}"
     django_message = "'NoneType' object has no attribute 'lstrip'"
     rusty_message = """\
-  × The relative path ./adjacent.txt cannot be evaluated due to an unknown
+  × The relative path './adjacent.txt' cannot be evaluated due to an unknown
   │ template origin.
    ╭────
  1 │ {% include './adjacent.txt' %}
@@ -267,7 +267,7 @@ def test_relative_from_string_template_variable(assert_render_error):
     path = "./adjacent.txt"
     django_message = "'NoneType' object has no attribute 'lstrip'"
     rusty_message = """\
-  × The relative path ./adjacent.txt cannot be evaluated due to an unknown
+  × The relative path './adjacent.txt' cannot be evaluated due to an unknown
   │ template origin.
    ╭────
  1 │ {% include path %}
@@ -295,8 +295,8 @@ def test_relative_outside_file_hierarchy(template_engine):
     django_message = f"The relative path ''../../outside.txt'' points outside the file hierarchy that template '{template}' is in."
     rusty_message = (
         """\
-  × The relative path ../../outside.txt points outside the file hierarchy that
-  │ template 'nested/outside_hierarchy.txt' is in.
+  × The relative path '../../outside.txt' points outside the file hierarchy
+  │ that template 'nested/outside_hierarchy.txt' is in.
    ╭─[%s:1:13]
  1 │ {%% include '../../outside.txt' %%}
    ·             ────────┬────────
@@ -322,8 +322,8 @@ def test_relative_outside_file_hierarchy_variable(template_engine):
 
     django_message = f"The relative path '{relative_path}' points outside the file hierarchy that template '{template_path}' is in."
     rusty_message = """\
-  × The relative path ../../outside.txt points outside the file hierarchy that
-  │ template 'nested/outside_hierarchy2.txt' is in.
+  × The relative path '../../outside.txt' points outside the file hierarchy
+  │ that template 'nested/outside_hierarchy2.txt' is in.
    ╭────
  1 │ {% include path %}
    ·            ──┬─
