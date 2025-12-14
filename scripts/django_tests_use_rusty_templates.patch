@@ -1,5 +1,5 @@
 diff --git a/tests/runtests.py b/tests/runtests.py
-index ccfc327..1ab9ace 100755
+index f1a194d..0b27dd4 100755
 --- a/tests/runtests.py
 +++ b/tests/runtests.py
 @@ -20,6 +20,24 @@ except ImportError as e:
@@ -27,3 +27,163 @@ index ccfc327..1ab9ace 100755
      from django.apps import apps
      from django.conf import settings
      from django.core.exceptions import ImproperlyConfigured
+diff --git a/tests/template_tests/syntax_tests/test_include.py b/tests/template_tests/syntax_tests/test_include.py
+index be0deee..4d6657b 100644
+--- a/tests/template_tests/syntax_tests/test_include.py
++++ b/tests/template_tests/syntax_tests/test_include.py
+@@ -42,7 +42,7 @@ class IncludeTagTests(SimpleTestCase):
+     def test_include04(self):
+         template = self.engine.get_template("include04")
+         with self.assertRaises(TemplateDoesNotExist):
+-            template.render(Context({}))
++            template.render({})
+ 
+     @setup(
+         {
+@@ -197,34 +197,31 @@ class IncludeTagTests(SimpleTestCase):
+     def test_include_error07(self):
+         template = self.engine.get_template("include-error07")
+         with self.assertRaises(RuntimeError):
+-            template.render(Context())
++            template.render({})
+ 
+     @setup({"include-error08": '{% include "include-fail2" %}'}, include_fail_templates)
+     def test_include_error08(self):
+         template = self.engine.get_template("include-error08")
+         with self.assertRaises(TemplateSyntaxError):
+-            template.render(Context())
++            template.render({})
+ 
+     @setup({"include-error09": "{% include failed_include %}"}, include_fail_templates)
+     def test_include_error09(self):
+-        context = Context({"failed_include": "include-fail1"})
++        context = {"failed_include": "include-fail1"}
+         template = self.engine.get_template("include-error09")
+         with self.assertRaises(RuntimeError):
+             template.render(context)
+ 
+     @setup({"include-error10": "{% include failed_include %}"}, include_fail_templates)
+     def test_include_error10(self):
+-        context = Context({"failed_include": "include-fail2"})
++        context = {"failed_include": "include-fail2"}
+         template = self.engine.get_template("include-error10")
+         with self.assertRaises(TemplateSyntaxError):
+             template.render(context)
+ 
+     @setup({"include_empty": "{% include %}"})
+     def test_include_empty(self):
+-        msg = (
+-            "'include' tag takes at least one argument: the name of the "
+-            "template to be included."
+-        )
++        msg = "Expected an argument"
+         with self.assertRaisesMessage(TemplateSyntaxError, msg):
+             self.engine.get_template("include_empty")
+ 
+@@ -238,7 +235,7 @@ class IncludeTests(SimpleTestCase):
+         engine = Engine(app_dirs=True, debug=True)
+         template = engine.get_template("test_include_error.html")
+         with self.assertRaisesMessage(TemplateDoesNotExist, "missing.html"):
+-            template.render(Context())
++            template.render({})
+ 
+     def test_extends_include_missing_baseloader(self):
+         """
+@@ -249,7 +246,7 @@ class IncludeTests(SimpleTestCase):
+         engine = Engine(app_dirs=True, debug=True)
+         template = engine.get_template("test_extends_error.html")
+         with self.assertRaisesMessage(TemplateDoesNotExist, "missing.html"):
+-            template.render(Context())
++            template.render({})
+ 
+     def test_extends_include_missing_cachedloader(self):
+         engine = Engine(
+@@ -266,23 +263,21 @@ class IncludeTests(SimpleTestCase):
+ 
+         template = engine.get_template("test_extends_error.html")
+         with self.assertRaisesMessage(TemplateDoesNotExist, "missing.html"):
+-            template.render(Context())
++            template.render({})
+ 
+         # Repeat to ensure it still works when loading from the cache
+         template = engine.get_template("test_extends_error.html")
+         with self.assertRaisesMessage(TemplateDoesNotExist, "missing.html"):
+-            template.render(Context())
++            template.render({})
+ 
+     def test_include_template_argument(self):
+         """
+         Support any render() supporting object
+         """
+         engine = Engine()
+-        ctx = Context(
+-            {
+-                "tmpl": engine.from_string("This worked!"),
+-            }
+-        )
++        ctx = {
++            "tmpl": engine.from_string("This worked!"),
++        }
+         outer_tmpl = engine.from_string("{% include tmpl %}")
+         output = outer_tmpl.render(ctx)
+         self.assertEqual(output, "This worked!")
+@@ -296,15 +291,15 @@ class IncludeTests(SimpleTestCase):
+         ]
+         for template_names in tests:
+             with self.subTest(template_names):
+-                output = outer_temp.render(Context({"var": template_names}))
++                output = outer_temp.render({"var": template_names})
+                 self.assertEqual(output, "index\n")
+ 
+     def test_include_template_none(self):
+         engine = Engine.get_default()
+         outer_temp = engine.from_string("{% include var %}")
+-        ctx = Context({"var": None})
+-        msg = "No template names provided"
+-        with self.assertRaisesMessage(TemplateDoesNotExist, msg):
++        ctx = {"var": None}
++        msg = "invalid template name: None"
++        with self.assertRaisesMessage(TypeError, msg):
+             outer_temp.render(ctx)
+ 
+     def test_include_from_loader_get_template(self):
+@@ -335,7 +330,7 @@ class IncludeTests(SimpleTestCase):
+             t = engine.get_template("recursive_include.html")
+             self.assertEqual(
+                 "Recursion!  A1  Recursion!  B1   B2   B3  Recursion!  C1",
+-                t.render(Context({"comments": comments}))
++                t.render({"comments": comments})
+                 .replace(" ", "")
+                 .replace("\n", " ")
+                 .strip(),
+@@ -345,7 +340,7 @@ class IncludeTests(SimpleTestCase):
+             t = engine.get_template("recursive_relative_include.html")
+             self.assertEqual(
+                 "Recursion!  A1  Recursion!  B1   B2   B3  Recursion!  C1",
+-                t.render(Context({"comments": comments}))
++                t.render({"comments": comments})
+                 .replace(" ", "")
+                 .replace("\n", " ")
+                 .strip(),
+@@ -361,7 +356,7 @@ class IncludeTests(SimpleTestCase):
+             """
+             outer_tmpl = engine.from_string("{% include tmpl %}")
+             output = outer_tmpl.render(
+-                Context({"tmpl": engine.from_string(template), "comments": comments})
++                {"tmpl": engine.from_string(template), "comments": comments}
+             )
+             self.assertEqual(
+                 "Recursion!  A1  Recursion!  B1   B2   B3  Recursion!  C1",
+diff --git a/tests/template_tests/test_extends_relative.py b/tests/template_tests/test_extends_relative.py
+index b20b015..aa18e3f 100644
+--- a/tests/template_tests/test_extends_relative.py
++++ b/tests/template_tests/test_extends_relative.py
+@@ -83,7 +83,7 @@ class IncludeRelativeBehaviorTests(SimpleTestCase):
+     def test_include_error(self):
+         engine = Engine(dirs=[RELATIVE])
+         msg = (
+-            "The relative path '\"./../three.html\"' points outside the file "
++            "The relative path './../three.html' points outside the file "
+             "hierarchy that template 'error_include.html' is in."
+         )
+         with self.assertRaisesMessage(TemplateSyntaxError, msg):
