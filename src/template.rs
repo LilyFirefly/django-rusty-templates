@@ -505,9 +505,15 @@ pub mod django_rusty_templates {
             py: Python<'_>,
             template: &str,
             filename: PathBuf,
+            template_name: &str,
             engine: Arc<Engine>,
         ) -> PyResult<Self> {
-            let mut parser = Parser::new(py, TemplateString(template), engine.clone());
+            let mut parser = Parser::new(
+                py,
+                TemplateString(template),
+                engine.clone(),
+                Some(template_name),
+            );
             let nodes = match parser.parse() {
                 Ok(nodes) => nodes,
                 Err(err) => {
@@ -530,7 +536,7 @@ pub mod django_rusty_templates {
             template: String,
             engine: Arc<Engine>,
         ) -> PyResult<Self> {
-            let mut parser = Parser::new(py, TemplateString(&template), engine.clone());
+            let mut parser = Parser::new(py, TemplateString(&template), engine.clone(), None);
             let nodes = match parser.parse() {
                 Ok(nodes) => nodes,
                 Err(err) => {
@@ -605,6 +611,12 @@ pub mod django_rusty_templates {
                 Err(err) => {
                     let err = err.try_into_render_error()?;
                     match err {
+                        RenderError::RelativePathError(_) => {
+                            Err(TemplateSyntaxError::with_source_code(
+                                err.into(),
+                                self.template.clone(),
+                            ))
+                        }
                         RenderError::VariableDoesNotExist { .. }
                         | RenderError::ArgumentDoesNotExist { .. } => {
                             Err(VariableDoesNotExist::with_source_code(
@@ -661,7 +673,8 @@ mod tests {
             let engine = Arc::new(Engine::empty());
             let template_string = std::fs::read_to_string(&filename).unwrap();
             let error = temp_env::with_var("NO_COLOR", Some("1"), || {
-                Template::new(py, &template_string, filename, engine).unwrap_err()
+                Template::new(py, &template_string, filename, "parse_error.txt", engine)
+                    .unwrap_err()
             });
 
             let error_string = format!("{error}");

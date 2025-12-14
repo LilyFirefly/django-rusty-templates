@@ -107,7 +107,7 @@ impl FileSystemLoader {
                     encoding.name()
                 ))));
             }
-            return Ok(Template::new(py, &contents, path, engine));
+            return Ok(Template::new(py, &contents, path, template_name, engine));
         }
         Err(LoaderError { tried })
     }
@@ -202,6 +202,7 @@ impl LocMemLoader {
                 py,
                 contents,
                 PathBuf::from(template_name),
+                template_name,
                 engine,
             ))
         } else {

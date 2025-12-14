@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from django.template.exceptions import TemplateDoesNotExist, TemplateSyntaxError
 from django.utils.translation import gettext_lazy
@@ -50,6 +52,11 @@ def test_include_with_extra_context_only_kwarg(assert_render):
     context = {"person": "Jacob"}
     expected = "Hi, Jacob!\n"
     assert_render(template=template, context=context, expected=expected)
+
+
+def test_relative(template_engine):
+    template = template_engine.get_template("nested/relative.txt")
+    assert template.render({}) == "Adjacent\n\nParent\n\n"
 
 
 def test_empty_include(assert_parse_error):
@@ -232,6 +239,102 @@ def test_with_broken_keyword_argument(assert_parse_error):
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
+
+
+def test_relative_from_string_template(assert_parse_error):
+    template = "{% include './adjacent.txt' %}"
+    django_message = "'NoneType' object has no attribute 'lstrip'"
+    rusty_message = """\
+  × The relative path ./adjacent.txt cannot be evaluated due to an unknown
+  │ template origin.
+   ╭────
+ 1 │ {% include './adjacent.txt' %}
+   ·             ───────┬──────
+   ·                    ╰── here
+   ╰────
+"""
+    assert_parse_error(
+        template=template,
+        django_message=django_message,
+        rusty_message=rusty_message,
+        exception=AttributeError,
+        rusty_exception=TemplateSyntaxError,
+    )
+
+
+def test_relative_from_string_template_variable(assert_render_error):
+    template = "{% include path %}"
+    path = "./adjacent.txt"
+    django_message = "'NoneType' object has no attribute 'lstrip'"
+    rusty_message = """\
+  × The relative path ./adjacent.txt cannot be evaluated due to an unknown
+  │ template origin.
+   ╭────
+ 1 │ {% include path %}
+   ·            ──┬─
+   ·              ╰── here
+   ╰────
+"""
+    assert_render_error(
+        template=template,
+        context={"path": path},
+        django_message=django_message,
+        rusty_message=rusty_message,
+        exception=AttributeError,
+        rusty_exception=TemplateSyntaxError,
+    )
+
+
+def test_relative_outside_file_hierarchy(template_engine):
+    template = "nested/outside_hierarchy.txt"
+    absolute_template = (Path("tests/templates") / template).absolute()
+
+    with pytest.raises(TemplateSyntaxError) as exc_info:
+        template_engine.get_template(template)
+
+    django_message = f"The relative path ''../../outside.txt'' points outside the file hierarchy that template '{template}' is in."
+    rusty_message = (
+        """\
+  × The relative path ../../outside.txt points outside the file hierarchy that
+  │ template 'nested/outside_hierarchy.txt' is in.
+   ╭─[%s:1:13]
+ 1 │ {%% include '../../outside.txt' %%}
+   ·             ────────┬────────
+   ·                     ╰── relative path
+   ╰────
+"""
+        % absolute_template
+    )
+
+    if template_engine.name == "django":
+        assert str(exc_info.value) == django_message
+    else:
+        assert str(exc_info.value) == rusty_message
+
+
+def test_relative_outside_file_hierarchy_variable(template_engine):
+    template_path = "nested/outside_hierarchy2.txt"
+    relative_path = "../../outside.txt"
+
+    template = template_engine.get_template(template_path)
+    with pytest.raises(TemplateSyntaxError) as exc_info:
+        template.render({"path": relative_path})
+
+    django_message = f"The relative path '{relative_path}' points outside the file hierarchy that template '{template_path}' is in."
+    rusty_message = """\
+  × The relative path ../../outside.txt points outside the file hierarchy that
+  │ template 'nested/outside_hierarchy2.txt' is in.
+   ╭────
+ 1 │ {% include path %}
+   ·            ──┬─
+   ·              ╰── relative path
+   ╰────
+"""
+
+    if template_engine.name == "django":
+        assert str(exc_info.value) == django_message
+    else:
+        assert str(exc_info.value) == rusty_message
 
 
 def test_include_missing_variable(assert_render_error):

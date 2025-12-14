@@ -11,12 +11,15 @@ use pyo3::types::{PyBool, PyDict, PyList, PyNone, PyString, PyTuple};
 
 use dtl_lexer::types::{At, TemplateString};
 
-use super::types::{AsBorrowedContent, Content, Context, PyContext};
+use super::types::{AsBorrowedContent, Content, ContentString, Context, PyContext};
 use super::{Evaluate, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
-use crate::parse::{For, IfCondition, Include, SimpleBlockTag, SimpleTag, Tag, TagElement, Url};
+use crate::parse::{
+    For, IfCondition, Include, IncludeTemplateName, SimpleBlockTag, SimpleTag, Tag, TagElement, Url,
+};
+use crate::path::construct_relative_path;
 use crate::template::django_rusty_templates::{
-    NoReverseMatch, TemplateDoesNotExist, get_template, select_template,
+    NoReverseMatch, Template, TemplateDoesNotExist, get_template, select_template,
 };
 use crate::utils::PyResultMethods;
 
@@ -773,11 +776,12 @@ impl Render for For {
 impl Include {
     fn template_at(&self) -> At {
         match &self.template_name {
-            TagElement::Text(text) => text.at,
-            TagElement::Variable(variable) => variable.at,
-            TagElement::Filter(filter) => filter.all_at,
-            TagElement::ForVariable(variable) => variable.at,
-            _ => unreachable!(),
+            IncludeTemplateName::Text(text) => text.at,
+            IncludeTemplateName::Variable(TagElement::Variable(variable)) => variable.at,
+            IncludeTemplateName::Variable(TagElement::Filter(filter)) => filter.all_at,
+            IncludeTemplateName::Variable(TagElement::ForVariable(variable)) => variable.at,
+            IncludeTemplateName::Relative(relative) => relative.at,
+            IncludeTemplateName::Variable(_) => unreachable!(),
         }
     }
 
@@ -796,38 +800,62 @@ impl Include {
             )
             .into()
     }
-}
 
-impl Render for Include {
-    fn render<'t>(
-        &self,
-        py: Python<'_>,
+    fn resolve_template_name<'t, 'py>(
+        &'t self,
+        py: Python<'py>,
         template: TemplateString<'t>,
         context: &mut Context,
-    ) -> RenderResult<'t> {
-        let Some(template_name) =
-            self.template_name
-                .resolve(py, template, context, ResolveFailures::Raise)?
-        else {
-            let error = TemplateDoesNotExist::new_err("No template names provided").annotate(
-                py,
-                self.template_at(),
-                "This variable is not in the context",
-                template,
-            );
-            return Err(error.into());
+    ) -> Result<Content<'t, 'py>, PyRenderError> {
+        let template_name = match &self.template_name {
+            IncludeTemplateName::Text(text) => {
+                text.resolve(py, template, context, ResolveFailures::Raise)?
+            }
+            IncludeTemplateName::Variable(tag_element) => {
+                tag_element.resolve(py, template, context, ResolveFailures::Raise)?
+            }
+            IncludeTemplateName::Relative(relative) => Some(Content::String(
+                ContentString::String(Cow::Borrowed(&relative.path)),
+            )),
         };
-        let include = match template_name {
+        match template_name {
+            Some(template_name) => Ok(template_name),
+            None => {
+                let error = TemplateDoesNotExist::new_err("No template names provided").annotate(
+                    py,
+                    self.template_at(),
+                    "This variable is not in the context",
+                    template,
+                );
+                Err(error.into())
+            }
+        }
+    }
+
+    fn get_template(
+        &self,
+        template_name: Content,
+        py: Python<'_>,
+        template: TemplateString<'_>,
+    ) -> Result<Template, PyRenderError> {
+        match template_name {
             Content::String(content) => get_template(self.engine.clone(), py, content.content()),
             Content::Py(content) => {
                 if content.is_instance_of::<PyString>() {
-                    get_template(
-                        self.engine.clone(),
-                        py,
-                        content
-                            .extract()
-                            .expect("PyString should be compatible with Cow<str>"),
+                    let template_path = content
+                        .extract()
+                        .expect("PyString should be compatible with Cow<str>");
+                    let template_path = match construct_relative_path(
+                        template_path,
+                        self.origin.as_deref(),
+                        self.template_at(),
                     )
+                    .map_err(RenderError::from)?
+                    {
+                        Some(path) => path,
+                        None => Cow::Borrowed(template_path),
+                    };
+                    get_template(self.engine.clone(), py, template_path)
                 } else {
                     let promise = PROMISE.import(py, "django.utils.functional", "Promise")?;
                     if content.is_instance(promise)? {
@@ -861,7 +889,23 @@ impl Render for Include {
             Content::Bool(true) => return Err(self.invalid_template_name(py, "True", template)),
             Content::Bool(false) => return Err(self.invalid_template_name(py, "False", template)),
         }
-        .map_err(|error| error.annotate(py, self.template_at(), "here", template))?;
+        .map_err(|error| {
+            error
+                .annotate(py, self.template_at(), "here", template)
+                .into()
+        })
+    }
+}
+
+impl Render for Include {
+    fn render<'t>(
+        &self,
+        py: Python<'_>,
+        template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> RenderResult<'t> {
+        let template_name = self.resolve_template_name(py, template, context)?;
+        let include = self.get_template(template_name, py, template)?;
         match self.only {
             false => {
                 for (index, (at, element)) in self.kwargs.iter().enumerate() {

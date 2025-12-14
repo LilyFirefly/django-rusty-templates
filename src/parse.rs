@@ -57,6 +57,7 @@ use dtl_lexer::variable::{
     Argument as ArgumentToken, VariableLexerError, VariableToken, lex_variable_or_filter,
 };
 
+use crate::path::{RelativePathError, construct_relative_path};
 use crate::template::django_rusty_templates::Engine;
 use crate::types::Argument;
 use crate::types::ArgumentType;
@@ -254,16 +255,19 @@ impl Parse<TagElement> for SimpleTagToken {
     }
 }
 
-impl Parse<TagElement> for IncludeTemplateToken {
-    fn parse(&self, parser: &Parser) -> Result<TagElement, ParseError> {
-        let content_at = self.content_at();
-        let (start, _len) = content_at;
-        let content = parser.template.content(content_at);
-        match self.token_type {
-            IncludeTemplateTokenType::Text => Ok(TagElement::Text(Text::new(content_at))),
-            IncludeTemplateTokenType::Variable => parser.parse_variable(content, content_at, start),
+fn parse_include_template_token(
+    token: IncludeTemplateToken,
+    parser: &Parser,
+) -> Result<IncludeTemplateName, ParseError> {
+    let content_at = token.content_at();
+    let (start, _len) = content_at;
+    let content = parser.template.content(content_at);
+    Ok(match token.token_type {
+        IncludeTemplateTokenType::Text => IncludeTemplateName::Text(Text::new(content_at)),
+        IncludeTemplateTokenType::Variable => {
+            IncludeTemplateName::Variable(parser.parse_variable(content, content_at, start)?)
         }
-    }
+    })
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -512,9 +516,23 @@ pub struct For {
     pub empty: Option<Vec<TokenTree>>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RelativePath {
+    pub at: At,
+    pub path: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum IncludeTemplateName {
+    Text(Text),
+    Variable(TagElement),
+    Relative(RelativePath),
+}
+
 #[derive(Clone, Debug)]
 pub struct Include {
-    pub template_name: TagElement,
+    pub template_name: IncludeTemplateName,
+    pub origin: Option<String>,
     pub engine: Arc<Engine>,
     pub only: bool,
     pub kwargs: Vec<(At, TagElement)>,
@@ -527,6 +545,7 @@ impl PartialEq for Include {
         //
         // We only use `eq` in tests, so this concession is acceptable here.
         self.only == other.only
+            && self.origin == other.origin
             && self.template_name.eq(&other.template_name)
             && self.kwargs == other.kwargs
             && Arc::ptr_eq(&self.engine, &other.engine)
@@ -754,6 +773,9 @@ pub enum ParseError {
         #[label("here")]
         at: SourceSpan,
     },
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    RelativePathError(#[from] RelativePathError),
     #[error(transparent)]
     #[diagnostic(transparent)]
     SimpleTagLexerError(#[from] SimpleTagLexerError),
@@ -1000,18 +1022,25 @@ pub struct Parser<'t, 'py> {
     template: TemplateString<'t>,
     lexer: Lexer<'t>,
     engine: Arc<Engine>,
+    origin: Option<&'t str>,
     external_tags: HashMap<String, TagContext<'py>>,
     external_filters: HashMap<String, Bound<'py, PyAny>>,
     forloop_depth: usize,
 }
 
 impl<'t, 'py> Parser<'t, 'py> {
-    pub fn new(py: Python<'py>, template: TemplateString<'t>, engine: Arc<Engine>) -> Self {
+    pub fn new(
+        py: Python<'py>,
+        template: TemplateString<'t>,
+        engine: Arc<Engine>,
+        origin: Option<&'t str>,
+    ) -> Self {
         Self {
             py,
             template,
             lexer: Lexer::new(template),
             engine,
+            origin,
             external_tags: HashMap::new(),
             external_filters: HashMap::new(),
             forloop_depth: 0,
@@ -1029,6 +1058,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             template,
             lexer: Lexer::new(template),
             engine: Engine::empty().into(),
+            origin: None,
             external_tags: HashMap::new(),
             external_filters,
             forloop_depth: 0,
@@ -1659,7 +1689,20 @@ impl<'t, 'py> Parser<'t, 'py> {
         let Some(template_token) = lexer.lex_template()? else {
             return Err(ParseError::MissingArgument { at: at.into() });
         };
-        let template_name = template_token.parse(self)?;
+        let template_name = match parse_include_template_token(template_token, self)? {
+            IncludeTemplateName::Text(Text { at }) => {
+                let template_path = self.template.content(at);
+                match construct_relative_path(template_path, self.origin, at)? {
+                    Some(path) => IncludeTemplateName::Relative(RelativePath {
+                        path: path.into_owned(),
+                        at,
+                    }),
+                    None => IncludeTemplateName::Text(Text { at }),
+                }
+            }
+            template_name => template_name,
+        };
+
         let mut only = false;
         let mut kwargs = Vec::new();
         match lexer.lex_with()? {
@@ -1682,6 +1725,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         }
         let include = Include {
             template_name,
+            origin: self.origin.map(ToString::to_string),
             engine: self.engine.clone(),
             kwargs,
             only,
@@ -1830,7 +1874,7 @@ mod tests {
 
         Python::attach(|py| {
             let template = "";
-            let mut parser = Parser::new(py, template.into(), Engine::empty().into());
+            let mut parser = Parser::new(py, template.into(), Engine::empty().into(), None);
             let nodes = parser.parse().unwrap();
             assert_eq!(nodes, vec![]);
         });
@@ -1843,7 +1887,7 @@ mod tests {
         Python::attach(|py| {
             let template = "Some text";
             let template_string = TemplateString(template);
-            let mut parser = Parser::new(py, template_string, Engine::empty().into());
+            let mut parser = Parser::new(py, template_string, Engine::empty().into(), None);
             let nodes = parser.parse().unwrap();
             let text = Text::new((0, template.len()));
             assert_eq!(nodes, vec![TokenTree::Text(text)]);
@@ -1857,7 +1901,7 @@ mod tests {
 
         Python::attach(|py| {
             let template = "{# A comment #}";
-            let mut parser = Parser::new(py, template.into(), Engine::empty().into());
+            let mut parser = Parser::new(py, template.into(), Engine::empty().into(), None);
             let nodes = parser.parse().unwrap();
             assert_eq!(nodes, vec![]);
         });
@@ -1869,7 +1913,7 @@ mod tests {
 
         Python::attach(|py| {
             let template = "{{ }}";
-            let mut parser = Parser::new(py, template.into(), Engine::empty().into());
+            let mut parser = Parser::new(py, template.into(), Engine::empty().into(), None);
             let error = parser.parse().unwrap_err().unwrap_parse_error();
             assert_eq!(error, ParseError::EmptyVariable { at: (0, 5).into() });
         });
@@ -1881,7 +1925,7 @@ mod tests {
 
         Python::attach(|py| {
             let template = TemplateString("{{ foo }}");
-            let mut parser = Parser::new(py, template, Engine::empty().into());
+            let mut parser = Parser::new(py, template, Engine::empty().into(), None);
             let nodes = parser.parse().unwrap();
             let variable = Variable { at: (3, 3) };
             assert_eq!(nodes, vec![TokenTree::Variable(variable)]);
@@ -1898,7 +1942,7 @@ mod tests {
 
         Python::attach(|py| {
             let template = TemplateString("{{ foo.bar.baz }}");
-            let mut parser = Parser::new(py, template, Engine::empty().into());
+            let mut parser = Parser::new(py, template, Engine::empty().into(), None);
             let nodes = parser.parse().unwrap();
             let variable = Variable { at: (3, 11) };
             assert_eq!(nodes, vec![TokenTree::Variable(variable)]);
@@ -1947,7 +1991,7 @@ mod tests {
 
         Python::attach(|py| {
             let template = TemplateString("{{ foo|bar }}");
-            let mut parser = Parser::new(py, template, Engine::empty().into());
+            let mut parser = Parser::new(py, template, Engine::empty().into(), None);
             let error = parser.parse().unwrap_err().unwrap_parse_error();
             assert_eq!(
                 error,
@@ -2193,7 +2237,7 @@ mod tests {
 
         Python::attach(|py| {
             let template = "{{ foo|bar:9.9.9 }}";
-            let mut parser = Parser::new(py, template.into(), Engine::empty().into());
+            let mut parser = Parser::new(py, template.into(), Engine::empty().into(), None);
             let error = parser.parse().unwrap_err().unwrap_parse_error();
             assert_eq!(error, ParseError::InvalidNumber { at: (11, 5).into() });
         });
@@ -2229,7 +2273,7 @@ mod tests {
 
         Python::attach(|py| {
             let template = TemplateString("{{ foo|default:baz }}");
-            let mut parser = Parser::new(py, template, Engine::empty().into());
+            let mut parser = Parser::new(py, template, Engine::empty().into(), None);
             let nodes = parser.parse().unwrap();
 
             let foo = TagElement::Variable(Variable { at: (3, 3) });
@@ -2260,7 +2304,7 @@ mod tests {
 
         Python::attach(|py| {
             let template = "{{ foo|default|baz }}";
-            let mut parser = Parser::new(py, template.into(), Engine::empty().into());
+            let mut parser = Parser::new(py, template.into(), Engine::empty().into(), None);
             let error = parser.parse().unwrap_err().unwrap_parse_error();
             assert_eq!(error, ParseError::MissingArgument { at: (7, 7).into() });
         });
@@ -2272,7 +2316,7 @@ mod tests {
 
         Python::attach(|py| {
             let template = "{{ foo|lower:baz }}";
-            let mut parser = Parser::new(py, template.into(), Engine::empty().into());
+            let mut parser = Parser::new(py, template.into(), Engine::empty().into(), None);
             let error = parser.parse().unwrap_err().unwrap_parse_error();
             assert_eq!(
                 error,
@@ -2290,7 +2334,7 @@ mod tests {
 
         Python::attach(|py| {
             let template = "{{ _foo }}";
-            let mut parser = Parser::new(py, template.into(), Engine::empty().into());
+            let mut parser = Parser::new(py, template.into(), Engine::empty().into(), None);
             let error = parser.parse().unwrap_err().unwrap_parse_error();
             assert_eq!(
                 error,
@@ -2307,7 +2351,7 @@ mod tests {
 
         Python::attach(|py| {
             let template = "{%  %}";
-            let mut parser = Parser::new(py, template.into(), Engine::empty().into());
+            let mut parser = Parser::new(py, template.into(), Engine::empty().into(), None);
             let error = parser.parse().unwrap_err().unwrap_parse_error();
             assert_eq!(error, ParseError::EmptyTag { at: (0, 6).into() });
         });
@@ -2319,7 +2363,7 @@ mod tests {
 
         Python::attach(|py| {
             let template = "{% url'foo' %}";
-            let mut parser = Parser::new(py, template.into(), Engine::empty().into());
+            let mut parser = Parser::new(py, template.into(), Engine::empty().into(), None);
             let error = parser.parse().unwrap_err().unwrap_parse_error();
             assert_eq!(
                 error,
@@ -2334,7 +2378,7 @@ mod tests {
 
         Python::attach(|py| {
             let template = "{% url 'some-url-name' %}";
-            let mut parser = Parser::new(py, template.into(), Engine::empty().into());
+            let mut parser = Parser::new(py, template.into(), Engine::empty().into(), None);
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
@@ -2354,7 +2398,7 @@ mod tests {
 
         Python::attach(|py| {
             let template = "{% url _('some-url-name') %}";
-            let mut parser = Parser::new(py, template.into(), Engine::empty().into());
+            let mut parser = Parser::new(py, template.into(), Engine::empty().into(), None);
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
@@ -2374,7 +2418,7 @@ mod tests {
 
         Python::attach(|py| {
             let template = "{% url some_view_name %}";
-            let mut parser = Parser::new(py, template.into(), Engine::empty().into());
+            let mut parser = Parser::new(py, template.into(), Engine::empty().into(), None);
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
@@ -2394,7 +2438,7 @@ mod tests {
 
         Python::attach(|py| {
             let template = "{% url some_view_name|default:'home' %}";
-            let mut parser = Parser::new(py, template.into(), Engine::empty().into());
+            let mut parser = Parser::new(py, template.into(), Engine::empty().into(), None);
             let nodes = parser.parse().unwrap();
 
             let some_view_name = TagElement::Variable(Variable { at: (7, 14) });
@@ -2428,7 +2472,7 @@ mod tests {
 
         Python::attach(|py| {
             let template = "{% url %}";
-            let mut parser = Parser::new(py, template.into(), Engine::empty().into());
+            let mut parser = Parser::new(py, template.into(), Engine::empty().into(), None);
             let error = parser.parse().unwrap_err().unwrap_parse_error();
             assert_eq!(error, ParseError::UrlTagNoArguments { at: (0, 9).into() });
         });
@@ -2440,7 +2484,7 @@ mod tests {
 
         Python::attach(|py| {
             let template = "{% url 64 %}";
-            let mut parser = Parser::new(py, template.into(), Engine::empty().into());
+            let mut parser = Parser::new(py, template.into(), Engine::empty().into(), None);
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
@@ -2460,7 +2504,7 @@ mod tests {
 
         Python::attach(|py| {
             let template = "{% url some_view_name 'foo' bar|default:'home' 64 5.7 _(\"spam\") %}";
-            let mut parser = Parser::new(py, template.into(), Engine::empty().into());
+            let mut parser = Parser::new(py, template.into(), Engine::empty().into(), None);
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
@@ -2497,7 +2541,7 @@ mod tests {
 
         Python::attach(|py| {
             let template = "{% url some_view_name foo='foo' extra=-64 %}";
-            let mut parser = Parser::new(py, template.into(), Engine::empty().into());
+            let mut parser = Parser::new(py, template.into(), Engine::empty().into(), None);
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
@@ -2520,7 +2564,7 @@ mod tests {
 
         Python::attach(|py| {
             let template = "{% url some_view_name 'foo' as some_url %}";
-            let mut parser = Parser::new(py, template.into(), Engine::empty().into());
+            let mut parser = Parser::new(py, template.into(), Engine::empty().into(), None);
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
@@ -2540,7 +2584,7 @@ mod tests {
 
         Python::attach(|py| {
             let template = "{% url some_view_name foo='foo' as some_url %}";
-            let mut parser = Parser::new(py, template.into(), Engine::empty().into());
+            let mut parser = Parser::new(py, template.into(), Engine::empty().into(), None);
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
@@ -2560,7 +2604,7 @@ mod tests {
 
         Python::attach(|py| {
             let template = "{% url some_view_name 'foo' arg arg2 %}";
-            let mut parser = Parser::new(py, template.into(), Engine::empty().into());
+            let mut parser = Parser::new(py, template.into(), Engine::empty().into(), None);
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
@@ -2584,7 +2628,7 @@ mod tests {
 
         Python::attach(|py| {
             let template = "{% url some_view_name 'foo' arg name=arg2 %}";
-            let mut parser = Parser::new(py, template.into(), Engine::empty().into());
+            let mut parser = Parser::new(py, template.into(), Engine::empty().into(), None);
             let error = parser.parse().unwrap_err().unwrap_parse_error();
             assert_eq!(
                 error,
@@ -2601,7 +2645,7 @@ mod tests {
 
         Python::attach(|py| {
             let template = "{% url foo 9.9.9 %}";
-            let mut parser = Parser::new(py, template.into(), Engine::empty().into());
+            let mut parser = Parser::new(py, template.into(), Engine::empty().into(), None);
             let error = parser.parse().unwrap_err().unwrap_parse_error();
             assert_eq!(error, ParseError::InvalidNumber { at: (11, 5).into() });
         });
@@ -2699,16 +2743,18 @@ mod tests {
 
         Python::attach(|_| {
             let engine: Arc<Engine> = Engine::empty().into();
-            let template_name = TagElement::Float(1.1);
+            let template_name = IncludeTemplateName::Variable(TagElement::Float(1.1));
             assert_eq!(
                 Include {
                     template_name: template_name.clone(),
+                    origin: None,
                     only: false,
                     kwargs: Vec::new(),
                     engine: engine.clone(),
                 },
                 Include {
                     template_name,
+                    origin: None,
                     only: false,
                     kwargs: Vec::new(),
                     engine,

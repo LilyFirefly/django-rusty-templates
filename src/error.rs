@@ -7,6 +7,7 @@ use pyo3::exceptions::PyKeyError;
 use pyo3::prelude::*;
 use thiserror::Error;
 
+use crate::path::RelativePathError;
 use dtl_lexer::types::{At, TemplateString};
 
 #[derive(Error, Debug)]
@@ -28,6 +29,9 @@ impl PyRenderError {
 
 #[derive(Error, Debug, Diagnostic, PartialEq, Eq)]
 pub enum RenderError {
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    RelativePathError(#[from] RelativePathError),
     #[error("Couldn't convert argument ({argument}) to integer")]
     InvalidArgumentInteger {
         argument: String,
