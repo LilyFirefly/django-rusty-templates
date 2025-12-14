@@ -54,6 +54,13 @@ def test_include_with_extra_context_only_kwarg(assert_render):
     assert_render(template=template, context=context, expected=expected)
 
 
+def test_include_with_extra_context_only_before_with(assert_render):
+    template = "{% include 'name_snippet.txt' only with greeting='Hi' %}"
+    context = {"person": "Jacob"}
+    expected = "Hi, friend!\n"
+    assert_render(template=template, context=context, expected=expected)
+
+
 def test_relative(template_engine):
     template = template_engine.get_template("nested/relative.txt")
     assert template.render({}) == "Adjacent\n\nParent\n\n"
@@ -170,6 +177,42 @@ def test_with_only(assert_parse_error):
    ·                        ──┬─
    ·                          ╰── after this
    ╰────
+"""
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_only_only(assert_parse_error):
+    template = "{% include 'basic.txt' only only %}"
+    django_message = "The 'only' option was specified more than once."
+    rusty_message = """\
+  × The 'only' option was specified more than once.
+   ╭────
+ 1 │ {% include 'basic.txt' only only %}
+   ·                        ──┬─ ──┬─
+   ·                          │    ╰── second here
+   ·                          ╰── first here
+   ╰────
+  help: Remove the second 'only'
+"""
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_only_with_only(assert_parse_error):
+    template = "{% include 'basic.txt' only with name='Lily' only %}"
+    django_message = "The 'only' option was specified more than once."
+    rusty_message = """\
+  × The 'only' option was specified more than once.
+   ╭────
+ 1 │ {% include 'basic.txt' only with name='Lily' only %}
+   ·                        ──┬─                  ──┬─
+   ·                          │                     ╰── second here
+   ·                          ╰── first here
+   ╰────
+  help: Remove the second 'only'
 """
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message

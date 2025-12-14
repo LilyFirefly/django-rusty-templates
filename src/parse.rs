@@ -782,6 +782,14 @@ pub enum ParseError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     VariableError(#[from] VariableLexerError),
+    #[error("The 'only' option was specified more than once.")]
+    #[diagnostic(help("Remove the second 'only'"))]
+    IncludeOnlyTwice {
+        #[label("first here")]
+        first_at: SourceSpan,
+        #[label("second here")]
+        second_at: SourceSpan,
+    },
     #[error("Invalid filter: '{filter}'")]
     InvalidFilter {
         filter: String,
@@ -1703,24 +1711,46 @@ impl<'t, 'py> Parser<'t, 'py> {
             template_name => template_name,
         };
 
-        let mut only = false;
+        let mut only = None;
+        let mut with = None;
         let mut kwargs = Vec::new();
-        match lexer.lex_with()? {
+        match lexer.lex_with_or_only()? {
             IncludeWithToken::None => {}
-            IncludeWithToken::Only => only = true,
-            IncludeWithToken::With(at) => {
-                for token in lexer {
-                    match token? {
-                        IncludeToken::Only => only = true,
-                        IncludeToken::Kwarg { kwarg_at, token } => {
-                            let element = token.parse(self)?;
-                            kwargs.push((kwarg_at, element));
+            IncludeWithToken::Only(at) => {
+                match lexer.lex_with_or_only()? {
+                    IncludeWithToken::None => {}
+                    IncludeWithToken::Only(second_at) => {
+                        return Err(ParseError::IncludeOnlyTwice {
+                            first_at: at.into(),
+                            second_at: second_at.into(),
+                        });
+                    }
+                    IncludeWithToken::With(at) => with = Some(at),
+                }
+                only = Some(at);
+            }
+            IncludeWithToken::With(at) => with = Some(at),
+        }
+        if let Some(with_at) = with {
+            for token in lexer {
+                match token? {
+                    IncludeToken::Only(at) => match only {
+                        None => only = Some(at),
+                        Some(first_at) => {
+                            return Err(ParseError::IncludeOnlyTwice {
+                                first_at: first_at.into(),
+                                second_at: at.into(),
+                            });
                         }
+                    },
+                    IncludeToken::Kwarg { kwarg_at, token } => {
+                        let element = token.parse(self)?;
+                        kwargs.push((kwarg_at, element));
                     }
                 }
-                if kwargs.is_empty() {
-                    return Err(ParseError::MissingKeywordArgument { at: at.into() });
-                }
+            }
+            if kwargs.is_empty() {
+                return Err(ParseError::MissingKeywordArgument { at: with_at.into() });
             }
         }
         let include = Include {
@@ -1728,7 +1758,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             origin: self.origin.map(ToString::to_string),
             engine: self.engine.clone(),
             kwargs,
-            only,
+            only: only.is_some(),
         };
         Ok(TokenTree::Tag(Tag::Include(include)))
     }

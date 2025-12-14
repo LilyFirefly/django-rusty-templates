@@ -33,11 +33,11 @@ impl IncludeTemplateToken {
 pub enum IncludeWithToken {
     None,
     With(At),
-    Only,
+    Only(At),
 }
 
 pub enum IncludeToken {
-    Only,
+    Only(At),
     Kwarg { kwarg_at: At, token: SimpleTagToken },
 }
 
@@ -128,9 +128,9 @@ impl<'t> IncludeLexer<'t> {
         }
     }
 
-    fn lex_only(&mut self) -> Result<IncludeToken, IncludeLexerError> {
+    fn lex_only(&mut self, at: At) -> Result<IncludeToken, IncludeLexerError> {
         match self.lexer.next() {
-            None => Ok(IncludeToken::Only),
+            None => Ok(IncludeToken::Only(at)),
             Some(token) => Err(IncludeLexerError::UnexpectedArgument {
                 at: token?.all_at().into(),
                 help: "Try moving the argument before the 'only' option",
@@ -138,7 +138,7 @@ impl<'t> IncludeLexer<'t> {
         }
     }
 
-    pub fn lex_with(&mut self) -> Result<IncludeWithToken, IncludeLexerError> {
+    pub fn lex_with_or_only(&mut self) -> Result<IncludeWithToken, IncludeLexerError> {
         let token = match self.next_kwarg() {
             None => return Ok(IncludeWithToken::None),
             Some(result) => result?,
@@ -151,7 +151,7 @@ impl<'t> IncludeLexer<'t> {
                 kwarg: None,
             } => match self.template.content(at) {
                 "with" => Ok(IncludeWithToken::With(at)),
-                "only" => Ok(IncludeWithToken::Only),
+                "only" => Ok(IncludeWithToken::Only(at)),
                 _ => Err(IncludeLexerError::UnexpectedArgument {
                     at: at.into(),
                     help: HELP,
@@ -181,7 +181,7 @@ impl<'t> Iterator for IncludeLexer<'t> {
                 if token.token_type == SimpleTagTokenType::Variable
                     && self.template.content(token.at) == "only"
                 {
-                    self.lex_only()
+                    self.lex_only(token.at)
                 } else {
                     Err(IncludeLexerError::UnexpectedPositionalArgument {
                         at: token.at.into(),
