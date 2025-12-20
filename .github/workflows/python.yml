@@ -59,10 +59,11 @@ jobs:
     - name: Install uv
       uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7.1.6
 
+    - name: Install cargo-binstall
+      uses: cargo-bins/cargo-binstall@ea60fcf749c6a52a729e0eaabb5eb33391d44823  # v1.16.4
+
     - name: Install cargo-llvm-cov
-      uses: taiki-e/install-action@60581cd7025e0e855cebd745379013e286d9c787 # v2.64.2
-      with:
-        tool: cargo-llvm-cov
+      run: cargo binstall cargo-llvm-cov
 
     - name: Install Django Rusty Templates
       run: |
