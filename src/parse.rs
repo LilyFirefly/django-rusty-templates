@@ -1,3 +1,7 @@
+// Silence lint warnings for Miette Diagnostic
+// https://github.com/zkat/miette/issues/458
+// https://github.com/rust-lang/rust/issues/147648
+#![expect(unused_assignments)]
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::iter::Peekable;
