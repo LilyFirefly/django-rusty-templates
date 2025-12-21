@@ -11,6 +11,7 @@ pub enum FilterType {
     AddSlashes(AddSlashesFilter),
     Capfirst(CapfirstFilter),
     Center(CenterFilter),
+    Cut(CutFilter),
     Default(DefaultFilter),
     DefaultIfNone(DefaultIfNoneFilter),
     Escape(EscapeFilter),
@@ -50,6 +51,17 @@ pub struct CenterFilter {
 }
 
 impl CenterFilter {
+    pub fn new(argument: Argument) -> Self {
+        Self { argument }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct CutFilter {
+    pub argument: Argument,
+}
+
+impl CutFilter {
     pub fn new(argument: Argument) -> Self {
         Self { argument }
     }
