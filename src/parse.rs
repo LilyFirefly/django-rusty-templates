@@ -47,8 +47,7 @@ use dtl_lexer::load::{LoadLexer, LoadToken};
 use dtl_lexer::tag::{TagLexerError, TagParts, lex_tag};
 use dtl_lexer::types::{At, TemplateString};
 use dtl_lexer::variable::{
-    Argument as ArgumentToken, ArgumentType as ArgumentTokenType, VariableLexerError,
-    VariableToken, lex_variable_or_filter,
+    Argument as ArgumentToken, VariableLexerError, VariableToken, lex_variable_or_filter,
 };
 
 use crate::template::django_rusty_templates::Engine;
@@ -64,26 +63,32 @@ use dtl_lexer::types::Variable;
 trait Parse<R> {
     fn parse(&self, parser: &Parser) -> Result<R, ParseError>;
 }
+
 impl Parse<Argument> for ArgumentToken {
     fn parse(&self, parser: &Parser) -> Result<Argument, ParseError> {
-        Ok(Argument {
-            at: self.at,
-            argument_type: match self.argument_type {
-                ArgumentTokenType::Variable => parser.parse_for_variable(self.at).into(),
-                ArgumentTokenType::Text => ArgumentType::Text(Text::new(self.content_at())),
-                ArgumentTokenType::Numeric => {
-                    match parser.template.content(self.at).parse::<BigInt>() {
-                        Ok(n) => ArgumentType::Int(n),
-                        Err(_) => match parser.template.content(self.at).parse::<f64>() {
-                            Ok(f) => ArgumentType::Float(f),
-                            Err(_) => return Err(ParseError::InvalidNumber { at: self.at.into() }),
-                        },
-                    }
-                }
-                ArgumentTokenType::TranslatedText => {
-                    ArgumentType::TranslatedText(TranslatedText::new(self.content_at()))
-                }
+        Ok(match *self {
+            Self::Variable(at) => Argument {
+                at,
+                argument_type: parser.parse_for_variable(at).into(),
             },
+            Self::Text(at) => Argument {
+                at,
+                argument_type: ArgumentType::Text(Text::new(self.content_at())),
+            },
+            Self::TranslatedText(at) => Argument {
+                at,
+                argument_type: ArgumentType::TranslatedText(TranslatedText::new(self.content_at())),
+            },
+            Self::Numeric(at) => {
+                let argument_type = match parser.template.content(at).parse::<BigInt>() {
+                    Ok(n) => ArgumentType::Int(n),
+                    Err(_) => match parser.template.content(at).parse::<f64>() {
+                        Ok(f) => ArgumentType::Float(f),
+                        Err(_) => return Err(ParseError::InvalidNumber { at: at.into() }),
+                    },
+                };
+                Argument { at, argument_type }
+            }
         })
     }
 }
