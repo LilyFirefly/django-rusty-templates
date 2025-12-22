@@ -80,9 +80,10 @@ impl Parse<Argument> for ArgumentToken {
                 argument_type: ArgumentType::TranslatedText(TranslatedText::new(self.content_at())),
             },
             Self::Numeric(at) => {
-                let argument_type = match parser.template.content(at).parse::<BigInt>() {
+                let content = parser.template.content(at);
+                let argument_type = match content.parse::<BigInt>() {
                     Ok(n) => ArgumentType::Int(n),
-                    Err(_) => match parser.template.content(at).parse::<f64>() {
+                    Err(_) => match content.parse::<f64>() {
                         Ok(f) => ArgumentType::Float(f),
                         Err(_) => return Err(ParseError::InvalidNumber { at: at.into() }),
                     },
