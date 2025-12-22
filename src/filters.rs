@@ -17,6 +17,7 @@ pub enum FilterType {
     Escapejs(EscapejsFilter),
     External(ExternalFilter),
     Lower(LowerFilter),
+    Length(LengthFilter),
     Safe(SafeFilter),
     Slugify(SlugifyFilter),
     Title(TitleFilter),
@@ -110,6 +111,9 @@ impl PartialEq for ExternalFilter {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LowerFilter;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LengthFilter;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SafeFilter;
