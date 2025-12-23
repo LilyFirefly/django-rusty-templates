@@ -72,6 +72,12 @@ def test_relative_from_context(template_engine):
     assert template.render(context) == "Adjacent\n\nParent\n\n"
 
 
+def test_relative_top_level(template_engine):
+    template = template_engine.get_template("outside_hierarchy.txt")
+    context = {"path": "./basic.txt", "user": "Lily"}
+    assert template.render(context) == "Hello Lily!\n\n"
+
+
 def test_empty_include(assert_parse_error):
     template = "{% include %}"
     django_message = "'include' tag takes at least one argument: the name of the template to be included."
@@ -373,6 +379,31 @@ def test_relative_outside_file_hierarchy_variable(template_engine):
     rusty_message = """\
   × The relative path '../../outside.txt' points outside the file hierarchy
   │ that template 'nested/outside_hierarchy2.txt' is in.
+   ╭────
+ 1 │ {% include path %}
+   ·            ──┬─
+   ·              ╰── relative path
+   ╰────
+"""
+
+    if template_engine.name == "django":
+        assert str(exc_info.value) == django_message
+    else:
+        assert str(exc_info.value) == rusty_message
+
+
+def test_relative_outside_top_level(template_engine):
+    template_path = "outside_hierarchy.txt"
+    relative_path = "../outside.txt"
+
+    template = template_engine.get_template(template_path)
+    with pytest.raises(TemplateSyntaxError) as exc_info:
+        template.render({"path": relative_path})
+
+    django_message = f"The relative path '{relative_path}' points outside the file hierarchy that template '{template_path}' is in."
+    rusty_message = """\
+  × The relative path '../outside.txt' points outside the file hierarchy that
+  │ template 'outside_hierarchy.txt' is in.
    ╭────
  1 │ {% include path %}
    ·            ──┬─
