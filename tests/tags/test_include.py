@@ -872,3 +872,43 @@ def test_include_translated_variable(template_engine):
         # PermissionError on Windows
         with pytest.raises((IsADirectoryError, PermissionError)):
             template.render(context)
+
+
+def test_include_with_broken_callable(assert_render_error):
+    template = "{% include 'basic.txt' with user=get_user %}"
+    django_message = "division by zero"
+    rusty_message = """\
+  × division by zero
+   ╭────
+ 1 │ {% include 'basic.txt' with user=get_user %}
+   ·                                  ────┬───
+   ·                                      ╰── here
+   ╰────
+"""
+    assert_render_error(
+        template=template,
+        context={"get_user": lambda: 1 / 0},
+        django_message=django_message,
+        rusty_message=rusty_message,
+        exception=ZeroDivisionError,
+    )
+
+
+def test_include_with_broken_callable_only(assert_render_error):
+    template = "{% include 'basic.txt' with user=nested.get_user only %}"
+    django_message = "division by zero"
+    rusty_message = """\
+  × division by zero
+   ╭────
+ 1 │ {% include 'basic.txt' with user=nested.get_user only %}
+   ·                                  ───────┬───────
+   ·                                         ╰── here
+   ╰────
+"""
+    assert_render_error(
+        template=template,
+        context={"nested": {"get_user": lambda: 1 / 0}},
+        django_message=django_message,
+        rusty_message=rusty_message,
+        exception=ZeroDivisionError,
+    )

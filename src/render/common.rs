@@ -9,7 +9,7 @@ use dtl_lexer::types::TemplateString;
 
 use super::types::{AsBorrowedContent, Content, ContentString, Context};
 use super::{Evaluate, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
-use crate::error::RenderError;
+use crate::error::{AnnotatePyErr, RenderError};
 use crate::parse::{TagElement, TokenTree};
 use crate::types::Argument;
 use crate::types::ArgumentType;
@@ -61,7 +61,9 @@ impl Resolve for Variable {
         let Some(variable) = context.get(first) else {
             return Ok(None);
         };
-        let Some(mut variable) = resolve_callable(variable.bind(py).clone())? else {
+        let Some(mut variable) = resolve_callable(variable.bind(py).clone())
+            .map_err(|err| err.annotate(py, self.at, "here", template))?
+        else {
             return Ok(None);
         };
 
@@ -90,7 +92,9 @@ impl Resolve for Variable {
                     }
                 },
             };
-            variable = match resolve_callable(variable)? {
+            variable = match resolve_callable(variable)
+                .map_err(|err| err.annotate(py, self.at, "here", template))?
+            {
                 Some(variable) => variable,
                 None => return Ok(None),
             };
