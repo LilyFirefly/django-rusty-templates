@@ -944,22 +944,31 @@ impl Render for Include {
         let include = self.get_template(template_name, py, template)?;
         match self.only {
             false => {
-                for (index, (at, element)) in self.kwargs.iter().enumerate() {
-                    let key = template.content(*at).to_string();
+                let mut names = Vec::new();
+                let mut values = Vec::new();
+                for (at, element) in &self.kwargs {
+                    let key = template.content(*at);
+                    names.push(key);
+
                     match element.resolve(
                         py,
                         template,
                         context,
                         ResolveFailures::IgnoreVariableDoesNotExist,
                     )? {
-                        Some(value) => context.push_variable(key, value.to_py(py), index),
-                        None => context.push_variable(key, PyString::new(py, "").into_any(), index),
+                        Some(value) => values.push(value.to_py(py)),
+                        None => values.push(PyString::new(py, "").into_any()),
                     }
+                }
+                for (key, value) in names.iter().zip(values) {
+                    context.append(key.to_string(), value);
                 }
                 let rendered = include
                     .render(py, context, self.template_at(), template)
                     .map(|content| Cow::Owned(content.into_owned()));
-                context.pop_variables();
+                for key in names {
+                    context.pop_variable(key);
+                }
                 rendered
             }
             true => {
