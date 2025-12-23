@@ -11,32 +11,26 @@ use crate::types::{At, TemplateString};
 use crate::{END_TRANSLATE_LEN, QUOTE_LEN, START_TRANSLATE_LEN, TemplateContent};
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum ArgumentType {
-    Numeric,
-    Text,
-    TranslatedText,
-    Variable,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct Argument {
-    pub argument_type: ArgumentType,
-    pub at: At,
+pub enum Argument {
+    Numeric(At),
+    Text(At),
+    TranslatedText(At),
+    Variable(At),
 }
 
 impl Argument {
     pub fn content_at(&self) -> At {
-        match self.argument_type {
-            ArgumentType::Variable => self.at,
-            ArgumentType::Numeric => self.at,
-            ArgumentType::Text => {
-                let (start, len) = self.at;
+        match self {
+            Self::Variable(at) => *at,
+            Self::Numeric(at) => *at,
+            Self::Text(at) => {
+                let (start, len) = at;
                 let start = start + QUOTE_LEN;
                 let len = len - 2 * QUOTE_LEN;
                 (start, len)
             }
-            ArgumentType::TranslatedText => {
-                let (start, len) = self.at;
+            Self::TranslatedText(at) => {
+                let (start, len) = at;
                 let start = start + START_TRANSLATE_LEN + QUOTE_LEN;
                 let len = len - START_TRANSLATE_LEN - END_TRANSLATE_LEN - 2 * QUOTE_LEN;
                 (start, len)
@@ -165,10 +159,7 @@ impl<'t> FilterLexer<'t> {
             Ok((at, byte, rest)) => {
                 self.rest = rest;
                 self.byte = byte;
-                Ok(Argument {
-                    argument_type: ArgumentType::Text,
-                    at,
-                })
+                Ok(Argument::Text(at))
             }
             Err(e) => {
                 self.rest = "";
@@ -185,10 +176,7 @@ impl<'t> FilterLexer<'t> {
             Ok((at, byte, rest)) => {
                 self.rest = rest;
                 self.byte = byte;
-                Ok(Argument {
-                    argument_type: ArgumentType::TranslatedText,
-                    at,
-                })
+                Ok(Argument::TranslatedText(at))
             }
             Err(e) => {
                 self.rest = "";
@@ -201,10 +189,7 @@ impl<'t> FilterLexer<'t> {
         let (at, byte, rest) = lex_numeric(self.byte, self.rest);
         self.rest = rest;
         self.byte = byte;
-        Argument {
-            argument_type: ArgumentType::Numeric,
-            at,
-        }
+        Argument::Numeric(at)
     }
 
     fn lex_variable_argument(&mut self) -> Result<Argument, VariableLexerError> {
@@ -212,10 +197,7 @@ impl<'t> FilterLexer<'t> {
             Ok((at, byte, rest)) => {
                 self.byte = byte;
                 self.rest = rest;
-                Ok(Argument {
-                    argument_type: ArgumentType::Variable,
-                    at,
-                })
+                Ok(Argument::Variable(at))
             }
             Err(e) => {
                 self.rest = "";
@@ -550,10 +532,7 @@ mod tests {
         assert_eq!(
             tokens,
             vec![Ok(FilterToken {
-                argument: Some(Argument {
-                    argument_type: ArgumentType::Text,
-                    at: (19, 5),
-                }),
+                argument: Some(Argument::Text((19, 5))),
                 at: (11, 7),
             })]
         );
@@ -571,10 +550,7 @@ mod tests {
         assert_eq!(
             tokens,
             vec![Ok(FilterToken {
-                argument: Some(Argument {
-                    argument_type: ArgumentType::Text,
-                    at: (19, 5),
-                }),
+                argument: Some(Argument::Text((19, 5))),
                 at: (11, 7),
             })]
         );
@@ -592,10 +568,7 @@ mod tests {
         assert_eq!(
             tokens,
             vec![Ok(FilterToken {
-                argument: Some(Argument {
-                    argument_type: ArgumentType::Text,
-                    at: (19, 7),
-                }),
+                argument: Some(Argument::Text((19, 7))),
                 at: (11, 7),
             })]
         );
@@ -616,10 +589,7 @@ mod tests {
         assert_eq!(
             tokens,
             vec![Ok(FilterToken {
-                argument: Some(Argument {
-                    argument_type: ArgumentType::TranslatedText,
-                    at: (19, 8),
-                }),
+                argument: Some(Argument::TranslatedText((19, 8))),
                 at: (11, 7),
             })]
         );
@@ -637,10 +607,7 @@ mod tests {
         assert_eq!(
             tokens,
             vec![Ok(FilterToken {
-                argument: Some(Argument {
-                    argument_type: ArgumentType::TranslatedText,
-                    at: (19, 8),
-                }),
+                argument: Some(Argument::TranslatedText((19, 8))),
                 at: (11, 7),
             })]
         );
@@ -658,10 +625,7 @@ mod tests {
         assert_eq!(
             tokens,
             vec![Ok(FilterToken {
-                argument: Some(Argument {
-                    argument_type: ArgumentType::Numeric,
-                    at: (19, 3),
-                }),
+                argument: Some(Argument::Numeric((19, 3))),
                 at: (11, 7),
             })]
         );
@@ -679,10 +643,7 @@ mod tests {
         assert_eq!(
             tokens,
             vec![Ok(FilterToken {
-                argument: Some(Argument {
-                    argument_type: ArgumentType::Numeric,
-                    at: (19, 4),
-                }),
+                argument: Some(Argument::Numeric((19, 4))),
                 at: (11, 7),
             })]
         );
@@ -700,10 +661,7 @@ mod tests {
         assert_eq!(
             tokens,
             vec![Ok(FilterToken {
-                argument: Some(Argument {
-                    argument_type: ArgumentType::Numeric,
-                    at: (19, 5),
-                }),
+                argument: Some(Argument::Numeric((19, 5))),
                 at: (11, 7),
             })]
         );
@@ -726,10 +684,7 @@ mod tests {
                 Err(LexerError::InvalidRemainder { at: (23, 2).into() }.into()),
                 /* When fixed we can do:
                 Ok(FilterToken {
-                    argument: Some(Argument {
-                        argument_type: ArgumentType::Numeric,
-                        at: (19, 6),
-                    }),
+                    argument: Some(Argument::Numeric((19, 6))),
                     at: (11, 7),
                 })
                 */
@@ -749,10 +704,7 @@ mod tests {
         assert_eq!(
             tokens,
             vec![Ok(FilterToken {
-                argument: Some(Argument {
-                    argument_type: ArgumentType::Variable,
-                    at: (19, 4),
-                }),
+                argument: Some(Argument::Variable((19, 4))),
                 at: (11, 7),
             })]
         );
@@ -771,10 +723,7 @@ mod tests {
             tokens,
             vec![
                 Ok(FilterToken {
-                    argument: Some(Argument {
-                        argument_type: ArgumentType::Variable,
-                        at: (19, 4),
-                    }),
+                    argument: Some(Argument::Variable((19, 4))),
                     at: (11, 7),
                 }),
                 Ok(FilterToken {
@@ -801,10 +750,7 @@ mod tests {
             tokens,
             vec![
                 Ok(FilterToken {
-                    argument: Some(Argument {
-                        argument_type: ArgumentType::Text,
-                        at: (19, 6),
-                    }),
+                    argument: Some(Argument::Text((19, 6))),
                     at: (11, 7),
                 }),
                 Ok(FilterToken {
