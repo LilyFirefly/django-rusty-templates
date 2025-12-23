@@ -57,11 +57,12 @@ impl CenterFilter {
 #[derive(Clone, Debug, PartialEq)]
 pub struct DefaultFilter {
     pub argument: Argument,
+    pub at: At,
 }
 
 impl DefaultFilter {
-    pub fn new(argument: Argument) -> Self {
-        Self { argument }
+    pub fn new(argument: Argument, at: At) -> Self {
+        Self { argument, at }
     }
 }
 

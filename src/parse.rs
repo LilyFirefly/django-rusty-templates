@@ -138,7 +138,7 @@ impl Filter {
                 None => return Err(ParseError::MissingArgument { at: at.into() }),
             },
             "default" => match right {
-                Some(right) => FilterType::Default(DefaultFilter::new(right)),
+                Some(right) => FilterType::Default(DefaultFilter::new(right, at)),
                 None => return Err(ParseError::MissingArgument { at: at.into() }),
             },
             "default_if_none" => match right {
@@ -2118,10 +2118,13 @@ mod tests {
             let bar = TokenTree::Filter(Box::new(Filter {
                 at: (7, 7),
                 left: foo,
-                filter: FilterType::Default(DefaultFilter::new(Argument {
-                    at: (15, 3),
-                    argument_type: ArgumentType::Variable(baz),
-                })),
+                filter: FilterType::Default(DefaultFilter::new(
+                    Argument {
+                        at: (15, 3),
+                        argument_type: ArgumentType::Variable(baz),
+                    },
+                    (7, 7),
+                )),
             }));
             assert_eq!(nodes, vec![bar]);
             assert_eq!(
@@ -2279,10 +2282,13 @@ mod tests {
             let default = Box::new(Filter {
                 at: (22, 7),
                 left: some_view_name,
-                filter: FilterType::Default(DefaultFilter::new(Argument {
-                    at: (30, 6),
-                    argument_type: ArgumentType::Text(home),
-                })),
+                filter: FilterType::Default(DefaultFilter::new(
+                    Argument {
+                        at: (30, 6),
+                        argument_type: ArgumentType::Text(home),
+                    },
+                    (22, 7),
+                )),
             });
             let url = TokenTree::Tag(Tag::Url(Url {
                 view_name: TagElement::Filter(default),
@@ -2343,10 +2349,13 @@ mod tests {
                     TagElement::Filter(Box::new(Filter {
                         at: (32, 7),
                         left: TagElement::Variable(Variable { at: (28, 3) }),
-                        filter: FilterType::Default(DefaultFilter::new(Argument {
-                            at: (40, 6),
-                            argument_type: ArgumentType::Text(Text { at: (41, 4) }),
-                        })),
+                        filter: FilterType::Default(DefaultFilter::new(
+                            Argument {
+                                at: (40, 6),
+                                argument_type: ArgumentType::Text(Text { at: (41, 4) }),
+                            },
+                            (32, 7),
+                        )),
                     })),
                     TagElement::Int(64.into()),
                     TagElement::Float(5.7),
@@ -2491,10 +2500,13 @@ mod tests {
             );
             assert_ne!(
                 FilterType::Lower(LowerFilter),
-                FilterType::Default(DefaultFilter::new(Argument {
-                    at: (0, 3),
-                    argument_type: ArgumentType::Float(1.0)
-                }))
+                FilterType::Default(DefaultFilter::new(
+                    Argument {
+                        at: (0, 3),
+                        argument_type: ArgumentType::Float(1.0)
+                    },
+                    (0, 7)
+                ))
             );
         });
     }

@@ -198,8 +198,14 @@ impl ResolveFilter for DefaultFilter {
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         match variable {
-            Some(left) => Ok(Some(left)),
-            None => self
+            Some(left)
+                if left
+                    .to_bool()
+                    .map_err(|err| err.annotate(py, self.at, "here", template))? =>
+            {
+                Ok(Some(left))
+            }
+            None | Some(_) => self
                 .argument
                 .resolve(py, template, context, ResolveFailures::Raise),
         }
@@ -685,10 +691,13 @@ mod tests {
             let filter = Filter {
                 at: (8, 7),
                 left: TagElement::Variable(variable),
-                filter: FilterType::Default(DefaultFilter::new(Argument {
-                    at: (16, 8),
-                    argument_type: ArgumentType::Text(Text::new((17, 6))),
-                })),
+                filter: FilterType::Default(DefaultFilter::new(
+                    Argument {
+                        at: (16, 8),
+                        argument_type: ArgumentType::Text(Text::new((17, 6))),
+                    },
+                    (8, 7),
+                )),
             };
 
             let rendered = filter.render(py, template, &mut context).unwrap();
@@ -1017,10 +1026,13 @@ mod tests {
             let filter = Filter {
                 at: (8, 7),
                 left: TagElement::Variable(variable),
-                filter: FilterType::Default(DefaultFilter::new(Argument {
-                    at: (16, 8),
-                    argument_type: ArgumentType::Text(Text::new((17, 6))),
-                })),
+                filter: FilterType::Default(DefaultFilter::new(
+                    Argument {
+                        at: (16, 8),
+                        argument_type: ArgumentType::Text(Text::new((17, 6))),
+                    },
+                    (8, 7),
+                )),
             };
 
             let rendered = filter.render(py, template, &mut context).unwrap();
@@ -1040,10 +1052,13 @@ mod tests {
             let filter = Filter {
                 at: (9, 7),
                 left: TagElement::Variable(variable),
-                filter: FilterType::Default(DefaultFilter::new(Argument {
-                    at: (17, 2),
-                    argument_type: ArgumentType::Int(12.into()),
-                })),
+                filter: FilterType::Default(DefaultFilter::new(
+                    Argument {
+                        at: (17, 2),
+                        argument_type: ArgumentType::Int(12.into()),
+                    },
+                    (9, 7),
+                )),
             };
 
             let rendered = filter.render(py, template, &mut context).unwrap();
@@ -1063,10 +1078,13 @@ mod tests {
             let filter = Filter {
                 at: (9, 7),
                 left: TagElement::Variable(variable),
-                filter: FilterType::Default(DefaultFilter::new(Argument {
-                    at: (17, 3),
-                    argument_type: ArgumentType::Float(3.5),
-                })),
+                filter: FilterType::Default(DefaultFilter::new(
+                    Argument {
+                        at: (17, 3),
+                        argument_type: ArgumentType::Float(3.5),
+                    },
+                    (9, 7),
+                )),
             };
 
             let rendered = filter.render(py, template, &mut context).unwrap();
@@ -1087,10 +1105,13 @@ mod tests {
             let filter = Filter {
                 at: (8, 7),
                 left: TagElement::Variable(variable),
-                filter: FilterType::Default(DefaultFilter::new(Argument {
-                    at: (16, 2),
-                    argument_type: ArgumentType::Variable(Variable::new((16, 2))),
-                })),
+                filter: FilterType::Default(DefaultFilter::new(
+                    Argument {
+                        at: (16, 2),
+                        argument_type: ArgumentType::Variable(Variable::new((16, 2))),
+                    },
+                    (8, 7),
+                )),
             };
 
             let rendered = filter.render(py, template, &mut context).unwrap();
@@ -1151,10 +1172,13 @@ mod tests {
             let default = Filter {
                 at: (8, 7),
                 left: TagElement::Variable(variable),
-                filter: FilterType::Default(DefaultFilter::new(Argument {
-                    at: (16, 8),
-                    argument_type: ArgumentType::Text(Text::new((17, 6))),
-                })),
+                filter: FilterType::Default(DefaultFilter::new(
+                    Argument {
+                        at: (16, 8),
+                        argument_type: ArgumentType::Text(Text::new((17, 6))),
+                    },
+                    (8, 7),
+                )),
             };
             let lower = Filter {
                 at: (25, 5),
