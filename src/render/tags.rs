@@ -910,10 +910,14 @@ impl Render for Include {
             false => {
                 for (index, (at, element)) in self.kwargs.iter().enumerate() {
                     let key = template.content(*at).to_string();
-                    if let Some(value) =
-                        element.resolve(py, template, context, ResolveFailures::Raise)?
-                    {
-                        context.push_variable(key, value.to_py(py), index);
+                    match element.resolve(
+                        py,
+                        template,
+                        context,
+                        ResolveFailures::IgnoreVariableDoesNotExist,
+                    )? {
+                        Some(value) => context.push_variable(key, value.to_py(py), index),
+                        None => context.push_variable(key, PyString::new(py, "").into_any(), index),
                     }
                 }
                 let rendered = include
@@ -926,9 +930,12 @@ impl Render for Include {
                 let mut inner_context = HashMap::new();
                 for (at, element) in &self.kwargs {
                     let key = template.content(*at).to_string();
-                    if let Some(value) =
-                        element.resolve(py, template, context, ResolveFailures::Raise)?
-                    {
+                    if let Some(value) = element.resolve(
+                        py,
+                        template,
+                        context,
+                        ResolveFailures::IgnoreVariableDoesNotExist,
+                    )? {
                         inner_context.insert(key, value.to_py(py).unbind());
                     }
                 }

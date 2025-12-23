@@ -78,6 +78,20 @@ def test_include_with_variable_only(assert_render):
     assert_render(template=template, context=context, expected=expected)
 
 
+def test_include_with_attribute(assert_render):
+    template = "{% include 'name_snippet.txt' with person=person.name greeting=greeting.text %}"
+    context = {"greeting": {"text": "Hi"}, "person": {}}
+    expected = "Hi, friend!\n"
+    assert_render(template=template, context=context, expected=expected)
+
+
+def test_include_with_attribute_only(assert_render):
+    template = "{% include 'name_snippet.txt' with person=person.name greeting=greeting.text only %}"
+    context = {"greeting": {"text": "Hi"}, "person": {}}
+    expected = "Hi, friend!\n"
+    assert_render(template=template, context=context, expected=expected)
+
+
 def test_relative(template_engine):
     template = template_engine.get_template("nested/relative.txt")
     assert template.render({}) == "Adjacent\n\nParent\n\n"
