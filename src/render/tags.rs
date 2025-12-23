@@ -808,9 +808,9 @@ impl Include {
         context: &mut Context,
     ) -> Result<Content<'t, 'py>, PyRenderError> {
         let template_name = match &self.template_name {
-            IncludeTemplateName::Text(text) => {
-                text.resolve(py, template, context, ResolveFailures::Raise)?
-            }
+            IncludeTemplateName::Text(text) => text
+                .resolve(py, template, context, ResolveFailures::Raise)
+                .expect("Text should always be resolvable"),
             IncludeTemplateName::Variable(tag_element) => {
                 tag_element.resolve(py, template, context, ResolveFailures::Raise)?
             }

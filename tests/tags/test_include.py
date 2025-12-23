@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from django.template.base import VariableDoesNotExist
 from django.template.exceptions import TemplateDoesNotExist, TemplateSyntaxError
 from django.utils.translation import gettext_lazy
 
@@ -57,6 +58,22 @@ def test_include_with_extra_context_only_kwarg(assert_render):
 def test_include_with_extra_context_only_before_with(assert_render):
     template = "{% include 'name_snippet.txt' only with greeting='Hi' %}"
     context = {"person": "Jacob"}
+    expected = "Hi, friend!\n"
+    assert_render(template=template, context=context, expected=expected)
+
+
+def test_include_with_variable(assert_render):
+    template = "{% include 'name_snippet.txt' with person=person greeting=greeting %}"
+    context = {"greeting": "Hi"}
+    expected = "Hi, friend!\n"
+    assert_render(template=template, context=context, expected=expected)
+
+
+def test_include_with_variable_only(assert_render):
+    template = (
+        "{% include 'name_snippet.txt' with person=person greeting=greeting only %}"
+    )
+    context = {"greeting": "Hi"}
     expected = "Hi, friend!\n"
     assert_render(template=template, context=context, expected=expected)
 
@@ -533,6 +550,28 @@ def test_include_missing_variable(assert_render_error):
     )
 
 
+def test_include_missing_attribute(assert_render_error):
+    template = "{% include value.missing %}"
+    django_message = "No template names provided"
+    rusty_message = """\
+  × Failed lookup for key [missing] in {}
+   ╭────
+ 1 │ {% include value.missing %}
+   ·            ──┬── ───┬───
+   ·              │      ╰── key
+   ·              ╰── {}
+   ╰────
+"""
+    assert_render_error(
+        template=template,
+        context={"value": {}},
+        exception=TemplateDoesNotExist,
+        rusty_exception=VariableDoesNotExist,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
 def test_include_missing_filter_variable(assert_render_error):
     template = "{% include missing|add:3 %}"
     django_message = "No template names provided"
@@ -715,6 +754,26 @@ def test_include_bool_filter_true(assert_render_error):
         template=template,
         context={"b": ["a"]},
         exception=TypeError,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
+def test_include_missing_relative_template(assert_render_error):
+    template = "{% include 'nested/invalid.txt' %}"
+    django_message = "nested/missing.txt"
+    rusty_message = """\
+  × nested/missing.txt
+   ╭────
+ 1 │ {% include "./missing.txt" %}
+   ·             ──────┬──────
+   ·                   ╰── here
+   ╰────
+"""
+    assert_render_error(
+        template=template,
+        context={},
+        exception=TemplateDoesNotExist,
         django_message=django_message,
         rusty_message=rusty_message,
     )
