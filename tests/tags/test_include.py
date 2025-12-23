@@ -66,6 +66,12 @@ def test_relative(template_engine):
     assert template.render({}) == "Adjacent\n\nParent\n\n"
 
 
+def test_relative_from_context(template_engine):
+    template = template_engine.get_template("nested/relative.txt")
+    context = {"adjacent": "./adjacent.txt", "parent": "../parent.txt"}
+    assert template.render(context) == "Adjacent\n\nParent\n\n"
+
+
 def test_empty_include(assert_parse_error):
     template = "{% include %}"
     django_message = "'include' tag takes at least one argument: the name of the template to be included."
