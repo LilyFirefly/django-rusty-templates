@@ -400,7 +400,7 @@ impl ResolveFilter for SafeFilter {
     }
 }
 
-fn slugify(content: Cow<str>) -> Cow<str> {
+pub fn slugify(content: Cow<str>) -> Cow<str> {
     let content = content
         .nfkd()
         // first decomposing characters, then only keeping
