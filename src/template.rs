@@ -561,6 +561,39 @@ pub mod django_rusty_templates {
             }
             Ok(Cow::Owned(rendered))
         }
+
+        fn _render(&self, py: Python<'_>, context: &mut Context) -> PyResult<String> {
+            match self.render(py, context) {
+                Ok(content) => Ok(content.to_string()),
+                Err(err) => {
+                    let err = err.try_into_render_error()?;
+                    match err {
+                        RenderError::RelativePathError(_) => {
+                            Err(TemplateSyntaxError::with_source_code(
+                                err.into(),
+                                self.template.clone(),
+                            ))
+                        }
+                        RenderError::VariableDoesNotExist { .. }
+                        | RenderError::ArgumentDoesNotExist { .. } => {
+                            Err(VariableDoesNotExist::with_source_code(
+                                err.into(),
+                                self.template.clone(),
+                            ))
+                        }
+                        RenderError::InvalidArgumentInteger { .. }
+                        | RenderError::InvalidArgumentString { .. }
+                        | RenderError::TupleUnpackError { .. } => Err(
+                            PyValueError::with_source_code(err.into(), self.template.clone()),
+                        ),
+                        RenderError::OverflowError { .. }
+                        | RenderError::InvalidArgumentFloat { .. } => Err(
+                            PyOverflowError::with_source_code(err.into(), self.template.clone()),
+                        ),
+                    }
+                }
+            }
+        }
     }
 
     #[pymethods]
@@ -606,36 +639,7 @@ pub mod django_rusty_templates {
             }
             let mut context = Context::new(base_context, request, self.engine.autoescape);
 
-            match self.render(py, &mut context) {
-                Ok(content) => Ok(content.to_string()),
-                Err(err) => {
-                    let err = err.try_into_render_error()?;
-                    match err {
-                        RenderError::RelativePathError(_) => {
-                            Err(TemplateSyntaxError::with_source_code(
-                                err.into(),
-                                self.template.clone(),
-                            ))
-                        }
-                        RenderError::VariableDoesNotExist { .. }
-                        | RenderError::ArgumentDoesNotExist { .. } => {
-                            Err(VariableDoesNotExist::with_source_code(
-                                err.into(),
-                                self.template.clone(),
-                            ))
-                        }
-                        RenderError::InvalidArgumentInteger { .. }
-                        | RenderError::InvalidArgumentString { .. }
-                        | RenderError::TupleUnpackError { .. } => Err(
-                            PyValueError::with_source_code(err.into(), self.template.clone()),
-                        ),
-                        RenderError::OverflowError { .. }
-                        | RenderError::InvalidArgumentFloat { .. } => Err(
-                            PyOverflowError::with_source_code(err.into(), self.template.clone()),
-                        ),
-                    }
-                }
-            }
+            self._render(py, &mut context)
         }
     }
 }
