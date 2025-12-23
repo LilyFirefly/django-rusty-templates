@@ -5,6 +5,7 @@ use std::sync::Arc;
 use num_bigint::{BigInt, Sign};
 use num_traits::cast::ToPrimitive;
 use pyo3::exceptions::{PyAttributeError, PyTypeError};
+use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::sync::{MutexExt, PyOnceLock};
 use pyo3::types::{PyBool, PyDict, PyList, PyNone, PyString, PyTuple};
@@ -773,6 +774,34 @@ impl Render for For {
     }
 }
 
+enum IncludeTemplate<'py> {
+    Template(Template),
+    Callable(Bound<'py, PyAny>),
+}
+
+impl<'t, 'py> IncludeTemplate<'t> {
+    fn render(
+        &'t self,
+        py: Python<'py>,
+        context: &mut Context,
+        at: At,
+        template: TemplateString<'t>,
+    ) -> RenderResult<'t> {
+        match self {
+            Self::Template(template) => template.render(py, context),
+            Self::Callable(callable) => {
+                let py_context = build_pycontext(py, context)?;
+                let result = callable.call1((py_context.clone(),));
+                retrieve_context(py, py_context, context);
+                match result {
+                    Ok(content) => Ok(Cow::Owned(content.to_string())),
+                    Err(error) => Err(error.annotate(py, at, "here", template).into()),
+                }
+            }
+        }
+    }
+}
+
 impl Include {
     fn template_at(&self) -> At {
         match &self.template_name {
@@ -832,16 +861,21 @@ impl Include {
         }
     }
 
-    fn get_template(
+    fn get_template<'t, 'py>(
         &self,
-        template_name: Content,
-        py: Python<'_>,
-        template: TemplateString<'_>,
-    ) -> Result<Template, PyRenderError> {
+        template_name: Content<'t, 'py>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
+    ) -> Result<IncludeTemplate<'py>, PyRenderError> {
         match template_name {
-            Content::String(content) => get_template(self.engine.clone(), py, content.content()),
+            Content::String(content) => get_template(self.engine.clone(), py, content.content())
+                .map(IncludeTemplate::Template),
             Content::Py(content) => {
-                if content.is_instance_of::<PyString>() {
+                if let Some(render) = content.getattr_opt(intern!(py, "render"))?
+                    && render.is_callable()
+                {
+                    Ok(IncludeTemplate::Callable(render))
+                } else if content.is_instance_of::<PyString>() {
                     let template_path = content
                         .extract()
                         .expect("PyString should be compatible with Cow<str>");
@@ -856,6 +890,7 @@ impl Include {
                         None => Cow::Borrowed(template_path),
                     };
                     get_template(self.engine.clone(), py, template_path)
+                        .map(IncludeTemplate::Template)
                 } else {
                     let promise = PROMISE.import(py, "django.utils.functional", "Promise")?;
                     if content.is_instance(promise)? {
@@ -878,6 +913,7 @@ impl Include {
                         ));
                     };
                     select_template(self.engine.clone(), py, templates)
+                        .map(IncludeTemplate::Template)
                 }
             }
             Content::Int(content) => {
@@ -921,7 +957,7 @@ impl Render for Include {
                     }
                 }
                 let rendered = include
-                    .render(py, context)
+                    .render(py, context, self.template_at(), template)
                     .map(|content| Cow::Owned(content.into_owned()));
                 context.pop_variables();
                 rendered
@@ -945,7 +981,7 @@ impl Render for Include {
                     .map(|request| request.clone_ref(py));
                 let mut context = Context::new(inner_context, request, context.autoescape);
                 include
-                    .render(py, &mut context)
+                    .render(py, &mut context, self.template_at(), template)
                     .map(|content| Cow::Owned(content.into_owned()))
             }
         }
@@ -970,21 +1006,14 @@ fn call_tag<'t>(
     }
 }
 
-fn add_context_to_args<'py>(
-    py: Python<'py>,
-    args: &mut VecDeque<Bound<'py, PyAny>>,
-    context: &mut Context,
-) -> PyResult<Bound<'py, PyAny>> {
+fn build_pycontext<'py>(py: Python<'py>, context: &mut Context) -> PyResult<Bound<'py, PyAny>> {
     // Take ownership of `context` so we can pass it to Python.
     // The `context` variable now points to an empty `Context` instance which will not be
     // used except as a placeholder.
     let swapped_context = std::mem::take(context);
 
-    // Wrap the context as a Python object and add it to the call args
-    let py_context = Bound::new(py, PyContext::new(swapped_context))?.into_any();
-    args.push_front(py_context.clone());
-
-    Ok(py_context)
+    // Wrap the context as a Python object
+    Ok(Bound::new(py, PyContext::new(swapped_context))?.into_any())
 }
 
 fn retrieve_context<'py>(py: Python<'py>, py_context: Bound<'py, PyAny>, context: &mut Context) {
@@ -1078,7 +1107,8 @@ impl Render for SimpleTag {
         let mut args = build_args(py, template, context, &self.args)?;
         let kwargs = build_kwargs(py, template, context, &self.kwargs)?;
         let content = if self.takes_context {
-            let py_context = add_context_to_args(py, &mut args, context)?;
+            let py_context = build_pycontext(py, context)?;
+            args.push_front(py_context.clone());
 
             // Actually call the tag
             let result = call_tag(py, &self.func, self.at, template, args, kwargs);
@@ -1114,7 +1144,8 @@ impl Render for SimpleBlockTag {
         args.push_front(content);
 
         let content = if self.takes_context {
-            let py_context = add_context_to_args(py, &mut args, context)?;
+            let py_context = build_pycontext(py, context)?;
+            args.push_front(py_context.clone());
 
             // Actually call the tag
             let result = call_tag(py, &self.func, self.at, template, args, kwargs);

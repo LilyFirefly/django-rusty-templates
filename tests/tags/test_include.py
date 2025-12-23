@@ -110,6 +110,17 @@ def test_relative_top_level(template_engine):
     assert template.render(context) == "Hello Lily!\n\n"
 
 
+def test_include_another_template(assert_render):
+    class Template:
+        def render(self, context):
+            return "foo"
+
+    template = "{% include template %}"
+    context = {"template": Template()}
+    expected = "foo"
+    assert_render(template=template, context=context, expected=expected)
+
+
 def test_empty_include(assert_parse_error):
     template = "{% include %}"
     django_message = "'include' tag takes at least one argument: the name of the template to be included."
@@ -908,6 +919,30 @@ def test_include_with_broken_callable_only(assert_render_error):
     assert_render_error(
         template=template,
         context={"nested": {"get_user": lambda: 1 / 0}},
+        django_message=django_message,
+        rusty_message=rusty_message,
+        exception=ZeroDivisionError,
+    )
+
+
+def test_include_broken_template(assert_render_error):
+    class Template:
+        def render(self, context):
+            1 / 0
+
+    template = "{% include template %}"
+    django_message = "division by zero"
+    rusty_message = """\
+  × division by zero
+   ╭────
+ 1 │ {% include template %}
+   ·            ────┬───
+   ·                ╰── here
+   ╰────
+"""
+    assert_render_error(
+        template=template,
+        context={"template": Template()},
         django_message=django_message,
         rusty_message=rusty_message,
         exception=ZeroDivisionError,
