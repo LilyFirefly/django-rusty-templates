@@ -110,7 +110,16 @@ def test_relative_top_level(template_engine):
     assert template.render(context) == "Hello Lily!\n\n"
 
 
-def test_include_another_template(assert_render):
+def test_include_another_template(template_engine, assert_render):
+    included = template_engine.get_template("basic.txt")
+
+    template = "{% include template %}"
+    context = {"template": included, "user": "Lily"}
+    expected = "Hello Lily!\n"
+    assert_render(template=template, context=context, expected=expected)
+
+
+def test_include_fake_template(assert_render):
     class Template:
         def render(self, context):
             return "foo"

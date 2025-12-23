@@ -833,7 +833,9 @@ mod tests {
             let context = PyDict::new(py);
             context.set_item("var", "hello world").unwrap();
             let template = Template::new_from_string(py, template_string, engine).unwrap();
-            let result = template.py_render(py, Some(context), None).unwrap();
+            let result = template
+                .py_render(py, Some(context.into_any()), None)
+                .unwrap();
 
             assert_eq!(result, "hello-world");
         });
@@ -849,7 +851,9 @@ mod tests {
             let context = PyDict::new(py);
             context.set_item("var", " hello world").unwrap();
             let template = Template::new_from_string(py, template_string, engine).unwrap();
-            let result = template.py_render(py, Some(context), None).unwrap();
+            let result = template
+                .py_render(py, Some(context.into_any()), None)
+                .unwrap();
 
             assert_eq!(result, "hello-world");
         });
@@ -865,7 +869,9 @@ mod tests {
             let context = PyDict::new(py);
             context.set_item("var", "a&€%").unwrap();
             let template = Template::new_from_string(py, template_string, engine).unwrap();
-            let result = template.py_render(py, Some(context), None).unwrap();
+            let result = template
+                .py_render(py, Some(context.into_any()), None)
+                .unwrap();
 
             assert_eq!(result, "a");
         });
@@ -881,7 +887,9 @@ mod tests {
             let context = PyDict::new(py);
             context.set_item("var", "a & b").unwrap();
             let template = Template::new_from_string(py, template_string, engine).unwrap();
-            let result = template.py_render(py, Some(context), None).unwrap();
+            let result = template
+                .py_render(py, Some(context.into_any()), None)
+                .unwrap();
 
             assert_eq!(result, "a-b");
         });
@@ -896,7 +904,9 @@ mod tests {
             let template_string = "{{ var|default:1|slugify }}".to_string();
             let context = PyDict::new(py);
             let template = Template::new_from_string(py, template_string, engine).unwrap();
-            let result = template.py_render(py, Some(context), None).unwrap();
+            let result = template
+                .py_render(py, Some(context.into_any()), None)
+                .unwrap();
 
             assert_eq!(result, "1");
         });
@@ -911,7 +921,9 @@ mod tests {
             let template_string = "{{ var|default:1.3|slugify }}".to_string();
             let context = PyDict::new(py);
             let template = Template::new_from_string(py, template_string, engine).unwrap();
-            let result = template.py_render(py, Some(context), None).unwrap();
+            let result = template
+                .py_render(py, Some(context.into_any()), None)
+                .unwrap();
 
             assert_eq!(result, "1.3");
         });
@@ -926,7 +938,9 @@ mod tests {
             let template_string = "{{ var|default:'hello world'|slugify }}".to_string();
             let context = PyDict::new(py);
             let template = Template::new_from_string(py, template_string, engine).unwrap();
-            let result = template.py_render(py, Some(context), None).unwrap();
+            let result = template
+                .py_render(py, Some(context.into_any()), None)
+                .unwrap();
 
             assert_eq!(result, "hello-world");
         });
@@ -941,7 +955,9 @@ mod tests {
             let template_string = "{{ var|default:'hello world'|safe|slugify }}".to_string();
             let context = PyDict::new(py);
             let template = Template::new_from_string(py, template_string, engine).unwrap();
-            let result = template.py_render(py, Some(context), None).unwrap();
+            let result = template
+                .py_render(py, Some(context.into_any()), None)
+                .unwrap();
 
             assert_eq!(result, "hello-world");
         });
@@ -958,7 +974,9 @@ mod tests {
             let safe_string = mark_safe(py, "a &amp; b".to_string()).unwrap();
             context.set_item("var", safe_string).unwrap();
             let template = Template::new_from_string(py, template_string, engine).unwrap();
-            let result = template.py_render(py, Some(context), None).unwrap();
+            let result = template
+                .py_render(py, Some(context.into_any()), None)
+                .unwrap();
 
             assert_eq!(result, "a-amp-b");
         });
@@ -973,7 +991,9 @@ mod tests {
             let template_string = "{{ not_there|slugify }}".to_string();
             let context = PyDict::new(py);
             let template = Template::new_from_string(py, template_string, engine).unwrap();
-            let result = template.py_render(py, Some(context), None).unwrap();
+            let result = template
+                .py_render(py, Some(context.into_any()), None)
+                .unwrap();
 
             assert_eq!(result, "");
         });
@@ -1025,7 +1045,9 @@ mod tests {
             let context = PyDict::new(py);
             context.set_item("var", "hello world").unwrap();
             let template = Template::new_from_string(py, template_string, engine.clone()).unwrap();
-            let result = template.py_render(py, Some(context), None).unwrap();
+            let result = template
+                .py_render(py, Some(context.into_any()), None)
+                .unwrap();
 
             assert_eq!(result, "Hello world");
 
@@ -1033,7 +1055,9 @@ mod tests {
             context.set_item("var", "").unwrap();
             let template_string = "{{ var|capfirst }}".to_string();
             let template = Template::new_from_string(py, template_string, engine.clone()).unwrap();
-            let result = template.py_render(py, Some(context), None).unwrap();
+            let result = template
+                .py_render(py, Some(context.into_any()), None)
+                .unwrap();
 
             assert_eq!(result, "");
 
@@ -1041,7 +1065,9 @@ mod tests {
             context.set_item("bar", "").unwrap();
             let template_string = "{{ var|capfirst }}".to_string();
             let template = Template::new_from_string(py, template_string, engine.clone()).unwrap();
-            let result = template.py_render(py, Some(context), None).unwrap();
+            let result = template
+                .py_render(py, Some(context.into_any()), None)
+                .unwrap();
 
             assert_eq!(result, "");
 
@@ -1063,7 +1089,9 @@ mod tests {
             let context = PyDict::new(py);
             context.set_item("var", "hello").unwrap();
             let template = Template::new_from_string(py, template_string, engine.clone()).unwrap();
-            let result = template.py_render(py, Some(context), None).unwrap();
+            let result = template
+                .py_render(py, Some(context.into_any()), None)
+                .unwrap();
 
             assert_eq!(result, "   hello   ");
 
@@ -1071,7 +1099,9 @@ mod tests {
             context.set_item("var", "django").unwrap();
             let template_string = "{{ var|center:'15' }}".to_string();
             let template = Template::new_from_string(py, template_string, engine.clone()).unwrap();
-            let result = template.py_render(py, Some(context), None).unwrap();
+            let result = template
+                .py_render(py, Some(context.into_any()), None)
+                .unwrap();
 
             assert_eq!(result, "     django    ");
 
@@ -1079,7 +1109,9 @@ mod tests {
             context.set_item("var", "django").unwrap();
             let template_string = "{{ var|center:1 }}".to_string();
             let template = Template::new_from_string(py, template_string, engine).unwrap();
-            let result = template.py_render(py, Some(context), None).unwrap();
+            let result = template
+                .py_render(py, Some(context.into_any()), None)
+                .unwrap();
 
             assert_eq!(result, "django");
         });
@@ -1092,8 +1124,6 @@ mod tests {
         Python::attach(|py| {
             let engine = Arc::new(Engine::empty());
             let template_string = "{{ var|center }}".to_string();
-            let context = PyDict::new(py);
-            context.set_item("var", "hello").unwrap();
             let error = Template::new_from_string(py, template_string, engine).unwrap_err();
 
             let error_string = format!("{error}");
@@ -1111,7 +1141,9 @@ mod tests {
             let template_string = "{{ var|center:'11' }}".to_string();
             let context = PyDict::new(py);
             let template = Template::new_from_string(py, template_string, engine).unwrap();
-            let result = template.py_render(py, Some(context), None).unwrap();
+            let result = template
+                .py_render(py, Some(context.into_any()), None)
+                .unwrap();
 
             assert_eq!(result, "");
         });
@@ -1127,7 +1159,9 @@ mod tests {
             let context = PyDict::new(py);
             context.set_item("var", "hello").unwrap();
             let template = Template::new_from_string(py, template_string, engine).unwrap();
-            let result = template.py_render(py, Some(context), None).unwrap();
+            let result = template
+                .py_render(py, Some(context.into_any()), None)
+                .unwrap();
 
             assert_eq!(result, "hello");
         });

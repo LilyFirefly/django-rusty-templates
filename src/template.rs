@@ -20,7 +20,7 @@ pub mod django_rusty_templates {
     use crate::error::RenderError;
     use crate::loaders::{AppDirsLoader, CachedLoader, FileSystemLoader, Loader, LocMemLoader};
     use crate::parse::{Parser, TokenTree};
-    use crate::render::types::Context;
+    use crate::render::types::{Context, PyContext};
     use crate::render::{Render, RenderResult};
     use crate::utils::PyResultMethods;
     use dtl_lexer::types::TemplateString;
@@ -424,7 +424,7 @@ pub mod django_rusty_templates {
             &mut self,
             py: Python<'_>,
             template_name: Bound<'_, PyAny>,
-            context: Option<Bound<'_, PyDict>>,
+            context: Option<Bound<'_, PyAny>>,
         ) -> PyResult<String> {
             let template = if template_name.is_instance_of::<PyList>()
                 || template_name.is_instance_of::<PyTuple>()
@@ -602,7 +602,7 @@ pub mod django_rusty_templates {
         pub fn py_render(
             &self,
             py: Python<'_>,
-            context: Option<Bound<'_, PyDict>>,
+            context: Option<Bound<'_, PyAny>>,
             request: Option<Bound<'_, PyAny>>,
         ) -> PyResult<String> {
             let mut base_context = HashMap::from([
@@ -633,11 +633,24 @@ pub mod django_rusty_templates {
                     base_context.extend(processor_context);
                 }
             }
-            if let Some(context) = context {
-                let new_context: HashMap<_, _> = context.extract()?;
-                base_context.extend(new_context);
-            }
-            let mut context = Context::new(base_context, request, self.engine.autoescape);
+            let mut context = match context {
+                Some(py_context) if py_context.is_instance_of::<PyContext>() => {
+                    let extracted: PyContext = py_context
+                        .extract()
+                        .expect("The type of py_context should be PyContext");
+                    let mut context = extracted
+                        .context
+                        .lock_py_attached(py)
+                        .expect("Mutex should not be poisoned");
+                    return self._render(py, &mut context);
+                }
+                Some(context) => {
+                    let new_context: HashMap<_, _> = context.extract()?;
+                    base_context.extend(new_context);
+                    Context::new(base_context, request, self.engine.autoescape)
+                }
+                None => Context::new(base_context, request, self.engine.autoescape),
+            };
 
             self._render(py, &mut context)
         }
@@ -718,7 +731,7 @@ mod tests {
             let engine = Arc::new(Engine::empty());
             let template_string = String::new();
             let template = Template::new_from_string(py, template_string, engine).unwrap();
-            let context = PyDict::new(py);
+            let context = PyDict::new(py).into_any();
 
             assert_eq!(template.py_render(py, Some(context), None).unwrap(), "");
         });
@@ -736,7 +749,9 @@ mod tests {
             context.set_item("user", "Lily").unwrap();
 
             assert_eq!(
-                template.py_render(py, Some(context), None).unwrap(),
+                template
+                    .py_render(py, Some(context.into_any()), None)
+                    .unwrap(),
                 "Hello Lily!"
             );
         });
@@ -750,7 +765,7 @@ mod tests {
             let engine = Arc::new(Engine::empty());
             let template_string = "Hello {{ user }}!".to_string();
             let template = Template::new_from_string(py, template_string, engine).unwrap();
-            let context = PyDict::new(py);
+            let context = PyDict::new(py).into_any();
 
             assert_eq!(
                 template.py_render(py, Some(context), None).unwrap(),
@@ -785,7 +800,9 @@ user = User(["Lily"])
             context.set_item("user", user.into_any()).unwrap();
 
             assert_eq!(
-                template.py_render(py, Some(context), None).unwrap(),
+                template
+                    .py_render(py, Some(context.into_any()), None)
+                    .unwrap(),
                 "Hello Lily!"
             );
         });
@@ -812,7 +829,7 @@ user = User(["Lily"])
             .unwrap();
             let template_string = PyString::new(py, "Hello {{ user }}!");
             let template = engine.from_string(template_string).unwrap();
-            let context = PyDict::new(py);
+            let context = PyDict::new(py).into_any();
 
             assert_eq!(
                 template.py_render(py, Some(context), None).unwrap(),
