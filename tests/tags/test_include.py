@@ -112,6 +112,38 @@ def test_template_name_keyword(assert_parse_error):
     )
 
 
+def test_incomplete_template_name(assert_parse_error):
+    template = "{% include 'basic.txt %}"
+    django_message = "Could not parse the remainder: ''basic.txt' from ''basic.txt'"
+    rusty_message = """\
+  × Expected a complete string literal
+   ╭────
+ 1 │ {% include 'basic.txt %}
+   ·            ─────┬────
+   ·                 ╰── here
+   ╰────
+"""
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_invalid_template_name(assert_parse_error):
+    template = "{% include basic-template %}"
+    django_message = "Could not parse the remainder: '-template' from 'basic-template'"
+    rusty_message = """\
+  × Expected a valid variable name
+   ╭────
+ 1 │ {% include basic-template %}
+   ·            ───────┬──────
+   ·                   ╰── here
+   ╰────
+"""
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
 def test_missing_with(assert_parse_error):
     template = "{% include 'basic.txt' user='Lily' %}"
     django_message = "Unknown argument for 'include' tag: \"user='Lily'\"."
@@ -231,6 +263,54 @@ def test_only_with_only(assert_parse_error):
     )
 
 
+def test_invalid_syntax_after_only(assert_parse_error):
+    template = "{% include 'basic.txt' with name='Lily' only 'partial %}"
+    django_message = "Unknown argument for 'include' tag: \"'partial\"."
+    rusty_message = """\
+  × Expected a complete string literal
+   ╭────
+ 1 │ {% include 'basic.txt' with name='Lily' only 'partial %}
+   ·                                              ────┬───
+   ·                                                  ╰── here
+   ╰────
+"""
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_invalid_syntax_with_or_only(assert_parse_error):
+    template = "{% include 'basic.txt' 'partial %}"
+    django_message = "Unknown argument for 'include' tag: \"'partial\"."
+    rusty_message = """\
+  × Expected a complete string literal
+   ╭────
+ 1 │ {% include 'basic.txt' 'partial %}
+   ·                        ────┬───
+   ·                            ╰── here
+   ╰────
+"""
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_invalid_syntax_with_or_only_after_only(assert_parse_error):
+    template = "{% include 'basic.txt' only 'partial %}"
+    django_message = "Unknown argument for 'include' tag: \"'partial\"."
+    rusty_message = """\
+  × Expected a complete string literal
+   ╭────
+ 1 │ {% include 'basic.txt' only 'partial %}
+   ·                             ────┬───
+   ·                                 ╰── here
+   ╰────
+"""
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
 def test_with_kwarg_after_only(assert_parse_error):
     template = "{% include 'name_snippet.txt' with person='Lily' only greeting='Hi' %}"
     django_message = "Unknown argument for 'include' tag: \"greeting='Hi'\"."
@@ -289,6 +369,22 @@ def test_with_broken_keyword_argument(assert_parse_error):
  1 │ {% include 'name_snippet.txt' with person='Lily %}
    ·                                           ──┬──
    ·                                             ╰── here
+   ╰────
+"""
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_with_invalid_keyword_argument(assert_parse_error):
+    template = "{% include 'name_snippet.txt' with person=basic-template %}"
+    django_message = "Could not parse the remainder: '-template' from 'basic-template'"
+    rusty_message = """\
+  × Expected a valid variable name
+   ╭────
+ 1 │ {% include 'name_snippet.txt' with person=basic-template %}
+   ·                                           ───────┬──────
+   ·                                                  ╰── here
    ╰────
 """
     assert_parse_error(
