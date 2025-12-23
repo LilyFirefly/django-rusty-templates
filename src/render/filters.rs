@@ -10,8 +10,9 @@ use pyo3::types::PyType;
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
 use crate::filters::{
     AddFilter, AddSlashesFilter, CapfirstFilter, CenterFilter, DefaultFilter, DefaultIfNoneFilter,
-    EscapeFilter, EscapejsFilter, ExternalFilter, FilterType, LowerFilter, SafeFilter,
-    SlugifyFilter, TitleFilter, UpperFilter, WordcountFilter, WordwrapFilter, YesnoFilter,
+    EscapeFilter, EscapejsFilter, ExternalFilter, FilterType, LengthFilter, LowerFilter,
+    SafeFilter, SlugifyFilter, TitleFilter, UpperFilter, WordcountFilter, WordwrapFilter,
+    YesnoFilter,
 };
 use crate::parse::Filter;
 use crate::render::common::gettext;
@@ -51,6 +52,7 @@ impl Resolve for Filter {
             FilterType::Escapejs(filter) => filter.resolve(left, py, template, context),
             FilterType::External(filter) => filter.resolve(left, py, template, context),
             FilterType::Lower(filter) => filter.resolve(left, py, template, context),
+            FilterType::Length(filter) => filter.resolve(left, py, template, context),
             FilterType::Safe(filter) => filter.resolve(left, py, template, context),
             FilterType::Slugify(filter) => filter.resolve(left, py, template, context),
             FilterType::Title(filter) => filter.resolve(left, py, template, context),
@@ -349,6 +351,25 @@ impl ResolveFilter for LowerFilter {
             None => "".as_content(),
         };
         Ok(Some(content))
+    }
+}
+
+impl ResolveFilter for LengthFilter {
+    fn resolve<'t, 'py>(
+        &self,
+        variable: Option<Content<'t, 'py>>,
+        _py: Python<'py>,
+        _template: TemplateString<'t>,
+        _context: &mut Context,
+    ) -> ResolveResult<'t, 'py> {
+        let len = match variable {
+            None => 0,
+            Some(Content::String(s)) => s.as_raw().chars().count(),
+            Some(Content::Py(obj)) => obj.len().unwrap_or(0),
+            Some(Content::Int(_) | Content::Float(_) | Content::Bool(_)) => 0,
+        };
+
+        Ok(Some(Content::Int(num_bigint::BigInt::from(len))))
     }
 }
 

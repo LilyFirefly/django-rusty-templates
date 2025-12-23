@@ -24,6 +24,7 @@ use crate::filters::EscapeFilter;
 use crate::filters::EscapejsFilter;
 use crate::filters::ExternalFilter;
 use crate::filters::FilterType;
+use crate::filters::LengthFilter;
 use crate::filters::LowerFilter;
 use crate::filters::SafeFilter;
 use crate::filters::SlugifyFilter;
@@ -156,6 +157,10 @@ impl Filter {
             "lower" => match right {
                 Some(right) => return Err(unexpected_argument("lower", right)),
                 None => FilterType::Lower(LowerFilter),
+            },
+            "length" => match right {
+                Some(right) => return Err(unexpected_argument("length", right)),
+                None => FilterType::Length(LengthFilter),
             },
             "safe" => match right {
                 Some(right) => return Err(unexpected_argument("safe", right)),
