@@ -72,3 +72,60 @@ pub fn construct_relative_path<'a>(
         }),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_construct_adjacent_path_origin_root() {
+        let path = "./foo.txt";
+        let origin = Some("/");
+        let at = (0, 8);
+        assert_eq!(
+            construct_relative_path(path, origin, at).unwrap().unwrap(),
+            "foo.txt"
+        );
+    }
+
+    #[test]
+    fn test_construct_parent_path_origin_root() {
+        let path = "../foo.txt";
+        let origin = "/";
+        let at = (0, 8);
+        assert_eq!(
+            construct_relative_path(path, Some(origin), at).unwrap_err(),
+            RelativePathError::Outside {
+                at: at.into(),
+                origin: origin.into(),
+                template_path: path.to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn test_construct_adjacent_path_origin_empty_string() {
+        let path = "./foo.txt";
+        let origin = Some("");
+        let at = (0, 8);
+        assert_eq!(
+            construct_relative_path(path, origin, at).unwrap().unwrap(),
+            "foo.txt"
+        );
+    }
+
+    #[test]
+    fn test_construct_parent_path_origin_empty_string() {
+        let path = "../foo.txt";
+        let origin = "";
+        let at = (0, 8);
+        assert_eq!(
+            construct_relative_path(path, Some(origin), at).unwrap_err(),
+            RelativePathError::Outside {
+                at: at.into(),
+                origin: origin.into(),
+                template_path: path.to_string(),
+            }
+        );
+    }
+}
