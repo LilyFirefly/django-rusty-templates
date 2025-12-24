@@ -9,10 +9,10 @@ use pyo3::types::PyType;
 
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
 use crate::filters::{
-    AddFilter, AddSlashesFilter, CapfirstFilter, CenterFilter, DefaultFilter, DefaultIfNoneFilter,
-    EscapeFilter, EscapejsFilter, ExternalFilter, FilterType, LengthFilter, LowerFilter,
-    SafeFilter, SlugifyFilter, TitleFilter, UpperFilter, WordcountFilter, WordwrapFilter,
-    YesnoFilter,
+    AddFilter, AddSlashesFilter, CapfirstFilter, CenterFilter, CutFilter, DefaultFilter,
+    DefaultIfNoneFilter, EscapeFilter, EscapejsFilter, ExternalFilter, FilterType, LengthFilter,
+    LowerFilter, SafeFilter, SlugifyFilter, TitleFilter, UpperFilter, WordcountFilter,
+    WordwrapFilter, YesnoFilter,
 };
 use crate::parse::Filter;
 use crate::render::common::gettext;
@@ -46,6 +46,7 @@ impl Resolve for Filter {
             FilterType::AddSlashes(filter) => filter.resolve(left, py, template, context),
             FilterType::Capfirst(filter) => filter.resolve(left, py, template, context),
             FilterType::Center(filter) => filter.resolve(left, py, template, context),
+            FilterType::Cut(filter) => filter.resolve(left, py, template, context),
             FilterType::Default(filter) => filter.resolve(left, py, template, context),
             FilterType::DefaultIfNone(filter) => filter.resolve(left, py, template, context),
             FilterType::Escape(filter) => filter.resolve(left, py, template, context),
@@ -188,6 +189,46 @@ impl ResolveFilter for CenterFilter {
         centered.push_str(&" ".repeat(right));
 
         Ok(Some(centered.into_content()))
+    }
+}
+
+fn cut(source: Cow<'_, str>, value: &str) -> String {
+    source.replace(value, "")
+}
+
+impl ResolveFilter for CutFilter {
+    fn resolve<'t, 'py>(
+        &self,
+        variable: Option<Content<'t, 'py>>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> ResolveResult<'t, 'py> {
+        let Some(variable) = variable else {
+            return Ok(Some("".as_content()));
+        };
+
+        let arg = self
+            .argument
+            .resolve(py, template, context, ResolveFailures::Raise)?
+            .expect("missing argument in context should already have raised")
+            .resolve_string_strict(context, self.argument.at.into())?
+            .into_raw();
+
+        let content_string = variable.resolve_string(context)?;
+        let result = match content_string {
+            ContentString::String(s) => ContentString::String(cut(s, &arg).into()),
+            ContentString::HtmlSafe(s) => {
+                let cut = cut(s, &arg);
+                match arg.as_ref() {
+                    ";" => ContentString::HtmlUnsafe(cut.into()),
+                    _ => ContentString::HtmlSafe(cut.into()),
+                }
+            }
+            ContentString::HtmlUnsafe(s) => ContentString::HtmlUnsafe(cut(s, &arg).into()),
+        };
+
+        Ok(Some(Content::String(result)))
     }
 }
 

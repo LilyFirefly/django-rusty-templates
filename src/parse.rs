@@ -18,6 +18,7 @@ use crate::filters::AddFilter;
 use crate::filters::AddSlashesFilter;
 use crate::filters::CapfirstFilter;
 use crate::filters::CenterFilter;
+use crate::filters::CutFilter;
 use crate::filters::DefaultFilter;
 use crate::filters::DefaultIfNoneFilter;
 use crate::filters::EscapeFilter;
@@ -142,6 +143,10 @@ impl Filter {
             },
             "center" => match right {
                 Some(right) => FilterType::Center(CenterFilter::new(right)),
+                None => return Err(ParseError::MissingArgument { at: at.into() }),
+            },
+            "cut" => match right {
+                Some(right) => FilterType::Cut(CutFilter::new(right)),
                 None => return Err(ParseError::MissingArgument { at: at.into() }),
             },
             "default" => match right {
