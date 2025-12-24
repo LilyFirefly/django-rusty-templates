@@ -14,12 +14,11 @@ doctest = false
 name = "slugify"
 harness = false
 
-[dependencies]
-django-rusty-templates = { path = ".." }
 
 [dev-dependencies]
 # See https://codspeed.io/docs/benchmarks/rust/divan
 divan = { package = "codspeed-divan-compat", version = "*" }
+django-rusty-templates = { path = ".." }
 
 [lints]
 workspace = true
