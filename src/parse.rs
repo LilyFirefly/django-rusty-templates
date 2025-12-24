@@ -158,7 +158,7 @@ impl Filter {
                 Some(right) => FilterType::DefaultIfNone(DefaultIfNoneFilter::new(right)),
                 None => return Err(ParseError::MissingArgument { at: at.into() }),
             },
-            "date" => FilterType::Date(DateFilter::new(right)),
+            "date" => FilterType::Date(DateFilter::new(right, at)),
             "escape" => match right {
                 Some(right) => return Err(unexpected_argument("escape", right)),
                 None => FilterType::Escape(EscapeFilter),

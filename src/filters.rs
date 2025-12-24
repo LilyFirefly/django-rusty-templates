@@ -94,11 +94,12 @@ impl DefaultIfNoneFilter {
 #[derive(Clone, Debug, PartialEq)]
 pub struct DateFilter {
     pub argument: Option<Argument>,
+    pub at: At,
 }
 
 impl DateFilter {
-    pub fn new(argument: Option<Argument>) -> Self {
-        Self { argument }
+    pub fn new(argument: Option<Argument>, at: At) -> Self {
+        Self { argument, at }
     }
 }
 

@@ -301,11 +301,11 @@ impl ResolveFilter for DateFilter {
             }
         };
 
-        let value_py = value.to_py(py);
+        let value = value.to_py(py);
 
-        let is_valid = value_py.is_instance_of::<PyDate>()
-            || value_py.is_instance_of::<PyTime>()
-            || value_py.is_instance_of::<PyDateTime>();
+        let is_valid = value.is_instance_of::<PyDate>()
+            || value.is_instance_of::<PyTime>()
+            || value.is_instance_of::<PyDateTime>();
 
         if !is_valid {
             return Ok(Some("".as_content()));
@@ -313,13 +313,15 @@ impl ResolveFilter for DateFilter {
 
         let date_format_fn = DATE_FORMAT.import(py, "django.utils.dateformat", "format")?;
 
-        let formatted = match date_format_fn.call1((value_py, fmt)) {
+        let formatted = match date_format_fn.call1((value, fmt)) {
             Ok(res) => res,
             Err(e) => {
                 if e.is_instance_of::<pyo3::exceptions::PyAttributeError>(py) {
                     return Ok(Some("".as_content()));
                 }
-                return Err(PyRenderError::PyErr(e));
+                return Err(PyRenderError::PyErr(
+                    e.annotate(py, self.at, "here", template),
+                ));
             }
         };
 
