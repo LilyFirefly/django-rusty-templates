@@ -47,3 +47,10 @@ TEMPLATES = [
 ]
 
 ROOT_URLCONF = "tests.urls"
+
+USE_I18N = True
+USE_L10N = True
+LANGUAGE_CODE = 'en-us'
+
+TIME_ZONE = 'UTC'
+USE_TZ = False
