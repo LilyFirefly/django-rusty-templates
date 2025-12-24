@@ -120,6 +120,9 @@ def test_date_functional_scenarios(assert_render, template, context, expected):
     "template,context,expected",
     [
         pytest.param("{{ d|date:'Y' }}", {"d": 123}, "", id="test_date_int_input"),
+        pytest.param("{{ d|date:'Y' }}", {"d": 1.2}, "", id="test_date_float_input"),
+        pytest.param("{{ 123|date:'Y' }}", {}, "", id="test_date_int_literal"),
+        pytest.param("{{ 1.2|date:'Y' }}", {}, "", id="test_date_float_literal"),
         pytest.param(
             "{{ d|date:'Y' }}", {"d": [2024, 1, 1]}, "", id="test_date_list_input"
         ),
@@ -190,5 +193,12 @@ def test_date_error_propagation(assert_render_error):
         context={"d": ExplodingDate(2024, 1, 1)},
         exception=RuntimeError,
         django_message="Python execution failed",
-        rusty_message="Python execution failed",
+        rusty_message="""\
+  × Python execution failed
+   ╭────
+ 1 │ {{ d|date:"Y" }}
+   ·      ──┬─
+   ·        ╰── here
+   ╰────
+""",
     )
