@@ -14,6 +14,7 @@ pub enum FilterType {
     Cut(CutFilter),
     Default(DefaultFilter),
     DefaultIfNone(DefaultIfNoneFilter),
+    Date(DateFilter),
     Escape(EscapeFilter),
     Escapejs(EscapejsFilter),
     External(ExternalFilter),
@@ -87,6 +88,18 @@ pub struct DefaultIfNoneFilter {
 impl DefaultIfNoneFilter {
     pub fn new(argument: Argument) -> Self {
         Self { argument }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct DateFilter {
+    pub argument: Option<Argument>,
+    pub at: At,
+}
+
+impl DateFilter {
+    pub fn new(argument: Option<Argument>, at: At) -> Self {
+        Self { argument, at }
     }
 }
 

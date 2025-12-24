@@ -6,13 +6,14 @@ use num_traits::ToPrimitive;
 use pyo3::prelude::*;
 use pyo3::sync::PyOnceLock;
 use pyo3::types::PyType;
+use pyo3::types::{PyDate, PyDateTime, PyTime};
 
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
 use crate::filters::{
-    AddFilter, AddSlashesFilter, CapfirstFilter, CenterFilter, CutFilter, DefaultFilter,
-    DefaultIfNoneFilter, EscapeFilter, EscapejsFilter, ExternalFilter, FilterType, LengthFilter,
-    LowerFilter, SafeFilter, SlugifyFilter, TitleFilter, UpperFilter, WordcountFilter,
-    WordwrapFilter, YesnoFilter,
+    AddFilter, AddSlashesFilter, CapfirstFilter, CenterFilter, CutFilter, DateFilter,
+    DefaultFilter, DefaultIfNoneFilter, EscapeFilter, EscapejsFilter, ExternalFilter, FilterType,
+    LengthFilter, LowerFilter, SafeFilter, SlugifyFilter, TitleFilter, UpperFilter,
+    WordcountFilter, WordwrapFilter, YesnoFilter,
 };
 use crate::parse::Filter;
 use crate::render::common::gettext;
@@ -31,6 +32,8 @@ static WHITESPACE_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"[-\s]+").expect("Static string will never panic"));
 
 static SAFEDATA: PyOnceLock<Py<PyType>> = PyOnceLock::new();
+static GET_FORMAT: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+static DATE_FORMAT: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 
 impl Resolve for Filter {
     fn resolve<'t, 'py>(
@@ -49,6 +52,7 @@ impl Resolve for Filter {
             FilterType::Cut(filter) => filter.resolve(left, py, template, context),
             FilterType::Default(filter) => filter.resolve(left, py, template, context),
             FilterType::DefaultIfNone(filter) => filter.resolve(left, py, template, context),
+            FilterType::Date(filter) => filter.resolve(left, py, template, context),
             FilterType::Escape(filter) => filter.resolve(left, py, template, context),
             FilterType::Escapejs(filter) => filter.resolve(left, py, template, context),
             FilterType::External(filter) => filter.resolve(left, py, template, context),
@@ -271,6 +275,57 @@ impl ResolveFilter for DefaultIfNoneFilter {
             Some(left) => Ok(Some(left)),
             None => Ok(Some("".as_content())),
         }
+    }
+}
+
+impl ResolveFilter for DateFilter {
+    fn resolve<'t, 'py>(
+        &self,
+        variable: Option<Content<'t, 'py>>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> ResolveResult<'t, 'py> {
+        let Some(value) = variable else {
+            return Ok(Some("".as_content()));
+        };
+
+        let fmt = match &self.argument {
+            Some(arg) => arg
+                .resolve(py, template, context, ResolveFailures::Raise)?
+                .expect("missing argument in context should already have raised")
+                .to_py(py),
+            None => {
+                let get_format = GET_FORMAT.import(py, "django.utils.formats", "get_format")?;
+                get_format.call1(("DATE_FORMAT",))?
+            }
+        };
+
+        let value = value.to_py(py);
+
+        let is_valid = value.is_instance_of::<PyDate>()
+            || value.is_instance_of::<PyTime>()
+            || value.is_instance_of::<PyDateTime>();
+
+        if !is_valid {
+            return Ok(Some("".as_content()));
+        }
+
+        let date_format_fn = DATE_FORMAT.import(py, "django.utils.dateformat", "format")?;
+
+        let formatted = match date_format_fn.call1((value, fmt)) {
+            Ok(res) => res,
+            Err(e) => {
+                if e.is_instance_of::<pyo3::exceptions::PyAttributeError>(py) {
+                    return Ok(Some("".as_content()));
+                }
+                return Err(PyRenderError::PyErr(
+                    e.annotate(py, self.at, "here", template),
+                ));
+            }
+        };
+
+        Ok(Some(Content::Py(formatted)))
     }
 }
 
