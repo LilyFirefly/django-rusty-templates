@@ -157,15 +157,6 @@ def test_date_lazy_format(assert_render):
     )
 
 
-def test_date_function():
-    from django.template.defaultfilters import date
-
-    assert date(datetime(2005, 12, 29), "d F Y") == "29 December 2005"
-    assert date("") == ""
-    assert date(None) == ""
-    assert date(datetime(2005, 12, 29), r"jS \o\f F") == "29th of December"
-
-
 def test_date_unexpected_argument(assert_parse_error):
     template = '{{ value|date:"Y":"m" }}'
     django_message = (

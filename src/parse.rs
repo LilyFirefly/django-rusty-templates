@@ -19,6 +19,7 @@ use crate::filters::AddSlashesFilter;
 use crate::filters::CapfirstFilter;
 use crate::filters::CenterFilter;
 use crate::filters::CutFilter;
+use crate::filters::DateFilter;
 use crate::filters::DefaultFilter;
 use crate::filters::DefaultIfNoneFilter;
 use crate::filters::EscapeFilter;
@@ -157,6 +158,7 @@ impl Filter {
                 Some(right) => FilterType::DefaultIfNone(DefaultIfNoneFilter::new(right)),
                 None => return Err(ParseError::MissingArgument { at: at.into() }),
             },
+            "date" => FilterType::Date(DateFilter::new(right)),
             "escape" => match right {
                 Some(right) => return Err(unexpected_argument("escape", right)),
                 None => FilterType::Escape(EscapeFilter),
