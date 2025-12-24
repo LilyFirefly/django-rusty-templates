@@ -432,7 +432,7 @@ impl ResolveFilter for SafeFilter {
 }
 
 /// Convert spaces or repeated dashes to single dashes.
-/// Remove characters that aren't alphanumerics, underscores, or hyphens.
+/// Remove characters that aren't ascii alphanumerics, underscores, or hyphens.
 /// Convert to lowercase. Also strip leading and trailing whitespace, dashes, and underscores.
 ///
 /// See https://github.com/django/django/blob/stable/5.2.x/django/utils/text.py#L453
