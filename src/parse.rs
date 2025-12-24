@@ -36,17 +36,17 @@ use crate::filters::WordcountFilter;
 use crate::filters::WordwrapFilter;
 use crate::filters::YesnoFilter;
 use dtl_lexer::START_TAG_LEN;
-use dtl_lexer::autoescape::{AutoescapeEnabled, AutoescapeError, lex_autoescape_argument};
 use dtl_lexer::common::{LexerError, text_content_at, translated_text_content_at};
 use dtl_lexer::core::{Lexer, TokenType};
-use dtl_lexer::custom_tag::{
+use dtl_lexer::tag::autoescape::{AutoescapeEnabled, AutoescapeError, lex_autoescape_argument};
+use dtl_lexer::tag::custom_tag::{
     SimpleTagLexer, SimpleTagLexerError, SimpleTagToken, SimpleTagTokenType,
 };
-use dtl_lexer::forloop::{ForLexer, ForLexerError, ForLexerInError, ForTokenType};
-use dtl_lexer::ifcondition::{
+use dtl_lexer::tag::forloop::{ForLexer, ForLexerError, ForLexerInError, ForTokenType};
+use dtl_lexer::tag::ifcondition::{
     IfConditionAtom, IfConditionLexer, IfConditionOperator, IfConditionTokenType,
 };
-use dtl_lexer::load::{LoadLexer, LoadToken};
+use dtl_lexer::tag::load::{LoadLexer, LoadToken};
 use dtl_lexer::tag::{TagLexerError, TagParts, lex_tag};
 use dtl_lexer::types::{At, TemplateString};
 use dtl_lexer::variable::{

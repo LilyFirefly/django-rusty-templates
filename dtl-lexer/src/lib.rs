@@ -1,12 +1,7 @@
 use crate::types::TemplateString;
 
-pub mod autoescape;
 pub mod common;
 pub mod core;
-pub mod custom_tag;
-pub mod forloop;
-pub mod ifcondition;
-pub mod load;
 pub mod tag;
 pub mod types;
 pub mod variable;

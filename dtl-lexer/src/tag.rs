@@ -1,3 +1,9 @@
+pub mod autoescape;
+pub mod custom_tag;
+pub mod forloop;
+pub mod ifcondition;
+pub mod load;
+
 use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 use unicode_xid::UnicodeXID;
