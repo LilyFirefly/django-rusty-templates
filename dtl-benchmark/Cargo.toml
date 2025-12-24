@@ -1,0 +1,24 @@
+[package]
+name = "dtl_benchmark"
+edition.workspace = true
+publish = false
+rust-version.workspace = true
+description = "DTL Micro-benchmarks"
+
+[lib]
+bench = false
+test = false
+doctest = false
+
+[[bench]]
+name = "slugify"
+harness = false
+
+
+[dev-dependencies]
+# See https://codspeed.io/docs/benchmarks/rust/divan
+divan = { package = "codspeed-divan-compat", version = "*" }
+django-rusty-templates = { path = ".." }
+
+[lints]
+workspace = true
