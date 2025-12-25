@@ -38,11 +38,8 @@ pub enum CycleError {
     },
 }
 
-pub fn lex_cycle(
-    template: TemplateString<'_>,
-    parts: TagParts,
-) -> Result<CycleToken, CycleError> {
-    // TODO: LOGIC 
+pub fn lex_cycle(template: TemplateString<'_>, parts: TagParts) -> Result<CycleToken, CycleError> {
+    // TODO: LOGIC
 
     Ok(CycleToken {
         at: parts.at,
