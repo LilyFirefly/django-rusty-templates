@@ -391,6 +391,7 @@ dependencies = [
 name = "dtl-lexer"
 version = "0.1.0"
 dependencies = [
+ "either",
  "miette",
  "num-bigint",
  "thiserror",

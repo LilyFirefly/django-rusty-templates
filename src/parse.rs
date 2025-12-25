@@ -35,7 +35,6 @@ use crate::filters::UpperFilter;
 use crate::filters::WordcountFilter;
 use crate::filters::WordwrapFilter;
 use crate::filters::YesnoFilter;
-use dtl_lexer::START_TAG_LEN;
 use dtl_lexer::common::{LexerError, text_content_at, translated_text_content_at};
 use dtl_lexer::core::{Lexer, TokenType};
 use dtl_lexer::tag::autoescape::{AutoescapeEnabled, AutoescapeError, lex_autoescape_argument};
@@ -47,11 +46,12 @@ use dtl_lexer::tag::ifcondition::{
     IfConditionAtom, IfConditionLexer, IfConditionOperator, IfConditionTokenType,
 };
 use dtl_lexer::tag::load::{LoadLexer, LoadToken};
-use dtl_lexer::tag::{TagLexerError, TagParts, lex_tag};
+use dtl_lexer::tag::{OtherTagType, StartTagType, TagLexerError, TagParts, lex_tag};
 use dtl_lexer::types::{At, TemplateString};
 use dtl_lexer::variable::{
     Argument as ArgumentToken, VariableLexerError, VariableToken, lex_variable_or_filter,
 };
+use dtl_lexer::{START_TAG_LEN, TemplateContent};
 
 use crate::template::django_rusty_templates::Engine;
 use crate::types::Argument;
@@ -666,11 +666,6 @@ pub enum ForParseError {
 
 #[derive(Error, Debug, Diagnostic, PartialEq, Eq)]
 pub enum ParseError {
-    #[error("Empty block tag")]
-    EmptyTag {
-        #[label("here")]
-        at: SourceSpan,
-    },
     #[error("Empty variable tag")]
     EmptyVariable {
         #[label("here")]
@@ -1148,71 +1143,83 @@ impl<'t, 'py> Parser<'t, 'py> {
                 return Err(parse_error.into());
             }
         };
-        let Some((tag, parts)) = maybe_tag else {
-            return Err(ParseError::EmptyTag { at: at.into() }.into());
-        };
-        Ok(match self.template.content(tag.at) {
-            "url" => Either::Left(self.parse_url(at, parts)?),
-            "load" => Either::Left(self.parse_load(at, parts)?),
-            "autoescape" => Either::Left(self.parse_autoescape(at, parts)?),
-            "endautoescape" => Either::Right(EndTag {
+
+        Ok(match maybe_tag.tag_type {
+            Either::Left(StartTagType::Url) => {
+                Either::Left(self.parse_url(at, maybe_tag.tag_parts)?)
+            }
+            Either::Left(StartTagType::Load) => {
+                Either::Left(self.parse_load(at, maybe_tag.tag_parts)?)
+            }
+            Either::Left(StartTagType::Autoescape) => {
+                Either::Left(self.parse_autoescape(at, maybe_tag.tag_parts)?)
+            }
+            Either::Right(OtherTagType::Endautoescape) => Either::Right(EndTag {
                 end: EndTagType::Autoescape,
                 at,
-                parts,
+                parts: maybe_tag.tag_parts,
             }),
-            "endverbatim" => Either::Right(EndTag {
+            Either::Right(OtherTagType::Endverbatim) => Either::Right(EndTag {
                 end: EndTagType::Verbatim,
                 at,
-                parts,
+                parts: maybe_tag.tag_parts,
             }),
-            "if" => Either::Left(self.parse_if(at, parts, "if")?),
-            "elif" => Either::Right(EndTag {
+            Either::Left(StartTagType::If) => {
+                Either::Left(self.parse_if(at, maybe_tag.tag_parts, "if")?)
+            }
+            Either::Right(OtherTagType::Elif) => Either::Right(EndTag {
                 end: EndTagType::Elif,
                 at,
-                parts,
+                parts: maybe_tag.tag_parts,
             }),
-            "else" => Either::Right(EndTag {
+            Either::Right(OtherTagType::Else) => Either::Right(EndTag {
                 end: EndTagType::Else,
                 at,
-                parts,
+                parts: maybe_tag.tag_parts,
             }),
-            "endif" => Either::Right(EndTag {
+            Either::Right(OtherTagType::Endif) => Either::Right(EndTag {
                 end: EndTagType::EndIf,
                 at,
-                parts,
+                parts: maybe_tag.tag_parts,
             }),
-            "for" => Either::Left(self.parse_for(at, parts)?),
-            "empty" => Either::Right(EndTag {
+            Either::Left(StartTagType::For) => {
+                Either::Left(self.parse_for(at, maybe_tag.tag_parts)?)
+            }
+            Either::Right(OtherTagType::Empty) => Either::Right(EndTag {
                 end: EndTagType::Empty,
                 at,
-                parts,
+                parts: maybe_tag.tag_parts,
             }),
-            "endfor" => Either::Right(EndTag {
+            Either::Right(OtherTagType::EndFor) => Either::Right(EndTag {
                 end: EndTagType::EndFor,
                 at,
-                parts,
+                parts: maybe_tag.tag_parts,
             }),
-            tag_name => match self.external_tags.get(tag_name) {
-                Some(TagContext::Simple(context)) => {
-                    Either::Left(self.parse_simple_tag(context, at, parts)?)
+            Either::Left(StartTagType::Custom) => {
+                let tag_name = maybe_tag.content(self.template);
+                match self.external_tags.get(tag_name) {
+                    Some(TagContext::Simple(context)) => {
+                        Either::Left(self.parse_simple_tag(context, at, maybe_tag.tag_parts)?)
+                    }
+                    Some(TagContext::SimpleBlock {
+                        context,
+                        end_tag_name,
+                    }) => Either::Left(self.parse_simple_block_tag(
+                        context.clone(),
+                        tag_name.to_string(),
+                        end_tag_name.clone(),
+                        at,
+                        maybe_tag.tag_parts,
+                    )?),
+                    Some(TagContext::EndSimpleBlock) => Either::Right(EndTag {
+                        end: EndTagType::Custom(tag_name.to_string()),
+                        at,
+                        parts: maybe_tag.tag_parts,
+                    }),
+                    _ => todo!("{tag_name}"),
                 }
-                Some(TagContext::SimpleBlock {
-                    context,
-                    end_tag_name,
-                }) => Either::Left(self.parse_simple_block_tag(
-                    context.clone(),
-                    tag_name.to_string(),
-                    end_tag_name.clone(),
-                    at,
-                    parts,
-                )?),
-                Some(TagContext::EndSimpleBlock) => Either::Right(EndTag {
-                    end: EndTagType::Custom(tag_name.to_string()),
-                    at,
-                    parts,
-                }),
-                None => todo!("{tag_name}"),
-            },
+            }
+            _ => todo!("{}", maybe_tag.content(self.template)),
         })
     }
 
@@ -2207,7 +2214,10 @@ mod tests {
             let template = "{%  %}";
             let mut parser = Parser::new(py, template.into(), Engine::empty().into());
             let error = parser.parse().unwrap_err().unwrap_parse_error();
-            assert_eq!(error, ParseError::EmptyTag { at: (0, 6).into() });
+            assert_eq!(
+                error,
+                ParseError::BlockError(TagLexerError::EmptyTag { at: (0, 6).into() })
+            );
         });
     }
 

@@ -9,3 +9,4 @@ miette.workspace = true
 thiserror.workspace = true
 num-bigint.workspace = true
 unicode-xid =  "0.2.6"
+either.workspace = true
