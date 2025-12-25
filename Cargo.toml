@@ -10,6 +10,7 @@ rust-version = "1.92"
 miette = { version = "7.6.0", features = ["fancy"] }
 thiserror = "2.0.16"
 num-bigint = "0.4.6"
+either = "1.15.0"
 
 [package]
 name = "django-rusty-templates"
@@ -24,7 +25,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 cached = "0.56.0"
-either = "1.15.0"
+either.workspace = true
 encoding_rs = "0.8.35"
 html-escape = "0.2.13"
 miette.workspace = true
