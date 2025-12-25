@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::sync::LazyLock;
 
 use html_escape::encode_quoted_attribute_to_string;
 use num_traits::ToPrimitive;
@@ -20,16 +19,7 @@ use crate::render::common::gettext;
 use crate::render::types::{AsBorrowedContent, Content, ContentString, Context, IntoOwnedContent};
 use crate::render::{Resolve, ResolveFailures, ResolveResult};
 use dtl_lexer::types::TemplateString;
-use regex::Regex;
 use unicode_normalization::UnicodeNormalization;
-
-// Used for replacing all non-word and non-spaces with an empty string
-static NON_WORD_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"[^\w\s-]").expect("Static string will never panic"));
-
-// regex for whitespaces and hyphen, used for replacing with hyphen only
-static WHITESPACE_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"[-\s]+").expect("Static string will never panic"));
 
 static SAFEDATA: PyOnceLock<Py<PyType>> = PyOnceLock::new();
 static GET_FORMAT: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
@@ -496,18 +486,27 @@ impl ResolveFilter for SafeFilter {
     }
 }
 
+/// Convert spaces or repeated dashes to single dashes.
+/// Remove characters that aren't ascii alphanumerics, underscores, or hyphens.
+/// Convert to lowercase. Also strip leading and trailing whitespace, dashes, and underscores.
+///
+/// See https://github.com/django/django/blob/stable/5.2.x/django/utils/text.py#L453
 pub fn slugify(content: Cow<str>) -> Cow<str> {
-    let content = content
-        .nfkd()
-        // first decomposing characters, then only keeping
-        // the ascii ones, filtering out diacritics for example.
-        .filter(char::is_ascii)
-        .collect::<String>()
-        .to_lowercase();
-    let content = NON_WORD_RE.replace_all(&content, "");
-    let content = content.trim();
-    let content = WHITESPACE_RE.replace_all(content, "-");
-    Cow::Owned(content.to_string())
+    let mut slug = String::with_capacity(content.len());
+
+    // treat start as if preceded by dash to strip leading dashes
+    let mut prev_dash = true;
+    for c in content.as_ref().nfkd().filter(|c| c.is_ascii()) {
+        if c.is_ascii_alphanumeric() || c == '_' {
+            slug.push(c.to_ascii_lowercase());
+            prev_dash = false;
+        } else if (c.is_whitespace() || c == '-') && !prev_dash {
+            slug.push('-');
+            prev_dash = true;
+        }
+    }
+    slug.truncate(slug.trim_end_matches(['-', '_']).len());
+    Cow::Owned(slug)
 }
 
 impl ResolveFilter for SlugifyFilter {

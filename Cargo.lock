@@ -381,7 +381,6 @@ dependencies = [
  "num-traits",
  "pyo3",
  "quickcheck",
- "regex",
  "sugar_path",
  "temp-env",
  "thiserror",
