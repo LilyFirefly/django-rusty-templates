@@ -27,7 +27,6 @@ pub struct CycleState {
     pub index: usize,
 }
 
-
 #[derive(Debug, Clone)]
 pub struct ForLoop {
     count: usize,
