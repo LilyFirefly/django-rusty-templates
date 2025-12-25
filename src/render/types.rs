@@ -22,6 +22,13 @@ use dtl_lexer::types::{At, TemplateString};
 static MARK_SAFE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 
 #[derive(Debug, Clone)]
+pub struct CycleState {
+    pub values: Vec<String>,
+    pub index: usize,
+}
+
+
+#[derive(Debug, Clone)]
 pub struct ForLoop {
     count: usize,
     len: usize,
@@ -60,6 +67,7 @@ pub struct Context {
     pub request: Option<Py<PyAny>>,
     pub autoescape: bool,
     names: Vec<HashSet<String>>,
+    pub cycles: HashMap<String, CycleState>,
 }
 
 impl Context {
@@ -75,6 +83,7 @@ impl Context {
             autoescape,
             loops: Vec::new(),
             names: Vec::new(),
+            cycles: HashMap::new(),
         }
     }
 
@@ -89,6 +98,7 @@ impl Context {
             autoescape: self.autoescape,
             loops: self.loops.clone(),
             names: self.names.clone(),
+            cycles: self.cycles.clone(),
         }
     }
 
