@@ -8,6 +8,7 @@ pub mod load;
 pub mod lorem;
 pub mod now;
 pub mod templatetag;
+pub mod cycle;
 
 use crate::common::NextChar;
 use crate::types::{At, TemplateString};
