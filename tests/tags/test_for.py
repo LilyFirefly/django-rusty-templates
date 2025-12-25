@@ -1,3 +1,4 @@
+from inline_snapshot import snapshot
 from textwrap import dedent
 
 import pytest
@@ -297,15 +298,15 @@ def test_render_number_in_expression(assert_render):
 
 def test_missing_variable_no_in(assert_parse_error):
     template = "{% for %}{% endfor %}"
-    django_message = "'for' statements should have at least four words: for"
-    rusty_message = """\
+    django_message = snapshot("'for' statements should have at least four words: for")
+    rusty_message = snapshot("""\
   × Expected at least one variable name in for loop:
    ╭────
  1 │ {% for %}{% endfor %}
    · ────┬────
    ·     ╰── in this tag
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -313,15 +314,17 @@ def test_missing_variable_no_in(assert_parse_error):
 
 def test_missing_variable_before_in(assert_parse_error):
     template = "{% for in %}{% endfor %}"
-    django_message = "'for' statements should have at least four words: for in"
-    rusty_message = """\
+    django_message = snapshot(
+        "'for' statements should have at least four words: for in"
+    )
+    rusty_message = snapshot("""\
   × Expected a variable name before the 'in' keyword:
    ╭────
  1 │ {% for in %}{% endfor %}
    ·        ─┬
    ·         ╰── before this keyword
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -329,15 +332,17 @@ def test_missing_variable_before_in(assert_parse_error):
 
 def test_missing_variable_before_in_four_words(assert_parse_error):
     template = "{% for in xs reversed %}{% endfor %}"
-    django_message = "'for' tag received an invalid argument: for in xs reversed"
-    rusty_message = """\
+    django_message = snapshot(
+        "'for' tag received an invalid argument: for in xs reversed"
+    )
+    rusty_message = snapshot("""\
   × Expected a variable name before the 'in' keyword:
    ╭────
  1 │ {% for in xs reversed %}{% endfor %}
    ·        ─┬
    ·         ╰── before this keyword
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -345,15 +350,15 @@ def test_missing_variable_before_in_four_words(assert_parse_error):
 
 def test_missing_in(assert_parse_error):
     template = "{% for x %}{% endfor %}"
-    django_message = "'for' statements should have at least four words: for x"
-    rusty_message = """\
+    django_message = snapshot("'for' statements should have at least four words: for x")
+    rusty_message = snapshot("""\
   × Expected the 'in' keyword or a variable name:
    ╭────
  1 │ {% for x %}{% endfor %}
    ·        ┬
    ·        ╰── after this name
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -361,15 +366,17 @@ def test_missing_in(assert_parse_error):
 
 def test_missing_expression_after_in(assert_parse_error):
     template = "{% for x in %}{% endfor %}"
-    django_message = "'for' statements should have at least four words: for x in"
-    rusty_message = """\
+    django_message = snapshot(
+        "'for' statements should have at least four words: for x in"
+    )
+    rusty_message = snapshot("""\
   × Expected an expression after the 'in' keyword:
    ╭────
  1 │ {% for x in %}{% endfor %}
    ·          ─┬
    ·           ╰── after this keyword
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -377,15 +384,17 @@ def test_missing_expression_after_in(assert_parse_error):
 
 def test_missing_expression_after_in_four_words(assert_parse_error):
     template = "{% for x, z in %}{% endfor %}"
-    django_message = "'for' statements should use the format 'for x in y': for x, z in"
-    rusty_message = """\
+    django_message = snapshot(
+        "'for' statements should use the format 'for x in y': for x, z in"
+    )
+    rusty_message = snapshot("""\
   × Expected an expression after the 'in' keyword:
    ╭────
  1 │ {% for x, z in %}{% endfor %}
    ·             ─┬
    ·              ╰── after this keyword
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -393,15 +402,15 @@ def test_missing_expression_after_in_four_words(assert_parse_error):
 
 def test_unpack_1_tuple(assert_parse_error):
     template = "{% for x, in l %}{% endfor %}"
-    django_message = "'for' tag received an invalid argument: for x, in l"
-    rusty_message = """\
+    django_message = snapshot("'for' tag received an invalid argument: for x, in l")
+    rusty_message = snapshot("""\
   × Expected another variable when unpacking in for loop:
    ╭────
  1 │ {% for x, in l %}{% endfor %}
    ·        ┬
    ·        ╰── after this variable
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -409,15 +418,15 @@ def test_unpack_1_tuple(assert_parse_error):
 
 def test_invalid_variable_in_unpack(assert_parse_error):
     template = "{% for x, '2' in l %}{% endfor %}"
-    django_message = "'for' tag received an invalid argument: for x, '2' in l"
-    rusty_message = """\
+    django_message = snapshot("'for' tag received an invalid argument: for x, '2' in l")
+    rusty_message = snapshot("""\
   × Invalid variable name '2' in for loop:
    ╭────
  1 │ {% for x, '2' in l %}{% endfor %}
    ·           ─┬─
    ·            ╰── invalid variable name
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -425,15 +434,15 @@ def test_invalid_variable_in_unpack(assert_parse_error):
 
 def test_unexpected_expression_before_in(assert_parse_error):
     template = "{% for x y in l %}{% endfor %}"
-    django_message = "'for' tag received an invalid argument: for x y in l"
-    rusty_message = """\
+    django_message = snapshot("'for' tag received an invalid argument: for x y in l")
+    rusty_message = snapshot("""\
   × Unexpected expression in for loop. Did you miss a comma when unpacking?
    ╭────
  1 │ {% for x y in l %}{% endfor %}
    ·          ┬
    ·          ╰── unexpected expression
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -441,15 +450,17 @@ def test_unexpected_expression_before_in(assert_parse_error):
 
 def test_unexpected_expression_before_in_longer(assert_parse_error):
     template = "{% for x, y, z w in l %}{% endfor %}"
-    django_message = "'for' tag received an invalid argument: for x, y, z w in l"
-    rusty_message = """\
+    django_message = snapshot(
+        "'for' tag received an invalid argument: for x, y, z w in l"
+    )
+    rusty_message = snapshot("""\
   × Unexpected expression in for loop. Did you miss a comma when unpacking?
    ╭────
  1 │ {% for x, y, z w in l %}{% endfor %}
    ·                ┬
    ·                ╰── unexpected expression
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -457,15 +468,17 @@ def test_unexpected_expression_before_in_longer(assert_parse_error):
 
 def test_unexpected_expression_after_in(assert_parse_error):
     template = "{% for x in l m %}{% endfor %}"
-    django_message = "'for' statements should use the format 'for x in y': for x in l m"
-    rusty_message = """\
+    django_message = snapshot(
+        "'for' statements should use the format 'for x in y': for x in l m"
+    )
+    rusty_message = snapshot("""\
   × Unexpected expression in for loop:
    ╭────
  1 │ {% for x in l m %}{% endfor %}
    ·               ┬
    ·               ╰── unexpected expression
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -476,22 +489,22 @@ def test_unexpected_expression_after_reversed(assert_parse_error):
     django_message = (
         "'for' statements should use the format 'for x in y': for x in l reversed m"
     )
-    rusty_message = """\
+    rusty_message = snapshot("""\
   × Unexpected expression in for loop:
    ╭────
  1 │ {% for x in l reversed m %}{% endfor %}
    ·                        ┬
    ·                        ╰── unexpected expression
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
 
 
 def test_render_for_loop_unpack_tuple_mismatch(assert_render_error):
-    django_message = "Need 3 values to unpack in for loop; got 2. "
-    rusty_message = """\
+    django_message = snapshot("Need 3 values to unpack in for loop; got 2. ")
+    rusty_message = snapshot("""\
   × Need 3 values to unpack; got 2.
    ╭─[1:8]
  1 │ {% for x, y, z in l %}{{ x }}-{{ y }}-{{ z }}
@@ -500,7 +513,7 @@ def test_render_for_loop_unpack_tuple_mismatch(assert_render_error):
    ·           ╰── unpacked here
  2 │ {% endfor %}
    ╰────
-"""
+""")
     assert_render_error(
         template="{% for x, y, z in l %}{{ x }}-{{ y }}-{{ z }}\n{% endfor %}",
         context={"l": [(1, 2, 3), ("foo", "bar")]},
@@ -511,8 +524,8 @@ def test_render_for_loop_unpack_tuple_mismatch(assert_render_error):
 
 
 def test_render_for_loop_unpack_tuple_invalid(assert_render_error):
-    django_message = "Need 3 values to unpack in for loop; got 1. "
-    rusty_message = """\
+    django_message = snapshot("Need 3 values to unpack in for loop; got 1. ")
+    rusty_message = snapshot("""\
   × Need 3 values to unpack; got 1.
    ╭─[1:8]
  1 │ {% for x, y, z in l %}{{ x }}-{{ y }}-{{ z }}
@@ -521,7 +534,7 @@ def test_render_for_loop_unpack_tuple_invalid(assert_render_error):
    ·           ╰── unpacked here
  2 │ {% endfor %}
    ╰────
-"""
+""")
     assert_render_error(
         template="{% for x, y, z in l %}{{ x }}-{{ y }}-{{ z }}\n{% endfor %}",
         context={"l": [1]},
@@ -532,8 +545,8 @@ def test_render_for_loop_unpack_tuple_invalid(assert_render_error):
 
 
 def test_render_for_loop_unpack_tuple_iteration_error(assert_render_error):
-    django_message = "division by zero"
-    rusty_message = """\
+    django_message = snapshot("division by zero")
+    rusty_message = snapshot("""\
   × division by zero
    ╭─[1:19]
  1 │ {% for x, y, z in l %}{{ x }}-{{ y }}-{{ z }}
@@ -541,7 +554,7 @@ def test_render_for_loop_unpack_tuple_iteration_error(assert_render_error):
    ·                   ╰── while unpacking this
  2 │ {% endfor %}
    ╰────
-"""
+""")
     assert_render_error(
         template="{% for x, y, z in l %}{{ x }}-{{ y }}-{{ z }}\n{% endfor %}",
         context={"l": [BrokenIterator()]},
@@ -552,8 +565,8 @@ def test_render_for_loop_unpack_tuple_iteration_error(assert_render_error):
 
 
 def test_render_for_loop_unpack_tuple_broken_iterator(assert_render_error):
-    django_message = "division by zero"
-    rusty_message = """\
+    django_message = snapshot("division by zero")
+    rusty_message = snapshot("""\
   × division by zero
    ╭─[1:19]
  1 │ {% for x, y, z in l %}{{ x }}-{{ y }}-{{ z }}
@@ -561,7 +574,7 @@ def test_render_for_loop_unpack_tuple_broken_iterator(assert_render_error):
    ·                   ╰── while iterating this
  2 │ {% endfor %}
    ╰────
-"""
+""")
     assert_render_error(
         template="{% for x, y, z in l %}{{ x }}-{{ y }}-{{ z }}\n{% endfor %}",
         context={"l": [BrokenIterator2()]},
@@ -572,8 +585,8 @@ def test_render_for_loop_unpack_tuple_broken_iterator(assert_render_error):
 
 
 def test_render_for_loop_unpack_string(assert_render_error):
-    django_message = "Need 2 values to unpack in for loop; got 1. "
-    rusty_message = """\
+    django_message = snapshot("Need 2 values to unpack in for loop; got 1. ")
+    rusty_message = snapshot("""\
   × Need 2 values to unpack; got 1.
    ╭────
  1 │ {% for x, y in 'foo' %}{{ x }}{{ y }}{% endfor %}
@@ -581,7 +594,7 @@ def test_render_for_loop_unpack_string(assert_render_error):
    ·          │       ╰── from here
    ·          ╰── unpacked here
    ╰────
-"""
+""")
     assert_render_error(
         template="{% for x, y in 'foo' %}{{ x }}{{ y }}{% endfor %}",
         context={"l": [(1, 2, 3), ("foo", "bar")]},
@@ -593,15 +606,17 @@ def test_render_for_loop_unpack_string(assert_render_error):
 
 def test_render_for_loop_invalid_variable(assert_parse_error):
     template = "{% for x in _a %}{{ x }}{% endfor %}"
-    django_message = "Variables and attributes may not begin with underscores: '_a'"
-    rusty_message = """\
+    django_message = snapshot(
+        "Variables and attributes may not begin with underscores: '_a'"
+    )
+    rusty_message = snapshot("""\
   × Expected a valid variable name
    ╭────
  1 │ {% for x in _a %}{{ x }}{% endfor %}
    ·             ─┬
    ·              ╰── here
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -609,15 +624,17 @@ def test_render_for_loop_invalid_variable(assert_parse_error):
 
 def test_render_empty_tag(assert_parse_error):
     template = "{% empty %}"
-    django_message = "Invalid block tag on line 1: 'empty'. Did you forget to register or load this tag?"
-    rusty_message = """\
+    django_message = snapshot(
+        "Invalid block tag on line 1: 'empty'. Did you forget to register or load this tag?"
+    )
+    rusty_message = snapshot("""\
   × Unexpected tag empty
    ╭────
  1 │ {% empty %}
    · ─────┬─────
    ·      ╰── unexpected tag
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -625,15 +642,17 @@ def test_render_empty_tag(assert_parse_error):
 
 def test_render_endfor_tag(assert_parse_error):
     template = "{% endfor %}"
-    django_message = "Invalid block tag on line 1: 'endfor'. Did you forget to register or load this tag?"
-    rusty_message = """\
+    django_message = snapshot(
+        "Invalid block tag on line 1: 'endfor'. Did you forget to register or load this tag?"
+    )
+    rusty_message = snapshot("""\
   × Unexpected tag endfor
    ╭────
  1 │ {% endfor %}
    · ──────┬─────
    ·       ╰── unexpected tag
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -641,15 +660,17 @@ def test_render_endfor_tag(assert_parse_error):
 
 def test_render_missing_endfor_tag(assert_parse_error):
     template = "{% for x in 'a' %}"
-    django_message = "Unclosed tag on line 1: 'for'. Looking for one of: empty, endfor."
-    rusty_message = """\
+    django_message = snapshot(
+        "Unclosed tag on line 1: 'for'. Looking for one of: empty, endfor."
+    )
+    rusty_message = snapshot("""\
   × Unclosed 'for' tag. Looking for one of: empty, endfor
    ╭────
  1 │ {% for x in 'a' %}
    · ─────────┬────────
    ·          ╰── started here
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -657,30 +678,32 @@ def test_render_missing_endfor_tag(assert_parse_error):
 
 def test_render_missing_endfor_tag_after_empty(assert_parse_error):
     template = "{% for x in 'a' %}{% empty %}"
-    django_message = "Unclosed tag on line 1: 'for'. Looking for one of: endfor."
-    rusty_message = """\
+    django_message = snapshot(
+        "Unclosed tag on line 1: 'for'. Looking for one of: endfor."
+    )
+    rusty_message = snapshot("""\
   × Unclosed 'empty' tag. Looking for one of: endfor
    ╭────
  1 │ {% for x in 'a' %}{% empty %}
    ·                   ─────┬─────
    ·                        ╰── started here
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
 
 
 def test_render_for_loop_not_iterable(assert_render_error):
-    django_message = "'int' object is not iterable"
-    rusty_message = """\
+    django_message = snapshot("'int' object is not iterable")
+    rusty_message = snapshot("""\
   × 'int' object is not iterable
    ╭────
  1 │ {% for x in a %}{{ x }}{% endfor %}
    ·             ┬
    ·             ╰── here
    ╰────
-"""
+""")
     assert_render_error(
         template="{% for x in a %}{{ x }}{% endfor %}",
         context={"a": 1},
@@ -691,15 +714,15 @@ def test_render_for_loop_not_iterable(assert_render_error):
 
 
 def test_render_for_loop_iteration_error(assert_render_error):
-    django_message = "division by zero"
-    rusty_message = """\
+    django_message = snapshot("division by zero")
+    rusty_message = snapshot("""\
   × division by zero
    ╭────
  1 │ {% for x in a %}{{ x }}{% endfor %}
    ·             ┬
    ·             ╰── while iterating this
    ╰────
-"""
+""")
     assert_render_error(
         template="{% for x in a %}{{ x }}{% endfor %}",
         context={"a": BrokenIterator()},
@@ -710,8 +733,10 @@ def test_render_for_loop_iteration_error(assert_render_error):
 
 
 def test_render_for_loop_body_error(assert_render_error):
-    django_message = "Failed lookup for key [z] in [{'True': True, 'False': False, 'None': None}, {'a': [1]}]"
-    rusty_message = """\
+    django_message = snapshot(
+        "Failed lookup for key [z] in [{'True': True, 'False': False, 'None': None}, {'a': [1]}]"
+    )
+    rusty_message = snapshot("""\
   × Failed lookup for key [z] in {"False": False, "None": None, "True": True,
   │ "a": [1], "x": 1, "y": 'b'}
    ╭────
@@ -719,7 +744,7 @@ def test_render_for_loop_body_error(assert_render_error):
    ·                                            ┬
    ·                                            ╰── key
    ╰────
-"""
+""")
     assert_render_error(
         template="{% for x in a %}{% for y in 'b' %}{{ x|add:z }}{% endfor %}{% endfor %}",
         context={"a": [1]},
@@ -730,15 +755,17 @@ def test_render_for_loop_body_error(assert_render_error):
 
 
 def test_render_for_loop_missing(assert_render_error):
-    django_message = "Failed lookup for key [b] in [{'True': True, 'False': False, 'None': None}, {}]"
-    rusty_message = """\
+    django_message = snapshot(
+        "Failed lookup for key [b] in [{'True': True, 'False': False, 'None': None}, {}]"
+    )
+    rusty_message = snapshot("""\
   × Failed lookup for key [b] in {"False": False, "None": None, "True": True}
    ╭────
  1 │ {% for x in a|default:b %}{{ x }}{% endfor %}
    ·                       ┬
    ·                       ╰── key
    ╰────
-"""
+""")
     assert_render_error(
         template="{% for x in a|default:b %}{{ x }}{% endfor %}",
         context={},
@@ -749,8 +776,10 @@ def test_render_for_loop_missing(assert_render_error):
 
 
 def test_missing_argument_after_for_loop(assert_render_error):
-    django_message = "Failed lookup for key [x] in [{'True': True, 'False': False, 'None': None}, {'a': 'b'}]"
-    rusty_message = """\
+    django_message = snapshot(
+        "Failed lookup for key [x] in [{'True': True, 'False': False, 'None': None}, {'a': 'b'}]"
+    )
+    rusty_message = snapshot("""\
   × Failed lookup for key [x] in {"False": False, "None": None, "True": True,
   │ "a": 'b'}
    ╭────
@@ -758,7 +787,7 @@ def test_missing_argument_after_for_loop(assert_render_error):
    ·                                                 ┬
    ·                                                 ╰── key
    ╰────
-"""
+""")
     assert_render_error(
         template="{% for x in a %}{{ x }}{% endfor %}{{ y|default:x }}",
         context={"a": "b"},

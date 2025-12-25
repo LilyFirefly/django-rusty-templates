@@ -1,3 +1,6 @@
+from inline_snapshot import snapshot
+
+
 def test_escape(assert_render):
     template = "{{ html|escape }}"
     html = "<p>Hello World!</p>"
@@ -7,15 +10,15 @@ def test_escape(assert_render):
 
 def test_escape_with_argument(assert_parse_error):
     template = "{{ html|escape:invalid }}"
-    django_message = "escape requires 1 arguments, 2 provided"
-    rusty_message = """\
+    django_message = snapshot("escape requires 1 arguments, 2 provided")
+    rusty_message = snapshot("""\
   × escape filter does not take an argument
    ╭────
  1 │ {{ html|escape:invalid }}
    ·                ───┬───
    ·                   ╰── unexpected argument
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )

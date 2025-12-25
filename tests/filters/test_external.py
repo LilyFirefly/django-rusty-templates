@@ -1,3 +1,4 @@
+from inline_snapshot import snapshot
 from django.template.base import VariableDoesNotExist
 
 
@@ -35,8 +36,8 @@ def test_load_and_render_multiple_filter_libraries(assert_render):
 
 
 def test_resolve_filter_arg_error(assert_render_error):
-    django_message = "Failed lookup for key [1b] in 3"
-    rusty_message = """\
+    django_message = snapshot("Failed lookup for key [1b] in 3")
+    rusty_message = snapshot("""\
   × Failed lookup for key [1b] in 3
    ╭─[2:17]
  1 │ {% load multiply from custom_filters %}
@@ -45,7 +46,7 @@ def test_resolve_filter_arg_error(assert_render_error):
    ·                    │     ╰── key
    ·                    ╰── 3
    ╰────
-"""
+""")
     template = """\
 {% load multiply from custom_filters %}
 {{ num|multiply:foo.bar.1b.baz }}
@@ -64,8 +65,8 @@ def test_filter_error(assert_render_error):
         template="{% load custom_filters %}{{ num|divide_by_zero }}",
         context={"num": 1},
         exception=ZeroDivisionError,
-        django_message="division by zero",
-        rusty_message="division by zero",
+        django_message=snapshot("division by zero"),
+        rusty_message=snapshot("division by zero"),
     )
 
 
@@ -74,6 +75,6 @@ def test_filter_error_with_argument(assert_render_error):
         template="{% load custom_filters %}{{ num|divide_by_zero:0 }}",
         context={"num": 1},
         exception=ZeroDivisionError,
-        django_message="division by zero",
-        rusty_message="division by zero",
+        django_message=snapshot("division by zero"),
+        rusty_message=snapshot("division by zero"),
     )

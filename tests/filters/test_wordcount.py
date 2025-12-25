@@ -1,3 +1,4 @@
+from inline_snapshot import snapshot
 import pytest
 
 from tests.utils import BrokenDunderStr
@@ -80,15 +81,15 @@ def test_wordcount_chained(assert_render, template, context, expected):
 
 def test_wordcount_with_argument(assert_parse_error):
     template = "{{ var|wordcount:arg }}"
-    django_message = "wordcount requires 1 arguments, 2 provided"
-    rusty_message = """\
+    django_message = snapshot("wordcount requires 1 arguments, 2 provided")
+    rusty_message = snapshot("""\
   × wordcount filter does not take an argument
    ╭────
  1 │ {{ var|wordcount:arg }}
    ·                  ─┬─
    ·                   ╰── unexpected argument
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -100,6 +101,6 @@ def test_wordcount_invalid_str_method(assert_render_error):
         template="{{ broken|wordcount }}",
         context={"broken": broken},
         exception=ZeroDivisionError,
-        django_message="division by zero",
-        rusty_message="division by zero",
+        django_message=snapshot("division by zero"),
+        rusty_message=snapshot("division by zero"),
     )

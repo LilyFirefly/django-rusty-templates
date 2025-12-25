@@ -3,6 +3,8 @@ Adapted from
 https://github.com/django/django/blob/5.1/tests/template_tests/filter_tests/test_capfirst.py
 """
 
+from inline_snapshot import snapshot
+
 import pytest
 from django.utils.safestring import mark_safe
 
@@ -46,16 +48,16 @@ def test_capfirst_chained_with_bool(assert_render):
 
 
 def test_capfirt_unexpected_argument(assert_parse_error):
-    rusty_message = """\
+    rusty_message = snapshot("""\
   × capfirst filter does not take an argument
    ╭────
  1 │ {{bob|capfirst:1}}
    ·                ┬
    ·                ╰── unexpected argument
    ╰────
-"""
+""")
     assert_parse_error(
         template="{{bob|capfirst:1}}",
-        django_message="capfirst requires 1 arguments, 2 provided",
+        django_message=snapshot("capfirst requires 1 arguments, 2 provided"),
         rusty_message=rusty_message,
     )

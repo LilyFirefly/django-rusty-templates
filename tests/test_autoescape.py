@@ -1,3 +1,4 @@
+from inline_snapshot import snapshot
 from django.utils.safestring import mark_safe
 
 from tests.utils import BrokenDunderStr
@@ -37,8 +38,8 @@ def test_autoescape_invalid_str_method(assert_render_error):
         template="{{ broken }}",
         context={"broken": broken},
         exception=ZeroDivisionError,
-        django_message="division by zero",
-        rusty_message="division by zero",
+        django_message=snapshot("division by zero"),
+        rusty_message=snapshot("division by zero"),
     )
 
 
@@ -52,8 +53,8 @@ def test_autoescape_invalid_html_method(assert_render_error):
         template="{{ broken }}",
         context={"broken": broken},
         exception=ZeroDivisionError,
-        django_message="division by zero",
-        rusty_message="division by zero",
+        django_message=snapshot("division by zero"),
+        rusty_message=snapshot("division by zero"),
     )
 
 

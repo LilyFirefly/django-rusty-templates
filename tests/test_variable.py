@@ -1,3 +1,6 @@
+from inline_snapshot import snapshot
+
+
 def test_render_variable(assert_render):
     template = "{{ foo }}"
     assert_render(template=template, context={"foo": 3}, expected="3")
@@ -30,15 +33,15 @@ def test_render_attribute_int(assert_render):
 
 def test_render_variable_hyphen(assert_parse_error):
     template = "{{ foo-1 }}"
-    django_message = "Could not parse the remainder: '-1' from 'foo-1'"
-    rusty_message = """\
+    django_message = snapshot("Could not parse the remainder: '-1' from 'foo-1'")
+    rusty_message = snapshot("""\
   × Expected a valid variable name
    ╭────
  1 │ {{ foo-1 }}
    ·    ──┬──
    ·      ╰── here
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -46,15 +49,15 @@ def test_render_variable_hyphen(assert_parse_error):
 
 def test_render_attribute_negative_int(assert_parse_error):
     template = "{{ foo.-1 }}"
-    django_message = "Could not parse the remainder: '-1' from 'foo.-1'"
-    rusty_message = """\
+    django_message = snapshot("Could not parse the remainder: '-1' from 'foo.-1'")
+    rusty_message = snapshot("""\
   × Expected a valid variable name
    ╭────
  1 │ {{ foo.-1 }}
    ·        ─┬
    ·         ╰── here
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -62,15 +65,15 @@ def test_render_attribute_negative_int(assert_parse_error):
 
 def test_render_invalid_variable(assert_parse_error):
     template = "{{ & }}"
-    django_message = "Could not parse the remainder: '&' from '&'"
-    rusty_message = """\
+    django_message = snapshot("Could not parse the remainder: '&' from '&'")
+    rusty_message = snapshot("""\
   × Expected a valid variable name
    ╭────
  1 │ {{ & }}
    ·    ┬
    ·    ╰── here
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )

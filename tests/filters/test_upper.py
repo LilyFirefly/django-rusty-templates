@@ -1,3 +1,6 @@
+from inline_snapshot import snapshot
+
+
 def test_upper_string(assert_render):
     template = "{{ var|upper }}"
     var = "foo"
@@ -19,15 +22,15 @@ def test_upper_integer(assert_render):
 
 def test_upper_with_argument(assert_parse_error):
     template = "{{ var|upper:arg }}"
-    django_message = "upper requires 1 arguments, 2 provided"
-    rusty_message = """\
+    django_message = snapshot("upper requires 1 arguments, 2 provided")
+    rusty_message = snapshot("""\
   × upper filter does not take an argument
    ╭────
  1 │ {{ var|upper:arg }}
    ·              ─┬─
    ·               ╰── unexpected argument
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
