@@ -486,7 +486,7 @@ def test_unexpected_expression_after_in(assert_parse_error):
 
 def test_unexpected_expression_after_reversed(assert_parse_error):
     template = "{% for x in l reversed m %}{% endfor %}"
-    django_message = (
+    django_message = snapshot(
         "'for' statements should use the format 'for x in y': for x in l reversed m"
     )
     rusty_message = snapshot("""\

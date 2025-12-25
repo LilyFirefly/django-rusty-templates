@@ -164,7 +164,7 @@ def test_date_lazy_format(assert_render):
 
 def test_date_unexpected_argument(assert_parse_error):
     template = '{{ value|date:"Y":"m" }}'
-    django_message = (
+    django_message = snapshot(
         'Could not parse the remainder: \':"m"\' from \'value|date:"Y":"m"\''
     )
     rusty_message = snapshot("""\

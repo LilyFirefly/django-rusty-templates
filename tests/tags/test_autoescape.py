@@ -57,7 +57,7 @@ def test_extra_argument(assert_parse_error):
 
 def test_missing_endautoescape(assert_parse_error):
     template = "{% autoescape off %}{{ html }}"
-    django_message = (
+    django_message = snapshot(
         "Unclosed tag on line 1: 'autoescape'. Looking for one of: endautoescape."
     )
     rusty_message = snapshot("""\

@@ -49,7 +49,7 @@ tz""")
 
 def test_load_missing_filter(assert_parse_error):
     template = "{% load missing from custom_filters %}"
-    django_message = (
+    django_message = snapshot(
         "'missing' is not a valid tag or filter in tag library 'custom_filters'"
     )
     rusty_message = snapshot("""\

@@ -167,7 +167,7 @@ def test_simple_tag_takes_context_getitem_missing(assert_render_error):
 
 def test_simple_tag_positional_after_kwarg(assert_parse_error):
     template = "{% load double from custom_tags %}{% double value=3 foo %}"
-    django_message = (
+    django_message = snapshot(
         "'double' received some positional argument(s) after some keyword argument(s)"
     )
     rusty_message = snapshot("""\
@@ -236,7 +236,7 @@ def test_simple_tag_missing_argument(assert_parse_error):
 
 def test_simple_tag_missing_arguments(assert_parse_error):
     template = "{% load multiply from custom_tags %}{% multiply %}"
-    django_message = (
+    django_message = snapshot(
         "'multiply' did not receive value(s) for the argument(s): 'a', 'b', 'c'"
     )
     rusty_message = snapshot("""\
@@ -291,7 +291,7 @@ def test_simple_tag_duplicate_keyword_arguments(assert_parse_error):
 
 def test_simple_tag_keyword_as_multiple_variables(assert_parse_error):
     template = "{% load double from custom_tags %}{% double value=1 as foo bar %}"
-    django_message = (
+    django_message = snapshot(
         "'double' received some positional argument(s) after some keyword argument(s)"
     )
     rusty_message = snapshot("""\
@@ -342,7 +342,7 @@ def test_simple_tag_positional_as_multiple_variables_with_default(assert_parse_e
 
 def test_simple_tag_keyword_missing_target_variable(assert_parse_error):
     template = "{% load double from custom_tags %}{% double value=1 as %}"
-    django_message = (
+    django_message = snapshot(
         "'double' received some positional argument(s) after some keyword argument(s)"
     )
     rusty_message = snapshot("""\
@@ -488,7 +488,7 @@ def test_simple_tag_keyword_argument_error(assert_render_error):
 
 def test_simple_tag_missing_keyword_argument(assert_parse_error):
     template = "{% load list from custom_tags %}{% list %}"
-    django_message = (
+    django_message = snapshot(
         "'list' did not receive value(s) for the argument(s): 'items', 'header'"
     )
     rusty_message = snapshot("""\
