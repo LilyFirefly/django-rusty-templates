@@ -40,6 +40,15 @@ def assert_render(template_engine):
     return assert_render_template
 
 
+@pytest.fixture
+def render_output(template_engine):
+    def render_template_output(template, context, request=None):
+        template = template_engine.from_string(template)
+        return template.render(context, request)
+
+    return render_template_output
+
+
 @all_engines
 def assert_parse_error(request):
     """
