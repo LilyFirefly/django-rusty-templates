@@ -30,7 +30,7 @@ dev = [
     "pytest-cov",
     "ruff",
     "pre-commit",
-    "inline-snapshot"
+    "inline-snapshot",
 ]
 
 [tool.ruff]
