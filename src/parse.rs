@@ -51,6 +51,7 @@ use dtl_lexer::tag::include::{
     IncludeWithToken,
 };
 use dtl_lexer::tag::load::{LoadLexer, LoadToken};
+use dtl_lexer::tag::lorem::{LoremError, LoremToken, lex_lorem};
 use dtl_lexer::tag::{TagLexerError, TagParts, lex_tag};
 use dtl_lexer::types::{At, TemplateString};
 use dtl_lexer::variable::{
@@ -621,6 +622,7 @@ pub enum Tag {
     SimpleTag(SimpleTag),
     SimpleBlockTag(SimpleBlockTag),
     Url(Url),
+    Lorem(LoremToken),
 }
 
 #[derive(PartialEq, Eq)]
@@ -951,6 +953,20 @@ pub enum PyParseError {
     PyErr(#[from] PyErr),
     #[error(transparent)]
     ParseError(#[from] ParseError),
+}
+
+impl From<LoremError> for PyParseError {
+    fn from(err: LoremError) -> Self {
+        PyParseError::from(ParseError::from(err))
+    }
+}
+
+impl From<LoremError> for ParseError {
+    fn from(err: LoremError) -> Self {
+        match err {
+            LoremError::InvalidFormat { at } => ParseError::MissingArgument { at },
+        }
+    }
 }
 
 impl PyParseError {
@@ -1287,6 +1303,7 @@ impl<'t, 'py> Parser<'t, 'py> {
                 parts,
             }),
             "include" => Either::Left(self.parse_include(at, parts)?),
+            "lorem" => Either::Left(TokenTree::Tag(Tag::Lorem(lex_lorem(self.template, parts)?))),
             tag_name => match self.external_tags.get(tag_name) {
                 Some(TagContext::Simple(context)) => {
                     Either::Left(self.parse_simple_tag(context, at, parts)?)

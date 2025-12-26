@@ -4,6 +4,7 @@ pub mod forloop;
 pub mod ifcondition;
 pub mod include;
 pub mod load;
+pub mod lorem;
 
 use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
