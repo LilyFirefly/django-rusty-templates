@@ -1,3 +1,4 @@
+from inline_snapshot import snapshot
 import pytest
 from django.template.base import VariableDoesNotExist
 
@@ -115,23 +116,25 @@ def test_default_if_none_with_forloop_variable(assert_render):
 
 def test_default_if_none_missing_argument(assert_parse_error):
     template = "{{ value|default_if_none }}"
-    django_message = "default_if_none requires 2 arguments, 1 provided"
-    rusty_message = """\
+    django_message = snapshot("default_if_none requires 2 arguments, 1 provided")
+    rusty_message = snapshot("""\
   × Expected an argument
    ╭────
  1 │ {{ value|default_if_none }}
    ·          ───────┬───────
    ·                 ╰── here
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
 
 
 def test_default_if_none_missing_variable_argument(assert_render_error):
-    django_message = "Failed lookup for key [missing] in [{'True': True, 'False': False, 'None': None}, {'value': None}]"
-    rusty_message = """\
+    django_message = snapshot(
+        "Failed lookup for key [missing] in [{'True': True, 'False': False, 'None': None}, {'value': None}]"
+    )
+    rusty_message = snapshot("""\
   × Failed lookup for key [missing] in {"False": False, "None": None, "True":
   │ True, "value": None}
    ╭────
@@ -139,7 +142,7 @@ def test_default_if_none_missing_variable_argument(assert_render_error):
    ·                          ───┬───
    ·                             ╰── key
    ╰────
-"""
+""")
     assert_render_error(
         template="{{ value|default_if_none:missing }}",
         context={"value": None},

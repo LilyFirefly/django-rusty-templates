@@ -1,3 +1,4 @@
+from inline_snapshot import snapshot
 import pytest
 
 from tests.utils import BrokenDunderStr
@@ -98,15 +99,15 @@ def test_title_chained_with_lower(assert_render):
 
 def test_title_with_argument_error(assert_parse_error):
     template = "{{ var|title:arg }}"
-    django_message = "title requires 1 arguments, 2 provided"
-    rusty_message = """\
+    django_message = snapshot("title requires 1 arguments, 2 provided")
+    rusty_message = snapshot("""\
   × title filter does not take an argument
    ╭────
  1 │ {{ var|title:arg }}
    ·              ─┬─
    ·               ╰── unexpected argument
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -118,6 +119,6 @@ def test_title_invalid_str_method(assert_render_error):
         template="{{ broken|title }}",
         context={"broken": broken},
         exception=ZeroDivisionError,
-        django_message="division by zero",
-        rusty_message="division by zero",
+        django_message=snapshot("division by zero"),
+        rusty_message=snapshot("division by zero"),
     )

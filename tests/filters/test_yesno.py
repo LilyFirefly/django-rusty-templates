@@ -1,3 +1,4 @@
+from inline_snapshot import snapshot
 import pytest
 from django.template import engines
 from django.utils.translation import override
@@ -136,15 +137,15 @@ def test_yesno_translation(assert_render, value, expected):
 
 
 def test_yesno_with_wrong_arg_type(assert_render_error):
-    django_message = "'int' object has no attribute 'split'"
-    rusty_message = """\
+    django_message = snapshot("'int' object has no attribute 'split'")
+    rusty_message = snapshot("""\
   × String argument expected
    ╭────
  1 │ {{ value|yesno:1000 }}
    ·                ──┬─
    ·                  ╰── here
    ╰────
-"""
+""")
     assert_render_error(
         template="{{ value|yesno:1000 }}",
         context={},
@@ -156,19 +157,19 @@ def test_yesno_with_wrong_arg_type(assert_render_error):
 
 
 def test_yesno_with_wrong_broken_value_type(assert_render_error):
-    rusty_message = """\
+    rusty_message = snapshot("""\
   × division by zero
    ╭────
  1 │ {{ broken|yesno }}
    ·           ──┬──
    ·             ╰── when calling __bool__ here
    ╰────
-"""
+""")
     assert_render_error(
         template="{{ broken|yesno }}",
         context={"broken": BrokenDunderBool()},
         exception=ZeroDivisionError,
-        django_message="division by zero",
+        django_message=snapshot("division by zero"),
         rusty_message=rusty_message,
     )
 

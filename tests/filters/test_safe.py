@@ -1,3 +1,6 @@
+from inline_snapshot import snapshot
+
+
 def test_safe(assert_render):
     template = "{{ html|safe }}"
     html = "<p>Hello World!</p>"
@@ -6,15 +9,15 @@ def test_safe(assert_render):
 
 def test_safe_with_argument(assert_parse_error):
     template = "{{ html|safe:invalid }}"
-    django_message = "safe requires 1 arguments, 2 provided"
-    rusty_message = """\
+    django_message = snapshot("safe requires 1 arguments, 2 provided")
+    rusty_message = snapshot("""\
   × safe filter does not take an argument
    ╭────
  1 │ {{ html|safe:invalid }}
    ·              ───┬───
    ·                 ╰── unexpected argument
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )

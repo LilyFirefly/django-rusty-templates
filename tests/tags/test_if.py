@@ -1,3 +1,4 @@
+from inline_snapshot import snapshot
 import pytest
 from django.template import engines
 from django.template.exceptions import TemplateSyntaxError
@@ -246,15 +247,15 @@ def test_render_is_not(a, b, assert_render):
 
 def test_invalid_and_position(assert_parse_error):
     template = "{% if and %}{{ foo }}{% endif %}"
-    django_message = "Not expecting 'and' in this position in if tag."
-    rusty_message = """\
+    django_message = snapshot("Not expecting 'and' in this position in if tag.")
+    rusty_message = snapshot("""\
   × Not expecting 'and' in this position
    ╭────
  1 │ {% if and %}{{ foo }}{% endif %}
    ·       ─┬─
    ·        ╰── here
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -262,15 +263,15 @@ def test_invalid_and_position(assert_parse_error):
 
 def test_invalid_or_position(assert_parse_error):
     template = "{% if or %}{{ foo }}{% endif %}"
-    django_message = "Not expecting 'or' in this position in if tag."
-    rusty_message = """\
+    django_message = snapshot("Not expecting 'or' in this position in if tag.")
+    rusty_message = snapshot("""\
   × Not expecting 'or' in this position
    ╭────
  1 │ {% if or %}{{ foo }}{% endif %}
    ·       ─┬
    ·        ╰── here
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -278,15 +279,15 @@ def test_invalid_or_position(assert_parse_error):
 
 def test_no_condition(assert_parse_error):
     template = "{% if %}{{ foo }}{% endif %}"
-    django_message = "Unexpected end of expression in if tag."
-    rusty_message = """\
+    django_message = snapshot("Unexpected end of expression in if tag.")
+    rusty_message = snapshot("""\
   × Missing boolean expression
    ╭────
  1 │ {% if %}{{ foo }}{% endif %}
    · ────┬───
    ·     ╰── here
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -294,15 +295,15 @@ def test_no_condition(assert_parse_error):
 
 def test_unexpected_end_of_expression(assert_parse_error):
     template = "{% if not %}{{ foo }}{% endif %}"
-    django_message = "Unexpected end of expression in if tag."
-    rusty_message = """\
+    django_message = snapshot("Unexpected end of expression in if tag.")
+    rusty_message = snapshot("""\
   × Unexpected end of expression
    ╭────
  1 │ {% if not %}{{ foo }}{% endif %}
    ·       ─┬─
    ·        ╰── after this
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -310,15 +311,15 @@ def test_unexpected_end_of_expression(assert_parse_error):
 
 def test_invalid_in_position(assert_parse_error):
     template = "{% if in %}{{ foo }}{% endif %}"
-    django_message = "Not expecting 'in' in this position in if tag."
-    rusty_message = """\
+    django_message = snapshot("Not expecting 'in' in this position in if tag.")
+    rusty_message = snapshot("""\
   × Not expecting 'in' in this position
    ╭────
  1 │ {% if in %}{{ foo }}{% endif %}
    ·       ─┬
    ·        ╰── here
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -326,15 +327,15 @@ def test_invalid_in_position(assert_parse_error):
 
 def test_invalid_not_in_position(assert_parse_error):
     template = "{% if not in %}{{ foo }}{% endif %}"
-    django_message = "Not expecting 'not in' in this position in if tag."
-    rusty_message = """\
+    django_message = snapshot("Not expecting 'not in' in this position in if tag.")
+    rusty_message = snapshot("""\
   × Not expecting 'not in' in this position
    ╭────
  1 │ {% if not in %}{{ foo }}{% endif %}
    ·       ───┬──
    ·          ╰── here
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -342,15 +343,15 @@ def test_invalid_not_in_position(assert_parse_error):
 
 def test_invalid_is_position(assert_parse_error):
     template = "{% if is %}{{ foo }}{% endif %}"
-    django_message = "Not expecting 'is' in this position in if tag."
-    rusty_message = """\
+    django_message = snapshot("Not expecting 'is' in this position in if tag.")
+    rusty_message = snapshot("""\
   × Not expecting 'is' in this position
    ╭────
  1 │ {% if is %}{{ foo }}{% endif %}
    ·       ─┬
    ·        ╰── here
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -358,15 +359,15 @@ def test_invalid_is_position(assert_parse_error):
 
 def test_invalid_is_not_position(assert_parse_error):
     template = "{% if is not %}{{ foo }}{% endif %}"
-    django_message = "Not expecting 'is not' in this position in if tag."
-    rusty_message = """\
+    django_message = snapshot("Not expecting 'is not' in this position in if tag.")
+    rusty_message = snapshot("""\
   × Not expecting 'is not' in this position
    ╭────
  1 │ {% if is not %}{{ foo }}{% endif %}
    ·       ───┬──
    ·          ╰── here
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -374,15 +375,15 @@ def test_invalid_is_not_position(assert_parse_error):
 
 def test_no_operator(assert_parse_error):
     template = "{% if foo bar spam %}{{ foo }}{% endif %}"
-    django_message = "Unused 'bar' at end of if expression."
-    rusty_message = """\
+    django_message = snapshot("Unused 'bar' at end of if expression.")
+    rusty_message = snapshot("""\
   × Unused expression 'bar' in if tag
    ╭────
  1 │ {% if foo bar spam %}{{ foo }}{% endif %}
    ·           ─┬─
    ·            ╰── here
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -390,15 +391,15 @@ def test_no_operator(assert_parse_error):
 
 def test_invalid_token(assert_parse_error):
     template = "{% if foo 'bar %}{{ foo }}{% endif %}"
-    django_message = "Could not parse the remainder: ''bar' from ''bar'"
-    rusty_message = """\
+    django_message = snapshot("Could not parse the remainder: ''bar' from ''bar'")
+    rusty_message = snapshot("""\
   × Expected a complete string literal
    ╭────
  1 │ {% if foo 'bar %}{{ foo }}{% endif %}
    ·           ──┬─
    ·             ╰── here
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -529,15 +530,15 @@ def test_escaped_unicode_escape(assert_render):
 
 def test_incomplete_escape(assert_parse_error):
     template = "{% if '\\ %}truthy{% else %}falsey{% endif %}"
-    django_message = "Could not parse the remainder: ''\\' from ''\\'"
-    rusty_message = """\
+    django_message = snapshot("Could not parse the remainder: ''\\' from ''\\'")
+    rusty_message = snapshot("""\
   × Expected a complete string literal
    ╭────
  1 │ {% if '\\ %}truthy{% else %}falsey{% endif %}
    ·       ─┬
    ·        ╰── here
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -567,8 +568,10 @@ def test_none_equal_none_not_in_zero(assert_render):
 
 def test_if_tag_split_by_newline(assert_parse_error):
     template = "{% if '\n' %}truthy{% else %}falsey{% endif %}"
-    django_message = "Invalid block tag on line 2: 'else'. Did you forget to register or load this tag?"
-    rusty_message = """\
+    django_message = snapshot(
+        "Invalid block tag on line 2: 'else'. Did you forget to register or load this tag?"
+    )
+    rusty_message = snapshot("""\
   × Unexpected tag else
    ╭─[2:11]
  1 │ {% if '
@@ -576,7 +579,7 @@ def test_if_tag_split_by_newline(assert_parse_error):
    ·           ─────┬────
    ·                ╰── unexpected tag
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -594,15 +597,17 @@ def test_variable_filter_argument_negative_number(assert_render):
 
 def test_unexpected_tag_elif(assert_parse_error):
     template = "{% elif foo %}"
-    django_message = "Invalid block tag on line 1: 'elif'. Did you forget to register or load this tag?"
-    rusty_message = """\
+    django_message = snapshot(
+        "Invalid block tag on line 1: 'elif'. Did you forget to register or load this tag?"
+    )
+    rusty_message = snapshot("""\
   × Unexpected tag elif
    ╭────
  1 │ {% elif foo %}
    · ───────┬──────
    ·        ╰── unexpected tag
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -610,15 +615,17 @@ def test_unexpected_tag_elif(assert_parse_error):
 
 def test_unexpected_tag_else(assert_parse_error):
     template = "{% else %}"
-    django_message = "Invalid block tag on line 1: 'else'. Did you forget to register or load this tag?"
-    rusty_message = """\
+    django_message = snapshot(
+        "Invalid block tag on line 1: 'else'. Did you forget to register or load this tag?"
+    )
+    rusty_message = snapshot("""\
   × Unexpected tag else
    ╭────
  1 │ {% else %}
    · ─────┬────
    ·      ╰── unexpected tag
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -626,15 +633,17 @@ def test_unexpected_tag_else(assert_parse_error):
 
 def test_unexpected_tag_endif(assert_parse_error):
     template = "{% endif %}"
-    django_message = "Invalid block tag on line 1: 'endif'. Did you forget to register or load this tag?"
-    rusty_message = """\
+    django_message = snapshot(
+        "Invalid block tag on line 1: 'endif'. Did you forget to register or load this tag?"
+    )
+    rusty_message = snapshot("""\
   × Unexpected tag endif
    ╭────
  1 │ {% endif %}
    · ─────┬─────
    ·      ╰── unexpected tag
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -1113,15 +1122,15 @@ def test_if_not_numeric():
 
 def test_if_invalid_variable(assert_parse_error):
     template = "{% if a- %}foo{% endif %}"
-    django_message = "Could not parse the remainder: '-' from 'a-'"
-    rusty_message = """\
+    django_message = snapshot("Could not parse the remainder: '-' from 'a-'")
+    rusty_message = snapshot("""\
   × Expected a valid variable name
    ╭────
  1 │ {% if a- %}foo{% endif %}
    ·       ─┬
    ·        ╰── here
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -1129,15 +1138,15 @@ def test_if_invalid_variable(assert_parse_error):
 
 def test_if_invalid_content(assert_parse_error):
     template = "{% if a %}{{ a- }}{% endif %}"
-    django_message = "Could not parse the remainder: '-' from 'a-'"
-    rusty_message = """\
+    django_message = snapshot("Could not parse the remainder: '-' from 'a-'")
+    rusty_message = snapshot("""\
   × Expected a valid variable name
    ╭────
  1 │ {% if a %}{{ a- }}{% endif %}
    ·              ─┬
    ·               ╰── here
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -1145,15 +1154,15 @@ def test_if_invalid_content(assert_parse_error):
 
 def test_if_invalid_content_tag(assert_parse_error):
     template = "{% if a %}{% if a- %}{% endif %}{% endif %}"
-    django_message = "Could not parse the remainder: '-' from 'a-'"
-    rusty_message = """\
+    django_message = snapshot("Could not parse the remainder: '-' from 'a-'")
+    rusty_message = snapshot("""\
   × Expected a valid variable name
    ╭────
  1 │ {% if a %}{% if a- %}{% endif %}{% endif %}
    ·                 ─┬
    ·                  ╰── here
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -1161,15 +1170,15 @@ def test_if_invalid_content_tag(assert_parse_error):
 
 def test_elif_invalid_content(assert_parse_error):
     template = "{% if a %}{% elif b %}{{ a- }}{% endif %}"
-    django_message = "Could not parse the remainder: '-' from 'a-'"
-    rusty_message = """\
+    django_message = snapshot("Could not parse the remainder: '-' from 'a-'")
+    rusty_message = snapshot("""\
   × Expected a valid variable name
    ╭────
  1 │ {% if a %}{% elif b %}{{ a- }}{% endif %}
    ·                          ─┬
    ·                           ╰── here
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -1177,15 +1186,15 @@ def test_elif_invalid_content(assert_parse_error):
 
 def test_else_invalid_content(assert_parse_error):
     template = "{% if a %}{% else %}{{ a- }}{% endif %}"
-    django_message = "Could not parse the remainder: '-' from 'a-'"
-    rusty_message = """\
+    django_message = snapshot("Could not parse the remainder: '-' from 'a-'")
+    rusty_message = snapshot("""\
   × Expected a valid variable name
    ╭────
  1 │ {% if a %}{% else %}{{ a- }}{% endif %}
    ·                        ─┬
    ·                         ╰── here
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )

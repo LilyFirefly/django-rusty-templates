@@ -3,6 +3,8 @@ Test cases for the escapejs filter.
 The escapejs filter escapes characters for use in JavaScript strings.
 """
 
+from inline_snapshot import snapshot
+
 import pytest
 
 from tests.utils import BrokenDunderStr
@@ -96,15 +98,15 @@ def test_escapejs_c1_control_characters(assert_render, value, expected):
 
 def test_escapejs_with_argument(assert_parse_error):
     template = "{{ value|escapejs:invalid }}"
-    django_message = "escapejs requires 1 arguments, 2 provided"
-    rusty_message = """\
+    django_message = snapshot("escapejs requires 1 arguments, 2 provided")
+    rusty_message = snapshot("""\
   × escapejs filter does not take an argument
    ╭────
  1 │ {{ value|escapejs:invalid }}
    ·                   ───┬───
    ·                      ╰── unexpected argument
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -116,6 +118,6 @@ def test_escapejs_invalid_str_method(assert_render_error):
         template="{{ broken|escapejs }}",
         context={"broken": broken},
         exception=ZeroDivisionError,
-        django_message="division by zero",
-        rusty_message="division by zero",
+        django_message=snapshot("division by zero"),
+        rusty_message=snapshot("division by zero"),
     )

@@ -1,3 +1,4 @@
+from inline_snapshot import snapshot
 import pytest
 from django.template import engines
 from django.template.base import VariableDoesNotExist
@@ -127,15 +128,15 @@ def test_render_url_view_name_error():
 
 def test_render_url_invalid_keyword(assert_parse_error):
     template = "{% url foo= %}"
-    django_message = "Could not parse the remainder: '=' from 'foo='"
-    rusty_message = """\
+    django_message = snapshot("Could not parse the remainder: '=' from 'foo='")
+    rusty_message = snapshot("""\
   × Incomplete keyword argument
    ╭────
  1 │ {% url foo= %}
    ·        ──┬─
    ·          ╰── here
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -143,15 +144,15 @@ def test_render_url_invalid_keyword(assert_parse_error):
 
 def test_render_url_invalid_dotted_lookup_keyword(assert_parse_error):
     template = "{% url foo.bar= %}"
-    django_message = "Could not parse the remainder: '=' from 'foo.bar='"
-    rusty_message = """\
+    django_message = snapshot("Could not parse the remainder: '=' from 'foo.bar='")
+    rusty_message = snapshot("""\
   × Could not parse the remainder
    ╭────
  1 │ {% url foo.bar= %}
    ·               ┬
    ·               ╰── here
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -159,15 +160,17 @@ def test_render_url_invalid_dotted_lookup_keyword(assert_parse_error):
 
 def test_render_url_dotted_lookup_keyword(assert_parse_error):
     template = "{% url foo.bar='lily' %}"
-    django_message = "Could not parse the remainder: '='lily'' from 'foo.bar='lily''"
-    rusty_message = """\
+    django_message = snapshot(
+        "Could not parse the remainder: '='lily'' from 'foo.bar='lily''"
+    )
+    rusty_message = snapshot("""\
   × Could not parse the remainder
    ╭────
  1 │ {% url foo.bar='lily' %}
    ·               ───┬───
    ·                  ╰── here
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )

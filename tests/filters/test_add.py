@@ -1,3 +1,4 @@
+from inline_snapshot import snapshot
 from django.template.base import VariableDoesNotExist
 
 
@@ -12,8 +13,10 @@ def test_add_no_variable(assert_render):
 
 
 def test_add_no_argument(assert_render_error):
-    django_message = "Failed lookup for key [bar] in [{'True': True, 'False': False, 'None': None}, {'foo': 1}]"
-    rusty_message = """\
+    django_message = snapshot(
+        "Failed lookup for key [bar] in [{'True': True, 'False': False, 'None': None}, {'foo': 1}]"
+    )
+    rusty_message = snapshot("""\
   × Failed lookup for key [bar] in {"False": False, "None": None, "True":
   │ True, "foo": 1}
    ╭────
@@ -21,7 +24,7 @@ def test_add_no_argument(assert_render_error):
    ·            ─┬─
    ·             ╰── key
    ╰────
-"""
+""")
     assert_render_error(
         template="{{ foo|add:bar }}",
         context={"foo": 1},
@@ -75,15 +78,15 @@ def test_add_incompatible_float(assert_render):
 
 def test_add_missing_argument(assert_parse_error):
     template = "{{ foo|add }}"
-    django_message = "add requires 2 arguments, 1 provided"
-    rusty_message = """\
+    django_message = snapshot("add requires 2 arguments, 1 provided")
+    rusty_message = snapshot("""\
   × Expected an argument
    ╭────
  1 │ {{ foo|add }}
    ·        ─┬─
    ·         ╰── here
    ╰────
-"""
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )

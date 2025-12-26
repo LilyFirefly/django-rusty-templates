@@ -40,8 +40,8 @@ def assert_parse_error(request):
         def test_error(assert_parse_error):
             assert_parse_error(
                 template=...,
-                django_message="invalid literal for int() with base 10: '-5.5'",
-                rusty_message="  × Couldn't convert argument (-5.5) to integer..."
+                django_message = snapshot("invalid literal for int() with base 10: '-5.5'"),
+                rusty_message = snapshot("  × Couldn't convert argument (-5.5) to integer...")
             )
 
     """
@@ -66,8 +66,8 @@ def assert_render_error(request):
                 template="{{ foo|center:bar }}",
                 context={"foo": "test", "bar": "-5.5"},
                 exception=ValueError,
-                django_message="invalid literal for int() with base 10: '-5.5'",
-                rusty_message="  × Couldn't convert argument (-5.5) to integer..."
+                django_message = snapshot("invalid literal for int() with base 10: '-5.5'"),
+                rusty_message = snapshot("  × Couldn't convert argument (-5.5) to integer...")
             )
     """
 

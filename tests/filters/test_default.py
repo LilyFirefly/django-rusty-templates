@@ -1,3 +1,4 @@
+from inline_snapshot import snapshot
 import pytest
 
 
@@ -32,15 +33,15 @@ class Broken:
 
 
 def test_default_broken_bool(assert_render_error):
-    django_message = "division by zero"
-    rusty_message = """\
+    django_message = snapshot("division by zero")
+    rusty_message = snapshot("""\
   × division by zero
    ╭────
  1 │ {{ value|default:'default' }}
    ·          ───┬───
    ·             ╰── here
    ╰────
-"""
+""")
     assert_render_error(
         template="{{ value|default:'default' }}",
         context={"value": Broken()},

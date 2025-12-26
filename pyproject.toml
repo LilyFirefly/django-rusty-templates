@@ -29,7 +29,8 @@ dev = [
     "pytest-django",
     "pytest-cov",
     "ruff",
-    "pre-commit"
+    "pre-commit",
+    "inline-snapshot",
 ]
 
 [tool.ruff]
@@ -48,3 +49,6 @@ unfixable = []
 
 [tool.typos.default.extend-identifiers]
 Nd = "Nd" # This is a valid identifier for `hypothesis.strategies.characters.categories`
+
+[tool.inline-snapshot]
+format-command="ruff format --stdin-filename {filename}"

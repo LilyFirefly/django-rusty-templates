@@ -3,6 +3,8 @@ Adapted from
 https://github.com/django/django/blob/5.1/tests/template_tests/filter_tests/test_length.py
 """
 
+from inline_snapshot import snapshot
+
 import pytest
 from django.utils.safestring import mark_safe
 
@@ -81,16 +83,16 @@ def test_length_chained_with_bool(assert_render):
 def test_length_unexpected_argument(assert_parse_error):
     template = "{{ value|length:1 }}"
 
-    django_message = "length requires 1 arguments, 2 provided"
+    django_message = snapshot("length requires 1 arguments, 2 provided")
 
-    rusty_message = """\
+    rusty_message = snapshot("""\
   × length filter does not take an argument
    ╭────
  1 │ {{ value|length:1 }}
    ·                 ┬
    ·                 ╰── unexpected argument
    ╰────
-"""
+""")
 
     assert_parse_error(
         template=template,

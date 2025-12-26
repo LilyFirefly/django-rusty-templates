@@ -3,6 +3,8 @@ Adapted from
 https://github.com/django/django/blob/5.1/tests/template_tests/filter_tests/test_cut.py
 """
 
+from inline_snapshot import snapshot
+
 import pytest
 from django.utils.safestring import mark_safe
 from django.template import VariableDoesNotExist
@@ -117,15 +119,15 @@ def test_cut_after_another_filter(assert_render):
 
 
 def test_cut_no_argument(assert_parse_error):
-    django_message = "cut requires 2 arguments, 1 provided"
-    rusty_message = """\
+    django_message = snapshot("cut requires 2 arguments, 1 provided")
+    rusty_message = snapshot("""\
   × Expected an argument
    ╭────
  1 │ {{var|cut}}
    ·       ─┬─
    ·        ╰── here
    ╰────
-"""
+""")
     assert_parse_error(
         template="{{var|cut}}",
         django_message=django_message,
@@ -141,8 +143,10 @@ def test_cut_error_missing_arg_variable(assert_render_error):
         template=template,
         context=context,
         exception=VariableDoesNotExist,
-        django_message="Failed lookup for key [arg_var] in [{'True': True, 'False': False, 'None': None}, {'var': 'hello'}]",
-        rusty_message="""\
+        django_message=snapshot(
+            "Failed lookup for key [arg_var] in [{'True': True, 'False': False, 'None': None}, {'var': 'hello'}]"
+        ),
+        rusty_message=snapshot("""\
   × Failed lookup for key [arg_var] in {"False": False, "None": None, "True":
   │ True, "var": 'hello'}
    ╭────
@@ -150,7 +154,7 @@ def test_cut_error_missing_arg_variable(assert_render_error):
    ·            ───┬───
    ·               ╰── key
    ╰────
-""",
+"""),
     )
 
 
@@ -163,15 +167,15 @@ def test_cut_error_invalid_arg_type(assert_render_error):
         context=context,
         exception=TypeError,
         rusty_exception=ValueError,
-        django_message="replace() argument 1 must be str, not list",
-        rusty_message="""\
+        django_message=snapshot("replace() argument 1 must be str, not list"),
+        rusty_message=snapshot("""\
   × String argument expected
    ╭────
  1 │ {{ var|cut:bad_arg }}
    ·            ───┬───
    ·               ╰── here
    ╰────
-""",
+"""),
     )
 
 
@@ -187,6 +191,6 @@ def test_cut_error_variable_conversion(assert_render_error):
         template=template,
         context=context,
         exception=ValueError,
-        django_message="Custom string conversion error",
-        rusty_message="Custom string conversion error",
+        django_message=snapshot("Custom string conversion error"),
+        rusty_message=snapshot("Custom string conversion error"),
     )

@@ -3,6 +3,8 @@ Adapted Some tests from
 https://github.com/django/django/blob/5.1/tests/template_tests/filter_tests/test_date.py
 """
 
+from inline_snapshot import snapshot
+
 from datetime import datetime, time
 
 import pytest
@@ -162,17 +164,17 @@ def test_date_lazy_format(assert_render):
 
 def test_date_unexpected_argument(assert_parse_error):
     template = '{{ value|date:"Y":"m" }}'
-    django_message = (
+    django_message = snapshot(
         'Could not parse the remainder: \':"m"\' from \'value|date:"Y":"m"\''
     )
-    rusty_message = """\
+    rusty_message = snapshot("""\
   × Expected a valid filter name
    ╭────
  1 │ {{ value|date:"Y":"m" }}
    ·                   ─┬─
    ·                    ╰── here
    ╰────
-"""
+""")
     assert_parse_error(
         template=template,
         django_message=django_message,
@@ -192,13 +194,13 @@ def test_date_error_propagation(assert_render_error):
         template='{{ d|date:"Y" }}',
         context={"d": ExplodingDate(2024, 1, 1)},
         exception=RuntimeError,
-        django_message="Python execution failed",
-        rusty_message="""\
+        django_message=snapshot("Python execution failed"),
+        rusty_message=snapshot("""\
   × Python execution failed
    ╭────
  1 │ {{ d|date:"Y" }}
    ·      ──┬─
    ·        ╰── here
    ╰────
-""",
+"""),
     )
