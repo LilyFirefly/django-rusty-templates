@@ -2,6 +2,7 @@ pub mod autoescape;
 pub mod custom_tag;
 pub mod forloop;
 pub mod ifcondition;
+pub mod include;
 pub mod load;
 
 use miette::{Diagnostic, SourceSpan};

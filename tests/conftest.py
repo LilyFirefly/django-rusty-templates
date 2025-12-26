@@ -46,9 +46,20 @@ def assert_parse_error(request):
 
     """
 
-    def _assert_parse_error(template, django_message, rusty_message):
+    def _assert_parse_error(
+        template,
+        django_message,
+        rusty_message,
+        exception=TemplateSyntaxError,
+        rusty_exception=None,
+    ):
         message = django_message if request.param == "django" else rusty_message
-        with pytest.raises(TemplateSyntaxError) as exc_info:
+        exception = (
+            rusty_exception
+            if request.param != "django" and rusty_exception
+            else exception
+        )
+        with pytest.raises(exception) as exc_info:
             engines[request.param].from_string(template)
         assert str(exc_info.value) == message
 

@@ -20,6 +20,7 @@ mod error;
 mod filters;
 mod loaders;
 mod parse;
+mod path;
 pub mod render;
 mod template;
 mod types;

@@ -55,4 +55,5 @@ pub enum ForVariableName {
 pub struct ForVariable {
     pub variant: ForVariableName,
     pub parent_count: usize,
+    pub at: At,
 }

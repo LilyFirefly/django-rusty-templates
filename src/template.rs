@@ -20,7 +20,7 @@ pub mod django_rusty_templates {
     use crate::error::RenderError;
     use crate::loaders::{AppDirsLoader, CachedLoader, FileSystemLoader, Loader, LocMemLoader};
     use crate::parse::{Parser, TokenTree};
-    use crate::render::types::Context;
+    use crate::render::types::{Context, PyContext};
     use crate::render::{Render, RenderResult};
     use crate::utils::PyResultMethods;
     use dtl_lexer::types::TemplateString;
@@ -254,6 +254,50 @@ pub mod django_rusty_templates {
         }
     }
 
+    pub fn get_template(
+        engine: Arc<Engine>,
+        py: Python<'_>,
+        template_name: Cow<str>,
+    ) -> PyResult<Template> {
+        let mut tried = Vec::new();
+        let mut loaders = engine
+            .template_loaders
+            .lock_py_attached(py)
+            .expect("Mutex should not be poisoned");
+        for loader in loaders.iter_mut() {
+            match loader.get_template(py, &template_name, engine.clone()) {
+                Ok(template) => return template,
+                Err(e) => tried.push(e.tried),
+            }
+        }
+        drop(loaders);
+        Err(TemplateDoesNotExist::new_err((
+            template_name.into_owned(),
+            tried,
+        )))
+    }
+
+    pub fn select_template(
+        engine: Arc<Engine>,
+        py: Python<'_>,
+        template_name_list: Vec<String>,
+    ) -> PyResult<Template> {
+        if template_name_list.is_empty() {
+            return Err(TemplateDoesNotExist::new_err("No template names provided"));
+        }
+        let mut not_found = Vec::new();
+        for template_name in template_name_list {
+            match get_template(engine.clone(), py, Cow::Owned(template_name)) {
+                Ok(template) => return Ok(template),
+                Err(e) if e.is_instance_of::<TemplateDoesNotExist>(py) => {
+                    not_found.push(e.value(py).to_string());
+                }
+                Err(e) => return Err(e),
+            }
+        }
+        Err(TemplateDoesNotExist::new_err(not_found.join(", ")))
+    }
+
     #[derive(Debug)]
     #[pyclass(name = "Engine")]
     pub struct PyEngine {
@@ -350,20 +394,7 @@ pub mod django_rusty_templates {
         ///
         /// See <https://docs.djangoproject.com/en/stable/ref/templates/api/#django.template.Engine.get_template>
         pub fn get_template(&self, py: Python<'_>, template_name: String) -> PyResult<Template> {
-            let mut tried = Vec::new();
-            let mut loaders = self
-                .engine
-                .template_loaders
-                .lock_py_attached(py)
-                .expect("Mutex should not be poisoned");
-            for loader in loaders.iter_mut() {
-                match loader.get_template(py, &template_name, self.engine.clone()) {
-                    Ok(template) => return template,
-                    Err(e) => tried.push(e.tried),
-                }
-            }
-            drop(loaders);
-            Err(TemplateDoesNotExist::new_err((template_name, tried)))
+            get_template(self.engine.clone(), py, Cow::Owned(template_name))
         }
 
         /// Given a list of template names, return the first that can be loaded.
@@ -374,20 +405,7 @@ pub mod django_rusty_templates {
             py: Python<'_>,
             template_name_list: Vec<String>,
         ) -> PyResult<Template> {
-            if template_name_list.is_empty() {
-                return Err(TemplateDoesNotExist::new_err("No template names provided"));
-            }
-            let mut not_found = Vec::new();
-            for template_name in template_name_list {
-                match self.get_template(py, template_name) {
-                    Ok(template) => return Ok(template),
-                    Err(e) if e.is_instance_of::<TemplateDoesNotExist>(py) => {
-                        not_found.push(e.value(py).to_string());
-                    }
-                    Err(e) => return Err(e),
-                }
-            }
-            Err(TemplateDoesNotExist::new_err(not_found.join(", ")))
+            select_template(self.engine.clone(), py, template_name_list)
         }
 
         #[allow(clippy::wrong_self_convention)] // We're implementing a Django interface
@@ -406,7 +424,7 @@ pub mod django_rusty_templates {
             &mut self,
             py: Python<'_>,
             template_name: Bound<'_, PyAny>,
-            context: Option<Bound<'_, PyDict>>,
+            context: Option<Bound<'_, PyAny>>,
         ) -> PyResult<String> {
             let template = if template_name.is_instance_of::<PyList>()
                 || template_name.is_instance_of::<PyTuple>()
@@ -487,9 +505,15 @@ pub mod django_rusty_templates {
             py: Python<'_>,
             template: &str,
             filename: PathBuf,
+            template_name: &str,
             engine: Arc<Engine>,
         ) -> PyResult<Self> {
-            let mut parser = Parser::new(py, TemplateString(template), engine.clone());
+            let mut parser = Parser::new(
+                py,
+                TemplateString(template),
+                engine.clone(),
+                Some(template_name),
+            );
             let nodes = match parser.parse() {
                 Ok(nodes) => nodes,
                 Err(err) => {
@@ -512,7 +536,7 @@ pub mod django_rusty_templates {
             template: String,
             engine: Arc<Engine>,
         ) -> PyResult<Self> {
-            let mut parser = Parser::new(py, TemplateString(&template), engine.clone());
+            let mut parser = Parser::new(py, TemplateString(&template), engine.clone(), None);
             let nodes = match parser.parse() {
                 Ok(nodes) => nodes,
                 Err(err) => {
@@ -537,6 +561,39 @@ pub mod django_rusty_templates {
             }
             Ok(Cow::Owned(rendered))
         }
+
+        fn _render(&self, py: Python<'_>, context: &mut Context) -> PyResult<String> {
+            match self.render(py, context) {
+                Ok(content) => Ok(content.to_string()),
+                Err(err) => {
+                    let err = err.try_into_render_error()?;
+                    match err {
+                        RenderError::RelativePathError(_) => {
+                            Err(TemplateSyntaxError::with_source_code(
+                                err.into(),
+                                self.template.clone(),
+                            ))
+                        }
+                        RenderError::VariableDoesNotExist { .. }
+                        | RenderError::ArgumentDoesNotExist { .. } => {
+                            Err(VariableDoesNotExist::with_source_code(
+                                err.into(),
+                                self.template.clone(),
+                            ))
+                        }
+                        RenderError::InvalidArgumentInteger { .. }
+                        | RenderError::InvalidArgumentString { .. }
+                        | RenderError::TupleUnpackError { .. } => Err(
+                            PyValueError::with_source_code(err.into(), self.template.clone()),
+                        ),
+                        RenderError::OverflowError { .. }
+                        | RenderError::InvalidArgumentFloat { .. } => Err(
+                            PyOverflowError::with_source_code(err.into(), self.template.clone()),
+                        ),
+                    }
+                }
+            }
+        }
     }
 
     #[pymethods]
@@ -545,7 +602,7 @@ pub mod django_rusty_templates {
         pub fn py_render(
             &self,
             py: Python<'_>,
-            context: Option<Bound<'_, PyDict>>,
+            context: Option<Bound<'_, PyAny>>,
             request: Option<Bound<'_, PyAny>>,
         ) -> PyResult<String> {
             let mut base_context = HashMap::from([
@@ -576,36 +633,26 @@ pub mod django_rusty_templates {
                     base_context.extend(processor_context);
                 }
             }
-            if let Some(context) = context {
-                let new_context: HashMap<_, _> = context.extract()?;
-                base_context.extend(new_context);
-            }
-            let mut context = Context::new(base_context, request, self.engine.autoescape);
-
-            match self.render(py, &mut context) {
-                Ok(content) => Ok(content.to_string()),
-                Err(err) => {
-                    let err = err.try_into_render_error()?;
-                    match err {
-                        RenderError::VariableDoesNotExist { .. }
-                        | RenderError::ArgumentDoesNotExist { .. } => {
-                            Err(VariableDoesNotExist::with_source_code(
-                                err.into(),
-                                self.template.clone(),
-                            ))
-                        }
-                        RenderError::InvalidArgumentInteger { .. }
-                        | RenderError::InvalidArgumentString { .. }
-                        | RenderError::TupleUnpackError { .. } => Err(
-                            PyValueError::with_source_code(err.into(), self.template.clone()),
-                        ),
-                        RenderError::OverflowError { .. }
-                        | RenderError::InvalidArgumentFloat { .. } => Err(
-                            PyOverflowError::with_source_code(err.into(), self.template.clone()),
-                        ),
-                    }
+            let mut context = match context {
+                Some(py_context) if py_context.is_instance_of::<PyContext>() => {
+                    let extracted: PyContext = py_context
+                        .extract()
+                        .expect("The type of py_context should be PyContext");
+                    let mut context = extracted
+                        .context
+                        .lock_py_attached(py)
+                        .expect("Mutex should not be poisoned");
+                    return self._render(py, &mut context);
                 }
-            }
+                Some(context) => {
+                    let new_context: HashMap<_, _> = context.extract()?;
+                    base_context.extend(new_context);
+                    Context::new(base_context, request, self.engine.autoescape)
+                }
+                None => Context::new(base_context, request, self.engine.autoescape),
+            };
+
+            self._render(py, &mut context)
         }
     }
 }
@@ -643,7 +690,8 @@ mod tests {
             let engine = Arc::new(Engine::empty());
             let template_string = std::fs::read_to_string(&filename).unwrap();
             let error = temp_env::with_var("NO_COLOR", Some("1"), || {
-                Template::new(py, &template_string, filename, engine).unwrap_err()
+                Template::new(py, &template_string, filename, "parse_error.txt", engine)
+                    .unwrap_err()
             });
 
             let error_string = format!("{error}");
@@ -683,7 +731,7 @@ mod tests {
             let engine = Arc::new(Engine::empty());
             let template_string = String::new();
             let template = Template::new_from_string(py, template_string, engine).unwrap();
-            let context = PyDict::new(py);
+            let context = PyDict::new(py).into_any();
 
             assert_eq!(template.py_render(py, Some(context), None).unwrap(), "");
         });
@@ -701,7 +749,9 @@ mod tests {
             context.set_item("user", "Lily").unwrap();
 
             assert_eq!(
-                template.py_render(py, Some(context), None).unwrap(),
+                template
+                    .py_render(py, Some(context.into_any()), None)
+                    .unwrap(),
                 "Hello Lily!"
             );
         });
@@ -715,7 +765,7 @@ mod tests {
             let engine = Arc::new(Engine::empty());
             let template_string = "Hello {{ user }}!".to_string();
             let template = Template::new_from_string(py, template_string, engine).unwrap();
-            let context = PyDict::new(py);
+            let context = PyDict::new(py).into_any();
 
             assert_eq!(
                 template.py_render(py, Some(context), None).unwrap(),
@@ -750,7 +800,9 @@ user = User(["Lily"])
             context.set_item("user", user.into_any()).unwrap();
 
             assert_eq!(
-                template.py_render(py, Some(context), None).unwrap(),
+                template
+                    .py_render(py, Some(context.into_any()), None)
+                    .unwrap(),
                 "Hello Lily!"
             );
         });
@@ -777,7 +829,7 @@ user = User(["Lily"])
             .unwrap();
             let template_string = PyString::new(py, "Hello {{ user }}!");
             let template = engine.from_string(template_string).unwrap();
-            let context = PyDict::new(py);
+            let context = PyDict::new(py).into_any();
 
             assert_eq!(
                 template.py_render(py, Some(context), None).unwrap(),

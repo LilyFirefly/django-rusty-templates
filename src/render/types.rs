@@ -121,6 +121,10 @@ impl Context {
         }
     }
 
+    pub fn append(&mut self, key: String, value: Bound<'_, PyAny>) {
+        self._insert(key, value, false);
+    }
+
     pub fn insert(&mut self, key: String, value: Bound<'_, PyAny>) {
         self._insert(key, value, true);
     }
@@ -192,7 +196,7 @@ impl Context {
         Ok(())
     }
 
-    fn _pop_variable(&mut self, name: &str) {
+    pub fn pop_variable(&mut self, name: &str) {
         let values = self
             .context
             .get_mut(name)
@@ -203,7 +207,7 @@ impl Context {
     pub fn pop_variables(&mut self) {
         if let Some(names) = self.names.pop() {
             for name in names {
-                self._pop_variable(&name);
+                self.pop_variable(&name);
             }
         }
     }
