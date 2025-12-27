@@ -945,6 +945,12 @@ pub enum ParseError {
         #[label("start tag")]
         start_at: SourceSpan,
     },
+    #[error("Incorrect format for '{tag}' tag")]
+    InvalidTagFormat {
+        tag: &'static str,
+        #[label("here")]
+        at: SourceSpan,
+    },
 }
 
 #[derive(Error, Debug)]
@@ -964,7 +970,7 @@ impl From<LoremError> for PyParseError {
 impl From<LoremError> for ParseError {
     fn from(err: LoremError) -> Self {
         match err {
-            LoremError::InvalidFormat { at } => ParseError::MissingArgument { at },
+            LoremError::InvalidFormat { at } => ParseError::InvalidTagFormat { tag: "lorem", at },
         }
     }
 }
