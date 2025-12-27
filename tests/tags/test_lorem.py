@@ -47,7 +47,7 @@ def test_lorem_syntax_error(assert_parse_error):
     django_message = "Incorrect format for 'lorem' tag"
 
     rusty_message = """\
-  × Expected an argument
+  × Incorrect format for 'lorem' tag
    ╭────
  1 │ {% lorem 1 2 3 4 %}
    ·            ┬
@@ -98,7 +98,7 @@ def test_lorem_duplicate_method(assert_parse_error):
     template = "{% lorem 2 w p %}"
     django_message = "Incorrect format for 'lorem' tag"
     rusty_message = """\
-  × Expected an argument
+  × Incorrect format for 'lorem' tag
    ╭────
  1 │ {% lorem 2 w p %}
    ·              ┬
@@ -116,7 +116,7 @@ def test_lorem_duplicate_random(assert_parse_error):
     template = "{% lorem 2 p random random %}"
     django_message = "Incorrect format for 'lorem' tag"
     rusty_message = """\
-  × Expected an argument
+  × Incorrect format for 'lorem' tag
    ╭────
  1 │ {% lorem 2 p random random %}
    ·                     ───┬──
@@ -134,7 +134,7 @@ def test_lorem_method_before_count(assert_parse_error):
     template = "{% lorem p 2 %}"
     django_message = "Incorrect format for 'lorem' tag"
     rusty_message = """\
-  × Expected an argument
+  × Incorrect format for 'lorem' tag
    ╭────
  1 │ {% lorem p 2 %}
    ·            ┬
@@ -152,7 +152,7 @@ def test_lorem_random_before_count(assert_parse_error):
     template = "{% lorem random 2 %}"
     django_message = "Incorrect format for 'lorem' tag"
     rusty_message = """\
-  × Expected an argument
+  × Incorrect format for 'lorem' tag
    ╭────
  1 │ {% lorem random 2 %}
    ·                 ┬
