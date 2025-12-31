@@ -74,7 +74,7 @@ trait Parse<R> {
 }
 #[derive(Debug, Clone, PartialEq)]
 pub struct Lorem {
-    pub count: TagElement, // This is the key change!
+    pub count: TagElement,
     pub method: LoremMethod,
     pub common: bool,
     pub at: At,
