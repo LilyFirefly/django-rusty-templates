@@ -2,6 +2,7 @@ use crate::types::TemplateString;
 
 pub mod common;
 pub mod core;
+pub mod lorem;
 pub mod tag;
 pub mod types;
 pub mod variable;

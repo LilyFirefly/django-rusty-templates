@@ -1,13 +1,9 @@
 from django.utils.lorem_ipsum import COMMON_P, WORDS
 
 
-def test_lorem_words(render_output):
+def test_lorem_words(assert_render):
     template = "{% lorem 3 w %}"
-    output = render_output(
-        template=template,
-        context={},
-    )
-    assert "lorem ipsum dolor" == output
+    assert_render(template=template, context={}, expected="lorem ipsum dolor")
 
 
 def test_lorem_random(render_output):
@@ -47,12 +43,15 @@ def test_lorem_syntax_error(assert_parse_error):
     django_message = "Incorrect format for 'lorem' tag"
 
     rusty_message = """\
-  × Incorrect format for 'lorem' tag
+  × Incorrect format for 'lorem' tag: 'count' argument was provided more than
+  │ once
    ╭────
  1 │ {% lorem 1 2 3 4 %}
-   ·            ┬
-   ·            ╰── here
+   ·          ┬ ┬
+   ·          │ ╰── second 'count'
+   ·          ╰── first 'count'
    ╰────
+  help: Try removing the second 'count'
 """
 
     assert_parse_error(
@@ -62,16 +61,14 @@ def test_lorem_syntax_error(assert_parse_error):
     )
 
 
-def test_lorem_single_word_default(render_output):
+def test_lorem_single_word_default(assert_render):
     template = "{% lorem w %}"
-    output = render_output(template=template, context={})
-    assert output == "lorem"
+    assert_render(template=template, context={}, expected="lorem")
 
 
-def test_lorem_single_paragraph_default(render_output):
+def test_lorem_single_paragraph_default(assert_render):
     template = "{% lorem p %}"
-    output = render_output(template=template, context={})
-    assert output == f"<p>{COMMON_P}</p>"
+    assert_render(template=template, context={}, expected=f"<p>{COMMON_P}</p>")
 
 
 def test_lorem_blocks(render_output):
@@ -88,22 +85,27 @@ def test_lorem_random_paragraphs(render_output):
     assert output.count("<p>") == 2
 
 
-def test_lorem_zero_count(render_output):
+def test_lorem_zero_count(assert_render):
     template = "{% lorem 0 w %}"
-    output = render_output(template=template, context={})
-    assert output == ""
+    assert_render(template=template, context={}, expected="")
+
+
+66
 
 
 def test_lorem_duplicate_method(assert_parse_error):
     template = "{% lorem 2 w p %}"
     django_message = "Incorrect format for 'lorem' tag"
     rusty_message = """\
-  × Incorrect format for 'lorem' tag
+  × Incorrect format for 'lorem' tag: 'method' argument was provided more than
+  │ once
    ╭────
  1 │ {% lorem 2 w p %}
-   ·              ┬
-   ·              ╰── here
+   ·            ┬ ┬
+   ·            │ ╰── second 'method'
+   ·            ╰── first 'method'
    ╰────
+  help: Try removing the second 'method'
 """
     assert_parse_error(
         template=template,
@@ -116,12 +118,14 @@ def test_lorem_duplicate_random(assert_parse_error):
     template = "{% lorem 2 p random random %}"
     django_message = "Incorrect format for 'lorem' tag"
     rusty_message = """\
-  × Incorrect format for 'lorem' tag
+  × Incorrect format for 'lorem' tag: 'random' was provided more than once
    ╭────
  1 │ {% lorem 2 p random random %}
-   ·                     ───┬──
-   ·                        ╰── here
+   ·              ───┬── ───┬──
+   ·                 │      ╰── second 'random'
+   ·                 ╰── first 'random'
    ╰────
+  help: Try removing the second 'random'
 """
     assert_parse_error(
         template=template,
@@ -164,3 +168,30 @@ def test_lorem_random_before_count(assert_parse_error):
         django_message=django_message,
         rusty_message=rusty_message,
     )
+
+
+def test_lorem_keyword_as_variable(render_output):
+    template = "{% lorem w w %}"
+    output = render_output(
+        template=template,
+        context={"w": 5},
+    )
+    assert len(output.split(" ")) == 5
+
+
+def test_lorem_random_as_variable(render_output):
+    template = "{% lorem random w %}"
+    output = render_output(
+        template=template,
+        context={"random": 2},
+    )
+    assert len(output.split(" ")) == 2
+
+
+def test_lorem_with_filter(render_output):
+    template = "{% lorem count|default:3 w %}"
+    output_default = render_output(template=template, context={})
+    assert len(output_default.split(" ")) == 3
+
+    output_provided = render_output(template=template, context={"count": 1})
+    assert output_provided == "lorem"

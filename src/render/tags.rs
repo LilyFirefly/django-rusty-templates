@@ -10,6 +10,7 @@ use pyo3::prelude::*;
 use pyo3::sync::{MutexExt, PyOnceLock};
 use pyo3::types::{PyBool, PyDict, PyList, PyNone, PyString, PyTuple};
 
+use dtl_lexer::lorem::{paragraphs, words};
 use dtl_lexer::tag::lorem::LoremMethod;
 use dtl_lexer::types::{At, TemplateString};
 
@@ -23,7 +24,7 @@ use crate::path::construct_relative_path;
 use crate::template::django_rusty_templates::{
     NoReverseMatch, Template, TemplateDoesNotExist, get_template, select_template,
 };
-use crate::utils::{PyResultMethods, paragraphs, words};
+use crate::utils::PyResultMethods;
 
 static PROMISE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static REVERSE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
@@ -667,11 +668,17 @@ impl Render for Tag {
             Self::SimpleBlockTag(simple_tag) => simple_tag.render(py, template, context)?,
             Self::Url(url) => url.render(py, template, context)?,
             Self::Lorem(lorem) => {
-                let count = if let Some(at) = lorem.count_at {
-                    template.content(at).parse::<usize>().unwrap_or(1)
-                } else {
-                    1
-                };
+                let count_content = lorem.count.resolve(
+                    py,
+                    template,
+                    context,
+                    ResolveFailures::IgnoreVariableDoesNotExist,
+                )?;
+
+                let count = count_content
+                    .and_then(|c| c.to_bigint())
+                    .and_then(|n| n.to_usize())
+                    .unwrap_or(1);
 
                 let text = match lorem.method {
                     LoremMethod::Words => words(count, lorem.common),
