@@ -51,7 +51,7 @@ use dtl_lexer::tag::include::{
     IncludeWithToken,
 };
 use dtl_lexer::tag::load::{LoadLexer, LoadToken};
-use dtl_lexer::tag::lorem::{LoremError, LoremToken, lex_lorem};
+use dtl_lexer::tag::lorem::{LoremError, LoremMethod, lex_lorem};
 use dtl_lexer::tag::{TagLexerError, TagParts, lex_tag};
 use dtl_lexer::types::{At, TemplateString};
 use dtl_lexer::variable::{
@@ -71,6 +71,13 @@ use dtl_lexer::types::Variable;
 
 trait Parse<R> {
     fn parse(&self, parser: &Parser) -> Result<R, ParseError>;
+}
+#[derive(Debug, Clone, PartialEq)]
+pub struct Lorem {
+    pub count: TagElement, // This is the key change!
+    pub method: LoremMethod,
+    pub common: bool,
+    pub at: At,
 }
 
 impl Parse<Argument> for ArgumentToken {
@@ -622,7 +629,7 @@ pub enum Tag {
     SimpleTag(SimpleTag),
     SimpleBlockTag(SimpleBlockTag),
     Url(Url),
-    Lorem(LoremToken),
+    Lorem(Lorem),
 }
 
 #[derive(PartialEq, Eq)]
@@ -951,6 +958,32 @@ pub enum ParseError {
         #[label("here")]
         at: SourceSpan,
     },
+    #[error("Incorrect format for 'lorem' tag: 'random' was provided more than once")]
+    #[diagnostic(help("Try removing the second 'random'"))]
+    LoremDuplicateRandom {
+        #[label("first 'random'")]
+        first_at: SourceSpan,
+        #[label("second 'random'")]
+        second_at: SourceSpan,
+    },
+
+    #[error("Incorrect format for 'lorem' tag: 'method' argument was provided more than once")]
+    #[diagnostic(help("Try removing the second 'method'"))]
+    LoremDuplicateMethod {
+        #[label("first 'method'")]
+        first_at: SourceSpan,
+        #[label("second 'method'")]
+        second_at: SourceSpan,
+    },
+
+    #[error("Incorrect format for 'lorem' tag: 'count' argument was provided more than once")]
+    #[diagnostic(help("Try removing the second 'count'"))]
+    LoremDuplicateCount {
+        #[label("first 'count'")]
+        first_at: SourceSpan,
+        #[label("second 'count'")]
+        second_at: SourceSpan,
+    },
 }
 
 #[derive(Error, Debug)]
@@ -970,7 +1003,25 @@ impl From<LoremError> for PyParseError {
 impl From<LoremError> for ParseError {
     fn from(err: LoremError) -> Self {
         match err {
-            LoremError::InvalidFormat { at } => ParseError::InvalidTagFormat { tag: "lorem", at },
+            LoremError::InvalidFormat { at } => ParseError::InvalidTagFormat {
+                tag: "lorem",
+                at: at.into(),
+            },
+
+            LoremError::DuplicateRandom { first, second } => ParseError::LoremDuplicateRandom {
+                first_at: first.into(),
+                second_at: second.into(),
+            },
+
+            LoremError::DuplicateMethod { first, second } => ParseError::LoremDuplicateMethod {
+                first_at: first.into(),
+                second_at: second.into(),
+            },
+
+            LoremError::DuplicateCount { first, second } => ParseError::LoremDuplicateCount {
+                first_at: first.into(),
+                second_at: second.into(),
+            },
         }
     }
 }
@@ -1251,6 +1302,23 @@ impl<'t, 'py> Parser<'t, 'py> {
         }
         Ok(var)
     }
+    fn parse_lorem(&mut self, _at: At, parts: TagParts) -> Result<Lorem, PyParseError> {
+        let token = lex_lorem(self.template, parts)?;
+
+        let count = if let Some(count_at) = token.count_at {
+            let content = self.template.content(count_at);
+            self.parse_variable(content, count_at, count_at.0)?
+        } else {
+            TagElement::Int(1.into())
+        };
+
+        Ok(Lorem {
+            count,
+            method: token.method,
+            common: token.common,
+            at: token.at,
+        })
+    }
 
     fn parse_tag(
         &mut self,
@@ -1309,7 +1377,7 @@ impl<'t, 'py> Parser<'t, 'py> {
                 parts,
             }),
             "include" => Either::Left(self.parse_include(at, parts)?),
-            "lorem" => Either::Left(TokenTree::Tag(Tag::Lorem(lex_lorem(self.template, parts)?))),
+            "lorem" => Either::Left(TokenTree::Tag(Tag::Lorem(self.parse_lorem(at, parts)?))),
             tag_name => match self.external_tags.get(tag_name) {
                 Some(TagContext::Simple(context)) => {
                     Either::Left(self.parse_simple_tag(context, at, parts)?)
