@@ -16,6 +16,7 @@ use pyo3::sync::{MutexExt, PyOnceLock};
 use pyo3::types::{PyBool, PyDict, PyInt, PyString, PyType};
 
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
+use crate::template::django_rusty_templates::Template;
 use crate::utils::PyResultMethods;
 use dtl_lexer::types::{At, TemplateString};
 
@@ -53,6 +54,12 @@ impl ForLoop {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum IncludeTemplateKey {
+    String(String),
+    Vec(Vec<String>),
+}
+
 #[derive(Debug, Default)]
 pub struct Context {
     context: HashMap<String, Vec<Py<PyAny>>>,
@@ -60,6 +67,7 @@ pub struct Context {
     pub request: Option<Py<PyAny>>,
     pub autoescape: bool,
     names: Vec<HashSet<String>>,
+    pub include_cache: HashMap<IncludeTemplateKey, Template>,
 }
 
 impl Context {
@@ -75,6 +83,7 @@ impl Context {
             autoescape,
             loops: Vec::new(),
             names: Vec::new(),
+            include_cache: HashMap::new(),
         }
     }
 
@@ -89,6 +98,7 @@ impl Context {
             autoescape: self.autoescape,
             loops: self.loops.clone(),
             names: self.names.clone(),
+            include_cache: self.include_cache.clone(),
         }
     }
 
