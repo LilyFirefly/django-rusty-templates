@@ -88,9 +88,9 @@ FILTERS = [
 ]
 
 
-def test_include_loop(benchmark, template_engine):
+def test_include_loop(benchmark, template_engine_nocache):
     template = "{% for template in templates %}{% include template %}{% endfor %}"
-    template = template_engine.from_string(template)
+    template = template_engine_nocache.from_string(template)
 
     templates = [
         "benchmarks/include_1.txt",
