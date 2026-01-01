@@ -381,6 +381,7 @@ dependencies = [
  "num-traits",
  "pyo3",
  "quickcheck",
+ "rand",
  "sugar_path",
  "temp-env",
  "thiserror",
@@ -393,7 +394,6 @@ version = "0.1.0"
 dependencies = [
  "miette",
  "num-bigint",
- "rand",
  "thiserror",
  "unicode-xid",
 ]

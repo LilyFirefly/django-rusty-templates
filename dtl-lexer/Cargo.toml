@@ -5,7 +5,6 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-rand = "0.8"
 miette.workspace = true
 thiserror.workspace = true
 num-bigint.workspace = true

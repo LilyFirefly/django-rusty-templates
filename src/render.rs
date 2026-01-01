@@ -1,5 +1,6 @@
 pub mod common;
 pub mod filters;
+pub mod lorem;
 pub mod tags;
 pub mod types;
 

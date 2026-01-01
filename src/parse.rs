@@ -35,6 +35,7 @@ use crate::filters::UpperFilter;
 use crate::filters::WordcountFilter;
 use crate::filters::WordwrapFilter;
 use crate::filters::YesnoFilter;
+use crate::render::lorem::{LoremError, LoremMethod, lex_lorem};
 use dtl_lexer::START_TAG_LEN;
 use dtl_lexer::common::{LexerError, text_content_at, translated_text_content_at};
 use dtl_lexer::core::{Lexer, TokenType};
@@ -51,7 +52,6 @@ use dtl_lexer::tag::include::{
     IncludeWithToken,
 };
 use dtl_lexer::tag::load::{LoadLexer, LoadToken};
-use dtl_lexer::tag::lorem::{LoremError, LoremMethod, lex_lorem};
 use dtl_lexer::tag::{TagLexerError, TagParts, lex_tag};
 use dtl_lexer::types::{At, TemplateString};
 use dtl_lexer::variable::{
