@@ -199,3 +199,70 @@ def test_lorem_with_filter(render_output, context, expected_words):
     template = "{% lorem count|default:3 w %}"
     output = render_output(template=template, context=context)
     assert len(output.split(" ")) == expected_words
+
+
+def test_lorem_variable_count_plain(render_output):
+    template = "{% lorem n w %}"
+    output = render_output(
+        template=template,
+        context={"n": 4},
+    )
+    assert len(output.split(" ")) == 4
+
+
+def test_lorem_missing_variable_defaults_to_one(render_output):
+    template = "{% lorem missing_var w %}"
+    output = render_output(template=template, context={})
+    assert output == "lorem"
+
+
+def test_lorem_with_complex_filter_parsing(render_output):
+    template = "{% lorem val|add:2|default:5 w %}"
+
+    output_a = render_output(template=template, context={"val": 1})
+    assert len(output_a.split(" ")) == 3
+
+    output_b = render_output(template=template, context={})
+    assert len(output_b.split(" ")) == 5
+
+
+def test_lorem_parser_error_propagation(assert_parse_error):
+    template = "{% lorem n|invalid_filter %}"
+
+    django_message = "Invalid filter: 'invalid_filter'"
+
+    rusty_message = """\
+  × Invalid filter: 'invalid_filter'
+   ╭────
+ 1 │ {% lorem n|invalid_filter %}
+   ·            ───────┬──────
+   ·                   ╰── here
+   ╰────
+"""
+
+    assert_parse_error(
+        template=template,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
+def test_lorem_parser_error_propagation_2(assert_parse_error):
+    template = "{% lorem Count| %}"
+
+    django_message = "Could not parse the remainder: '|' from 'Count|'"
+
+    rusty_message = """\
+  × Invalid filter: 'invalid_filter'
+   ╭────
+ 1 │ {% lorem n|invalid_filter %}
+   ·            ───────┬──────
+   ·                   ╰── here
+   ╰────
+"""
+
+    assert_parse_error(
+        template=template,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
