@@ -342,6 +342,11 @@ pub enum LoremError {
         #[label("second 'count'")]
         _second: SourceSpan,
     },
+    #[error("Invalid filter: ''")]
+    InvalidRemainder {
+        #[label("expected filter name after '|'")]
+        _at: SourceSpan,
+    },
 }
 
 pub fn lex_lorem(template: TemplateString<'_>, parts: TagParts) -> Result<LoremToken, LoremError> {

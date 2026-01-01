@@ -1253,6 +1253,13 @@ impl<'t, 'py> Parser<'t, 'py> {
 
         let count = if let Some(count_at) = token.count_at {
             let content = self.template.content(count_at);
+            if content.ends_with('|') {
+                return Err(PyParseError::from(ParseError::LoremError(
+                    LoremError::InvalidRemainder {
+                        _at: (count_at.0 + content.len() - 1, 1).into(),
+                    },
+                )));
+            }
             self.parse_variable(content, count_at, count_at.0)?
         } else {
             TagElement::Int(1.into())
