@@ -327,3 +327,15 @@ def test_lorem_common_extension_logic(render_output):
     assert len(words_list) == 20
 
     assert words_list[:19] == list(COMMON_WORDS)
+
+
+def test_lorem_default_negative_count_defaults_to_one(render_output):
+    template = "{% lorem -5 %}"
+    output = render_output(template=template, context={})
+    assert output == ""
+
+
+def test_lorem_word_negative_count_defaults_to_one(render_output):
+    template = "{% lorem -5 w %}"
+    output = render_output(template=template, context={})
+    assert output == " ".join(COMMON_WORDS[:-5])

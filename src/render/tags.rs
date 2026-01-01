@@ -673,23 +673,38 @@ impl Render for Tag {
                     context,
                     ResolveFailures::IgnoreVariableDoesNotExist,
                 )?;
-
-                let count = count_content
+                let val = count_content
                     .and_then(|c| c.to_bigint())
-                    .and_then(|n| n.to_usize())
+                    .and_then(|n| n.to_i64())
                     .unwrap_or(1);
 
                 let text = match lorem.method {
-                    LoremMethod::Words => words(count, lorem.common),
-                    LoremMethod::Paragraphs => {
-                        let paras = paragraphs(count, lorem.common);
-                        paras
-                            .into_iter()
-                            .map(|p| format!("<p>{}</p>", p))
-                            .collect::<Vec<_>>()
-                            .join("\n\n")
+                    LoremMethod::Words => {
+                        let final_count = if val < 0 {
+                            // common words len is 19
+                            (19 + val).max(0) as usize
+                        } else {
+                            val as usize
+                        };
+                        words(final_count, lorem.common)
                     }
-                    LoremMethod::Blocks => paragraphs(count, lorem.common).join("\n\n"),
+                    LoremMethod::Paragraphs | LoremMethod::Blocks => {
+                        if val <= 0 {
+                            String::new()
+                        } else {
+                            let count = val as usize;
+                            let paras = paragraphs(count, lorem.common);
+                            if matches!(lorem.method, LoremMethod::Paragraphs) {
+                                paras
+                                    .into_iter()
+                                    .map(|p| format!("<p>{}</p>", p))
+                                    .collect::<Vec<_>>()
+                                    .join("\n\n")
+                            } else {
+                                paras.join("\n\n")
+                            }
+                        }
+                    }
                 };
 
                 Cow::Owned(text)
