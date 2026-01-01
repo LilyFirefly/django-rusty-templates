@@ -958,32 +958,10 @@ pub enum ParseError {
         #[label("here")]
         at: SourceSpan,
     },
-    #[error("Incorrect format for 'lorem' tag: 'random' was provided more than once")]
-    #[diagnostic(help("Try removing the second 'random'"))]
-    LoremDuplicateRandom {
-        #[label("first 'random'")]
-        first_at: SourceSpan,
-        #[label("second 'random'")]
-        second_at: SourceSpan,
-    },
 
-    #[error("Incorrect format for 'lorem' tag: 'method' argument was provided more than once")]
-    #[diagnostic(help("Try removing the second 'method'"))]
-    LoremDuplicateMethod {
-        #[label("first 'method'")]
-        first_at: SourceSpan,
-        #[label("second 'method'")]
-        second_at: SourceSpan,
-    },
-
-    #[error("Incorrect format for 'lorem' tag: 'count' argument was provided more than once")]
-    #[diagnostic(help("Try removing the second 'count'"))]
-    LoremDuplicateCount {
-        #[label("first 'count'")]
-        first_at: SourceSpan,
-        #[label("second 'count'")]
-        second_at: SourceSpan,
-    },
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    LoremError(#[from] LoremError),
 }
 
 #[derive(Error, Debug)]
@@ -992,38 +970,6 @@ pub enum PyParseError {
     PyErr(#[from] PyErr),
     #[error(transparent)]
     ParseError(#[from] ParseError),
-}
-
-impl From<LoremError> for PyParseError {
-    fn from(err: LoremError) -> Self {
-        PyParseError::from(ParseError::from(err))
-    }
-}
-
-impl From<LoremError> for ParseError {
-    fn from(err: LoremError) -> Self {
-        match err {
-            LoremError::InvalidFormat { at } => ParseError::InvalidTagFormat {
-                tag: "lorem",
-                at: at.into(),
-            },
-
-            LoremError::DuplicateRandom { first, second } => ParseError::LoremDuplicateRandom {
-                first_at: first.into(),
-                second_at: second.into(),
-            },
-
-            LoremError::DuplicateMethod { first, second } => ParseError::LoremDuplicateMethod {
-                first_at: first.into(),
-                second_at: second.into(),
-            },
-
-            LoremError::DuplicateCount { first, second } => ParseError::LoremDuplicateCount {
-                first_at: first.into(),
-                second_at: second.into(),
-            },
-        }
-    }
 }
 
 impl PyParseError {

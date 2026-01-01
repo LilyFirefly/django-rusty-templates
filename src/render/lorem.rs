@@ -309,25 +309,37 @@ pub enum LoremMethod {
 
 #[derive(Debug, Diagnostic, Error, PartialEq, Eq)]
 pub enum LoremError {
-    #[error("Invalid format for 'lorem' tag")]
-    InvalidFormat { at: SourceSpan },
+    #[error("Incorrect format for 'lorem' tag")]
+    InvalidFormat {
+        #[label("here")]
+        at: SourceSpan,
+    },
 
     #[error("Incorrect format for 'lorem' tag: 'random' was provided more than once")]
+    #[diagnostic(help("Try removing the second 'random'"))]
     DuplicateRandom {
-        first: SourceSpan,
-        second: SourceSpan,
+        #[label("first 'random'")]
+        _first: SourceSpan,
+        #[label("second 'random'")]
+        _second: SourceSpan,
     },
 
     #[error("Incorrect format for 'lorem' tag: 'method' argument was provided more than once")]
+    #[diagnostic(help("Try removing the second 'method'"))]
     DuplicateMethod {
-        first: SourceSpan,
-        second: SourceSpan,
+        #[label("first 'method'")]
+        _first: SourceSpan,
+        #[label("second 'method'")]
+        _second: SourceSpan,
     },
 
     #[error("Incorrect format for 'lorem' tag: 'count' argument was provided more than once")]
+    #[diagnostic(help("Try removing the second 'count'"))]
     DuplicateCount {
-        first: SourceSpan,
-        second: SourceSpan,
+        #[label("first 'count'")]
+        _first: SourceSpan,
+        #[label("second 'count'")]
+        _second: SourceSpan,
     },
 }
 
@@ -392,8 +404,8 @@ pub fn lex_lorem(template: TemplateString<'_>, parts: TagParts) -> Result<LoremT
             "w" | "p" | "b" => {
                 if let Some(first) = method_at {
                     return Err(LoremError::DuplicateMethod {
-                        first: first.into(),
-                        second: at.into(),
+                        _first: first.into(),
+                        _second: at.into(),
                     });
                 }
                 method_at = Some(at);
@@ -407,8 +419,8 @@ pub fn lex_lorem(template: TemplateString<'_>, parts: TagParts) -> Result<LoremT
             "random" => {
                 if let Some(first) = random_at {
                     return Err(LoremError::DuplicateRandom {
-                        first: first.into(),
-                        second: at.into(),
+                        _first: first.into(),
+                        _second: at.into(),
                     });
                 }
                 random_at = Some(at);
@@ -421,8 +433,8 @@ pub fn lex_lorem(template: TemplateString<'_>, parts: TagParts) -> Result<LoremT
                 }
 
                 return Err(LoremError::DuplicateCount {
-                    first: count_at.unwrap().into(),
-                    second: at.into(),
+                    _first: count_at.unwrap().into(),
+                    _second: at.into(),
                 });
             }
         }

@@ -196,6 +196,7 @@ def test_lorem_with_filter(render_output):
     output_provided = render_output(template=template, context={"count": 1})
     assert output_provided == "lorem"
 
+
 def test_lorem_variable_count_plain(render_output):
     template = "{% lorem n w %}"
     output = render_output(
