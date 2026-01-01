@@ -253,11 +253,11 @@ def test_lorem_parser_error_propagation_2(assert_parse_error):
     django_message = "Could not parse the remainder: '|' from 'Count|'"
 
     rusty_message = """\
-  × Invalid filter: 'invalid_filter'
+  × Invalid filter: ''
    ╭────
- 1 │ {% lorem n|invalid_filter %}
-   ·            ───────┬──────
-   ·                   ╰── here
+ 1 │ {% lorem Count| %}
+   ·               ┬
+   ·               ╰── expected filter name after '|'
    ╰────
 """
 
@@ -266,3 +266,54 @@ def test_lorem_parser_error_propagation_2(assert_parse_error):
         django_message=django_message,
         rusty_message=rusty_message,
     )
+
+
+def test_lorem_variable_float_coercion(render_output):
+    template = "{% lorem count w %}"
+    output = render_output(template=template, context={"count": 5.9})
+    words = output.split(" ")
+    assert len(words) in [1, 5]
+
+
+def test_lorem_variable_string_number(render_output):
+    template = "{% lorem count w %}"
+    output = render_output(template=template, context={"count": "5"})
+    assert len(output.split(" ")) == 5
+
+
+def test_lorem_variable_invalid_type_defaults(render_output):
+    template = "{% lorem count w %}"
+    output = render_output(template=template, context={"count": [1, 2, 3]})
+    assert output == "lorem"
+
+
+def test_lorem_with_filter_returning_none(render_output):
+    template = "{% lorem val|yesno:'1,' w %}"
+    output = render_output(template=template, context={"val": False})
+    assert output == "lorem"
+
+
+def test_lorem_string_garbage_defaults_to_one(render_output):
+    """A string that isn't a number should default to 1."""
+    template = "{% lorem count w %}"
+    output = render_output(template=template, context={"count": "abc"})
+    assert output == "lorem"
+
+
+# def test_lorem_extreme_count_defaults_to_one(render_output):
+#     # A number way larger than a 64-bit integer
+#     template = "{% lorem 99999999999999999999999999999999999999 w %}"
+#     output = render_output(template=template, context={})
+#     assert output == "lorem"
+
+
+def test_lorem_boolean_true_count(render_output):
+    template_true = "{% lorem val_true w %}"
+    output_true = render_output(template=template_true, context={"val_true": True})
+    assert output_true == "lorem"
+
+
+def test_lorem_boolean_false_count(render_output):
+    template_false = "{% lorem val_false w %}"
+    output_false = render_output(template=template_false, context={"val_false": False})
+    assert output_false == ""
