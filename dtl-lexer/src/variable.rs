@@ -123,7 +123,7 @@ pub fn lex_variable_or_filter(
     Ok(Some((
         token_type,
         at,
-        FilterLexer::new(&rest[end..], start + end),
+        FilterLexer::new(&rest[end..], start + end)?,
     )))
 }
 
@@ -134,19 +134,25 @@ pub struct FilterLexer<'t> {
 }
 
 impl<'t> FilterLexer<'t> {
-    fn new(variable: &'t str, start: usize) -> Self {
+    fn new(variable: &'t str, start: usize) -> Result<Self, LexerError> {
         let Some(offset) = variable.find('|') else {
-            return Self {
+            return Ok(Self {
                 rest: "",
                 byte: start + variable.len(),
-            };
+            });
         };
         let offset = offset + 1;
         let variable = &variable[offset..];
         let rest = variable.trim_start();
-        Self {
-            rest: rest.trim_end(),
-            byte: start + offset + variable.len() - rest.len(),
+        if rest.is_empty() {
+            Err(LexerError::InvalidRemainder {
+                at: (start, 1).into(),
+            })
+        } else {
+            Ok(Self {
+                rest: rest.trim_end(),
+                byte: start + offset + variable.len() - rest.len(),
+            })
         }
     }
 
@@ -460,6 +466,17 @@ mod tests {
             })]
         );
         assert_eq!(contents(template, tokens), vec![("title", None)]);
+    }
+
+    #[test]
+    fn test_lex_filter_empty() {
+        let template = "{{ foo.bar| }}";
+        let variable = trim_variable(template);
+        let err = lex_variable_or_filter(variable, START_TAG_LEN).unwrap_err();
+        assert_eq!(
+            err,
+            LexerError::InvalidRemainder { at: (10, 1).into() }.into()
+        );
     }
 
     #[test]
