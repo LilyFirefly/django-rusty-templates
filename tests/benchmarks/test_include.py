@@ -112,3 +112,11 @@ def test_include_loop(benchmark, template_engine_nocache):
     }
 
     benchmark(template.render, context)
+
+
+def test_nested_include_loop(benchmark, template_engine_nocache):
+    template = "{% for _ in count %}{% include 'benchmarks/nested.txt' %}{% endfor %}"
+    template = template_engine_nocache.from_string(template)
+    context = {"count": range(100)}
+
+    benchmark(template.render, context)
