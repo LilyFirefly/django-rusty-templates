@@ -309,10 +309,11 @@ pub enum LoremMethod {
 
 #[derive(Debug, Diagnostic, Error, PartialEq, Eq)]
 pub enum LoremError {
-    #[error("Incorrect format for 'lorem' tag")]
-    InvalidFormat {
-        #[label("here")]
-        at: SourceSpan,
+    #[error("Incorrect format for 'lorem' tag: count must come before method or random")]
+    #[diagnostic(help("Move the count argument before the method"))]
+    CountAfterMethodOrRandom {
+        #[label("count must come first")]
+        _at: SourceSpan,
     },
 
     #[error("Incorrect format for 'lorem' tag: 'random' was provided more than once")]
@@ -429,7 +430,7 @@ pub fn lex_lorem(template: TemplateString<'_>, parts: TagParts) -> Result<LoremT
 
             _ => {
                 if count_from_keyword {
-                    return Err(LoremError::InvalidFormat { at: at.into() });
+                    return Err(LoremError::CountAfterMethodOrRandom { _at: at.into() });
                 }
 
                 return Err(LoremError::DuplicateCount {

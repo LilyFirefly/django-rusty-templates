@@ -138,12 +138,13 @@ def test_lorem_method_before_count(assert_parse_error):
     template = "{% lorem p 2 %}"
     django_message = "Incorrect format for 'lorem' tag"
     rusty_message = """\
-  × Incorrect format for 'lorem' tag
+  × Incorrect format for 'lorem' tag: count must come before method or random
    ╭────
  1 │ {% lorem p 2 %}
    ·            ┬
-   ·            ╰── here
+   ·            ╰── count must come first
    ╰────
+  help: Move the count argument before the method
 """
     assert_parse_error(
         template=template,
@@ -156,12 +157,13 @@ def test_lorem_random_before_count(assert_parse_error):
     template = "{% lorem random 2 %}"
     django_message = "Incorrect format for 'lorem' tag"
     rusty_message = """\
-  × Incorrect format for 'lorem' tag
+  × Incorrect format for 'lorem' tag: count must come before method or random
    ╭────
  1 │ {% lorem random 2 %}
    ·                 ┬
-   ·                 ╰── here
+   ·                 ╰── count must come first
    ╰────
+  help: Move the count argument before the method
 """
     assert_parse_error(
         template=template,
