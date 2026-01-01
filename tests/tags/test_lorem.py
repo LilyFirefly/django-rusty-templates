@@ -1,3 +1,4 @@
+import pytest
 from django.utils.lorem_ipsum import COMMON_P, WORDS
 
 
@@ -187,19 +188,14 @@ def test_lorem_random_as_variable(render_output):
     assert len(output.split(" ")) == 2
 
 
-def test_lorem_with_filter(render_output):
+@pytest.mark.parametrize(
+    "context,expected_words",
+    [
+        ({}, 3),
+        ({"count": 1}, 1),
+    ],
+)
+def test_lorem_with_filter(render_output, context, expected_words):
     template = "{% lorem count|default:3 w %}"
-    output_default = render_output(template=template, context={})
-    assert len(output_default.split(" ")) == 3
-
-    output_provided = render_output(template=template, context={"count": 1})
-    assert output_provided == "lorem"
-
-
-def test_lorem_variable_count_plain(render_output):
-    template = "{% lorem n w %}"
-    output = render_output(
-        template=template,
-        context={"n": 4},
-    )
-    assert len(output.split(" ")) == 4
+    output = render_output(template=template, context=context)
+    assert len(output.split(" ")) == expected_words
