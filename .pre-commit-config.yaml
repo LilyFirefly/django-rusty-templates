@@ -1,3 +1,9 @@
+default_install_hook_types:
+  - pre-commit
+  - post-checkout
+  - post-merge
+  - post-rewrite
+
 ci:
   autoupdate_schedule: monthly
 
@@ -35,6 +41,7 @@ repos:
     rev: ed07c6e8889cf83a7245866d1dd007d1f93bf55e  # frozen: 0.9.13
     hooks:
       - id: uv-lock
+      - id: uv-sync
   - repo: https://github.com/woodruffw/zizmor-pre-commit
     rev: 1e30511413f07e516c1844ba91abce8aca984963  # frozen: v1.18.0
     hooks:
