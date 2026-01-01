@@ -22,7 +22,7 @@ DJANGO_SETTINGS_MODULE = "tests.settings"
 
 [dependency-groups]
 dev = [
-    "django",
+    "django~=5.2.9",
     "hypothesis",
     "maturin",
     "pytest",
