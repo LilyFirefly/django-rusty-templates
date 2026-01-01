@@ -1,0 +1,13 @@
+# Django templates
+
+Django includes many built-in template filters and tags:
+
+## Tags
+{% for tag in tags %}
+* {{ tag }}: {{ url }}{{ tag|slugify }}
+{% endfor %}
+
+## Filters
+{% for filter in filters %}
+* {{ filter }}: {{ url }}{{ filter|slugify }}
+{% endfor %}

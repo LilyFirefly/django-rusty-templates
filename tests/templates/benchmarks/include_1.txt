@@ -1,0 +1,7 @@
+# Users
+
+| Name | Age |
+--------------
+{% for user in users %}
+| {{ user.name }} | {% if user.age >= 18 %}{{ user.age }}{% elif user.age < 18 %}Under 18{% else %}Unknown{% endif %} |
+{% endfor %}

@@ -28,6 +28,7 @@ dev = [
     "pytest",
     "pytest-django",
     "pytest-cov",
+    "pytest-codspeed",
     "ruff",
     "pre-commit",
     "inline-snapshot",
