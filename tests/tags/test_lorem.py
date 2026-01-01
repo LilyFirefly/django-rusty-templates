@@ -1,5 +1,5 @@
 import pytest
-from django.utils.lorem_ipsum import COMMON_P, WORDS
+from django.utils.lorem_ipsum import COMMON_P, WORDS, COMMON_WORDS
 
 
 def test_lorem_words(assert_render):
@@ -317,3 +317,13 @@ def test_lorem_boolean_false_count(render_output):
     template_false = "{% lorem val_false w %}"
     output_false = render_output(template=template_false, context={"val_false": False})
     assert output_false == ""
+
+
+def test_lorem_common_extension_logic(render_output):
+    template = "{% lorem 20 w %}"
+    output = render_output(template=template, context={})
+    words_list = output.split(" ")
+
+    assert len(words_list) == 20
+
+    assert words_list[:19] == list(COMMON_WORDS)
