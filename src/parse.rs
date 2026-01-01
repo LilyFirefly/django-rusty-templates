@@ -1249,7 +1249,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         Ok(var)
     }
     fn parse_lorem(&mut self, _at: At, parts: TagParts) -> Result<Lorem, PyParseError> {
-        let token = lex_lorem(self.template, parts)?;
+        let token = lex_lorem(self.template, parts).map_err(ParseError::from)?;
 
         let count = if let Some(count_at) = token.count_at {
             let content = self.template.content(count_at);
