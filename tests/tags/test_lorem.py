@@ -90,9 +90,6 @@ def test_lorem_zero_count(assert_render):
     assert_render(template=template, context={}, expected="")
 
 
-66
-
-
 def test_lorem_duplicate_method(assert_parse_error):
     template = "{% lorem 2 w p %}"
     django_message = "Incorrect format for 'lorem' tag"
