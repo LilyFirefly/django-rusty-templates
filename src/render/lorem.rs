@@ -1,5 +1,7 @@
+use miette::{Diagnostic, SourceSpan};
 use rand::Rng;
 use rand::seq::SliceRandom;
+use std::borrow::Cow;
 use thiserror::Error;
 
 use dtl_lexer::tag::TagParts;
@@ -239,7 +241,7 @@ pub fn sentence() -> String {
     let mut sentence = sections.join(", ");
 
     if let Some(first) = sentence.chars().next() {
-        let upper = first.to_uppercase().to_string();
+        let upper = first.to_uppercase();
         let rest = &sentence[first.len_utf8()..];
         sentence = format!("{upper}{rest}");
     }
@@ -258,21 +260,20 @@ pub fn paragraph() -> String {
         .join(" ")
 }
 
-pub fn paragraphs(count: usize, common: bool) -> Vec<String> {
+pub fn paragraphs(count: usize, common: bool) -> Vec<Cow<'static, str>> {
     let mut paras = Vec::with_capacity(count);
-
     for i in 0..count {
         if common && i == 0 {
-            paras.push(COMMON_P.to_string());
+            paras.push(Cow::Borrowed(COMMON_P));
         } else {
-            paras.push(paragraph());
+            paras.push(Cow::Owned(paragraph()));
         }
     }
 
     paras
 }
 
-pub fn words(count: usize, common: bool) -> String {
+pub fn words(mut count: usize, common: bool) -> String {
     if common && count <= COMMON_WORDS.len() {
         return COMMON_WORDS[..count].join(" ");
     }
@@ -280,13 +281,13 @@ pub fn words(count: usize, common: bool) -> String {
     let mut word_list: Vec<&str> = Vec::with_capacity(count);
     if common {
         word_list.extend(&COMMON_WORDS);
+        count -= word_list.len();
     }
-    let mut remaining = count - word_list.len();
-    while remaining > 0 {
-        let take = remaining.min(WORDS.len());
+    while count > 0 {
+        let take = count.min(WORDS.len());
         let sampled = WORDS.choose_multiple(&mut rng, take);
-        word_list.extend(sampled.cloned());
-        remaining -= take;
+        word_list.extend(sampled.copied());
+        count -= take;
     }
     word_list.join(" ")
 }
@@ -306,19 +307,28 @@ pub enum LoremMethod {
     Blocks,
 }
 
-#[derive(Debug, Error, PartialEq, Eq)]
+#[derive(Debug, Diagnostic, Error, PartialEq, Eq)]
 pub enum LoremError {
     #[error("Invalid format for 'lorem' tag")]
-    InvalidFormat { at: At },
+    InvalidFormat { at: SourceSpan },
 
     #[error("Incorrect format for 'lorem' tag: 'random' was provided more than once")]
-    DuplicateRandom { first: At, second: At },
+    DuplicateRandom {
+        first: SourceSpan,
+        second: SourceSpan,
+    },
 
     #[error("Incorrect format for 'lorem' tag: 'method' argument was provided more than once")]
-    DuplicateMethod { first: At, second: At },
+    DuplicateMethod {
+        first: SourceSpan,
+        second: SourceSpan,
+    },
 
     #[error("Incorrect format for 'lorem' tag: 'count' argument was provided more than once")]
-    DuplicateCount { first: At, second: At },
+    DuplicateCount {
+        first: SourceSpan,
+        second: SourceSpan,
+    },
 }
 
 pub fn lex_lorem(template: TemplateString<'_>, parts: TagParts) -> Result<LoremToken, LoremError> {
@@ -381,7 +391,10 @@ pub fn lex_lorem(template: TemplateString<'_>, parts: TagParts) -> Result<LoremT
         match text {
             "w" | "p" | "b" => {
                 if let Some(first) = method_at {
-                    return Err(LoremError::DuplicateMethod { first, second: at });
+                    return Err(LoremError::DuplicateMethod {
+                        first: first.into(),
+                        second: at.into(),
+                    });
                 }
                 method_at = Some(at);
                 method = match text {
@@ -393,7 +406,10 @@ pub fn lex_lorem(template: TemplateString<'_>, parts: TagParts) -> Result<LoremT
 
             "random" => {
                 if let Some(first) = random_at {
-                    return Err(LoremError::DuplicateRandom { first, second: at });
+                    return Err(LoremError::DuplicateRandom {
+                        first: first.into(),
+                        second: at.into(),
+                    });
                 }
                 random_at = Some(at);
                 common = false;
@@ -401,12 +417,12 @@ pub fn lex_lorem(template: TemplateString<'_>, parts: TagParts) -> Result<LoremT
 
             _ => {
                 if count_from_keyword {
-                    return Err(LoremError::InvalidFormat { at });
+                    return Err(LoremError::InvalidFormat { at: at.into() });
                 }
 
                 return Err(LoremError::DuplicateCount {
-                    first: count_at.unwrap(),
-                    second: at,
+                    first: count_at.unwrap().into(),
+                    second: at.into(),
                 });
             }
         }
