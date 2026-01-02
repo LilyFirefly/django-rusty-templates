@@ -67,7 +67,7 @@ pub struct Context {
     pub request: Option<Py<PyAny>>,
     pub autoescape: bool,
     names: Vec<HashSet<String>>,
-    pub include_cache: HashMap<IncludeTemplateKey, Template>,
+    pub include_cache: HashMap<IncludeTemplateKey, Arc<Template>>,
 }
 
 impl Context {

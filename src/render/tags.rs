@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::collections::hash_map::Entry;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
@@ -777,7 +778,7 @@ impl Render for For {
 }
 
 enum IncludeTemplate<'py> {
-    Template((IncludeTemplateKey, Template)),
+    Template(Arc<Template>),
     Callable(Bound<'py, PyAny>),
 }
 
@@ -790,7 +791,7 @@ impl<'t, 'py> IncludeTemplate<'py> {
         template: TemplateString<'t>,
     ) -> RenderResult<'t> {
         match self {
-            Self::Template((_, template)) => template.render(py, context),
+            Self::Template(template) => template.render(py, context),
             Self::Callable(callable) => {
                 let py_context = build_pycontext(py, context)?;
                 let result = callable.call1((py_context.clone(),));
@@ -808,20 +809,22 @@ fn get_include(
     py: Python,
     engine: &Arc<Engine>,
     context: &mut Context,
-    key: IncludeTemplateKey,
-) -> Result<(IncludeTemplateKey, Template), PyErr> {
-    let include = match context.include_cache.remove(&key) {
-        Some(include) => include,
-        None => match &key {
-            IncludeTemplateKey::String(content) => {
-                get_template(engine.clone(), py, Cow::Borrowed(content))?
-            }
-            IncludeTemplateKey::Vec(templates) => {
-                select_template(engine.clone(), py, templates.clone())?
-            }
+    key: &IncludeTemplateKey,
+) -> Result<Arc<Template>, PyErr> {
+    match context.include_cache.entry(key.clone()) {
+        Entry::Occupied(entry) => Ok(entry.get().clone()),
+        Entry::Vacant(entry) => {
+            let include = match key {
+                IncludeTemplateKey::String(content) => {
+                    get_template(engine.clone(), py, Cow::Borrowed(content))?
+                }
+                IncludeTemplateKey::Vec(templates) => {
+                    select_template(engine.clone(), py, templates.clone())?
+                }
+            };
+            Ok(entry.insert(Arc::new(include)).clone())
         },
-    };
-    Ok((key, include))
+    }
 }
 
 impl Include {
@@ -893,7 +896,7 @@ impl Include {
         match template_name {
             Content::String(content) => {
                 let key = IncludeTemplateKey::String(content.content().to_string());
-                get_include(py, &self.engine, context, key).map(IncludeTemplate::Template)
+                get_include(py, &self.engine, context, &key).map(IncludeTemplate::Template)
             }
             Content::Py(content) => {
                 if let Some(render) = content.getattr_opt(intern!(py, "render"))?
@@ -915,7 +918,7 @@ impl Include {
                         None => template_path.to_string(),
                     };
                     let key = IncludeTemplateKey::String(template_path);
-                    get_include(py, &self.engine, context, key).map(IncludeTemplate::Template)
+                    get_include(py, &self.engine, context, &key).map(IncludeTemplate::Template)
                 } else {
                     let promise = PROMISE.import(py, "django.utils.functional", "Promise")?;
                     if content.is_instance(promise)? {
@@ -938,7 +941,7 @@ impl Include {
                         ));
                     };
                     let key = IncludeTemplateKey::Vec(templates);
-                    get_include(py, &self.engine, context, key).map(IncludeTemplate::Template)
+                    get_include(py, &self.engine, context, &key).map(IncludeTemplate::Template)
                 }
             }
             Content::Int(content) => {
@@ -994,9 +997,6 @@ impl Render for Include {
                 for key in names {
                     context.pop_variable(key);
                 }
-                if let IncludeTemplate::Template((include_key, include)) = include {
-                    context.include_cache.insert(include_key, include);
-                }
                 rendered
             }
             true => {
@@ -1017,13 +1017,9 @@ impl Render for Include {
                     .as_ref()
                     .map(|request| request.clone_ref(py));
                 let mut new_context = Context::new(inner_context, request, context.autoescape);
-                let rendered = include
+                include
                     .render(py, &mut new_context, self.template_at(), template)
-                    .map(|content| Cow::Owned(content.into_owned()));
-                if let IncludeTemplate::Template((include_key, include)) = include {
-                    context.include_cache.insert(include_key, include);
-                }
-                rendered
+                    .map(|content| Cow::Owned(content.into_owned()))
             }
         }
     }
