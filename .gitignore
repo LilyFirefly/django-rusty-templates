@@ -75,3 +75,6 @@ docs/_build/
 
 # Django repo cache
 scripts/.django
+
+# Codspeed benchmarking
+.codspeed/*

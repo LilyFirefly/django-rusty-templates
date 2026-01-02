@@ -44,6 +44,24 @@ TEMPLATES = [
             ],
         },
     },
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "NAME": "django_nocache",
+        "OPTIONS": {
+            "loaders": [
+                ("django.template.loaders.filesystem.Loader", ["tests/templates"])
+            ],
+        },
+    },
+    {
+        "BACKEND": "django_rusty_templates.RustyTemplates",
+        "NAME": "rusty_nocache",
+        "OPTIONS": {
+            "loaders": [
+                ("django.template.loaders.filesystem.Loader", ["tests/templates"])
+            ],
+        },
+    },
 ]
 
 ROOT_URLCONF = "tests.urls"

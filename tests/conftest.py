@@ -2,6 +2,7 @@ import pytest
 from django.template import engines, TemplateSyntaxError
 
 all_engines = pytest.fixture(params=["rusty", "django"])
+all_engines_nocache = pytest.fixture(params=["rusty_nocache", "django_nocache"])
 
 
 @all_engines
@@ -10,6 +11,14 @@ def template_engine(request):
     Parametrize tests to run against both rusty and django template engines.
 
     See https://docs.pytest.org/en/stable/how-to/fixtures.html#parametrizing-fixtures
+    """
+    return engines[request.param]
+
+
+@all_engines_nocache
+def template_engine_nocache(request):
+    """
+    Like template_engine, but forces usage of the filesystem loader without the cached loader.
     """
     return engines[request.param]
 
