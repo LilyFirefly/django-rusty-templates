@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::collections::hash_map::Entry;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
@@ -22,9 +21,7 @@ use crate::parse::{
     For, IfCondition, Include, IncludeTemplateName, SimpleBlockTag, SimpleTag, Tag, TagElement, Url,
 };
 use crate::path::construct_relative_path;
-use crate::template::django_rusty_templates::{
-    Engine, NoReverseMatch, Template, TemplateDoesNotExist, get_template, select_template,
-};
+use crate::template::django_rusty_templates::{NoReverseMatch, Template, TemplateDoesNotExist};
 use crate::utils::PyResultMethods;
 
 static PROMISE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
@@ -805,28 +802,6 @@ impl<'t, 'py> IncludeTemplate<'py> {
     }
 }
 
-fn get_include(
-    py: Python,
-    engine: &Arc<Engine>,
-    context: &mut Context,
-    key: &IncludeTemplateKey,
-) -> Result<Arc<Template>, PyErr> {
-    match context.include_cache.entry(key.clone()) {
-        Entry::Occupied(entry) => Ok(entry.get().clone()),
-        Entry::Vacant(entry) => {
-            let include = match key {
-                IncludeTemplateKey::String(content) => {
-                    get_template(engine.clone(), py, Cow::Borrowed(content))?
-                }
-                IncludeTemplateKey::Vec(templates) => {
-                    select_template(engine.clone(), py, templates.clone())?
-                }
-            };
-            Ok(entry.insert(Arc::new(include)).clone())
-        },
-    }
-}
-
 impl Include {
     fn template_at(&self) -> At {
         match &self.template_name {
@@ -896,7 +871,9 @@ impl Include {
         match template_name {
             Content::String(content) => {
                 let key = IncludeTemplateKey::String(content.content().to_string());
-                get_include(py, &self.engine, context, &key).map(IncludeTemplate::Template)
+                context
+                    .get_or_insert_include(py, &self.engine, &key)
+                    .map(IncludeTemplate::Template)
             }
             Content::Py(content) => {
                 if let Some(render) = content.getattr_opt(intern!(py, "render"))?
@@ -918,7 +895,9 @@ impl Include {
                         None => template_path.to_string(),
                     };
                     let key = IncludeTemplateKey::String(template_path);
-                    get_include(py, &self.engine, context, &key).map(IncludeTemplate::Template)
+                    context
+                        .get_or_insert_include(py, &self.engine, &key)
+                        .map(IncludeTemplate::Template)
                 } else {
                     let promise = PROMISE.import(py, "django.utils.functional", "Promise")?;
                     if content.is_instance(promise)? {
@@ -941,7 +920,9 @@ impl Include {
                         ));
                     };
                     let key = IncludeTemplateKey::Vec(templates);
-                    get_include(py, &self.engine, context, &key).map(IncludeTemplate::Template)
+                    context
+                        .get_or_insert_include(py, &self.engine, &key)
+                        .map(IncludeTemplate::Template)
                 }
             }
             Content::Int(content) => {
