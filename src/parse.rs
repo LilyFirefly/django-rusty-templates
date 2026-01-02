@@ -51,6 +51,7 @@ use dtl_lexer::tag::include::{
     IncludeWithToken,
 };
 use dtl_lexer::tag::load::{LoadLexer, LoadToken};
+use dtl_lexer::tag::now::{Now, NowSyntaxError, lex_now};
 use dtl_lexer::tag::{TagLexerError, TagParts, lex_tag};
 use dtl_lexer::types::{At, TemplateString};
 use dtl_lexer::variable::{
@@ -621,6 +622,7 @@ pub enum Tag {
     SimpleTag(SimpleTag),
     SimpleBlockTag(SimpleBlockTag),
     Url(Url),
+    Now(Now),
 }
 
 #[derive(PartialEq, Eq)]
@@ -943,6 +945,9 @@ pub enum ParseError {
         #[label("start tag")]
         start_at: SourceSpan,
     },
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    NowSyntaxError(#[from] NowSyntaxError),
 }
 
 #[derive(Error, Debug)]
@@ -1287,6 +1292,13 @@ impl<'t, 'py> Parser<'t, 'py> {
                 parts,
             }),
             "include" => Either::Left(self.parse_include(at, parts)?),
+            "now" => {
+                let token = lex_now(self.template, parts).map_err(ParseError::from)?;
+                Either::Left(TokenTree::Tag(Tag::Now(Now {
+                    format_at: token.format_at,
+                    asvar: token.asvar,
+                })))
+            }
             tag_name => match self.external_tags.get(tag_name) {
                 Some(TagContext::Simple(context)) => {
                     Either::Left(self.parse_simple_tag(context, at, parts)?)
