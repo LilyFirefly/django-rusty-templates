@@ -12,16 +12,16 @@ use pyo3::types::{PyBool, PyDict, PyList, PyNone, PyString, PyTuple};
 
 use dtl_lexer::types::{At, TemplateString};
 
-use super::types::{AsBorrowedContent, Content, ContentString, Context, PyContext};
+use super::types::{
+    AsBorrowedContent, Content, ContentString, Context, IncludeTemplateKey, PyContext,
+};
 use super::{Evaluate, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
 use crate::parse::{
     For, IfCondition, Include, IncludeTemplateName, SimpleBlockTag, SimpleTag, Tag, TagElement, Url,
 };
 use crate::path::construct_relative_path;
-use crate::template::django_rusty_templates::{
-    NoReverseMatch, Template, TemplateDoesNotExist, get_template, select_template,
-};
+use crate::template::django_rusty_templates::{NoReverseMatch, Template, TemplateDoesNotExist};
 use crate::utils::PyResultMethods;
 
 static PROMISE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
@@ -775,11 +775,11 @@ impl Render for For {
 }
 
 enum IncludeTemplate<'py> {
-    Template(Template),
+    Template(Arc<Template>),
     Callable(Bound<'py, PyAny>),
 }
 
-impl<'t, 'py> IncludeTemplate<'t> {
+impl<'t, 'py> IncludeTemplate<'py> {
     fn render(
         &'t self,
         py: Python<'py>,
@@ -866,10 +866,15 @@ impl Include {
         template_name: Content<'t, 'py>,
         py: Python<'py>,
         template: TemplateString<'t>,
+        context: &'t mut Context,
     ) -> Result<IncludeTemplate<'py>, PyRenderError> {
         match template_name {
-            Content::String(content) => get_template(self.engine.clone(), py, content.content())
-                .map(IncludeTemplate::Template),
+            Content::String(content) => {
+                let key = IncludeTemplateKey::String(content.content().to_string());
+                context
+                    .get_or_insert_include(py, &self.engine, &key)
+                    .map(IncludeTemplate::Template)
+            }
             Content::Py(content) => {
                 if let Some(render) = content.getattr_opt(intern!(py, "render"))?
                     && render.is_callable()
@@ -886,10 +891,12 @@ impl Include {
                     )
                     .map_err(RenderError::from)?
                     {
-                        Some(path) => path,
-                        None => Cow::Borrowed(template_path),
+                        Some(path) => path.to_string(),
+                        None => template_path.to_string(),
                     };
-                    get_template(self.engine.clone(), py, template_path)
+                    let key = IncludeTemplateKey::String(template_path);
+                    context
+                        .get_or_insert_include(py, &self.engine, &key)
                         .map(IncludeTemplate::Template)
                 } else {
                     let promise = PROMISE.import(py, "django.utils.functional", "Promise")?;
@@ -912,7 +919,9 @@ impl Include {
                             template,
                         ));
                     };
-                    select_template(self.engine.clone(), py, templates)
+                    let key = IncludeTemplateKey::Vec(templates);
+                    context
+                        .get_or_insert_include(py, &self.engine, &key)
                         .map(IncludeTemplate::Template)
                 }
             }
@@ -941,7 +950,7 @@ impl Render for Include {
         context: &mut Context,
     ) -> RenderResult<'t> {
         let template_name = self.resolve_template_name(py, template, context)?;
-        let include = self.get_template(template_name, py, template)?;
+        let include = self.get_template(template_name, py, template, context)?;
         match self.only {
             false => {
                 let mut names = Vec::new();
@@ -988,9 +997,9 @@ impl Render for Include {
                     .request
                     .as_ref()
                     .map(|request| request.clone_ref(py));
-                let mut context = Context::new(inner_context, request, context.autoescape);
+                let mut new_context = Context::new(inner_context, request, context.autoescape);
                 include
-                    .render(py, &mut context, self.template_at(), template)
+                    .render(py, &mut new_context, self.template_at(), template)
                     .map(|content| Cow::Owned(content.into_owned()))
             }
         }
