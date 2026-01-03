@@ -35,7 +35,6 @@ use crate::filters::UpperFilter;
 use crate::filters::WordcountFilter;
 use crate::filters::WordwrapFilter;
 use crate::filters::YesnoFilter;
-use crate::render::lorem::{LoremError, LoremMethod, lex_lorem};
 use dtl_lexer::START_TAG_LEN;
 use dtl_lexer::common::{LexerError, text_content_at, translated_text_content_at};
 use dtl_lexer::core::{Lexer, TokenType};
@@ -52,6 +51,7 @@ use dtl_lexer::tag::include::{
     IncludeWithToken,
 };
 use dtl_lexer::tag::load::{LoadLexer, LoadToken};
+use dtl_lexer::tag::lorem::{LoremError, LoremLexer, LoremMethod, LoremToken, LoremTokenType};
 use dtl_lexer::tag::{TagLexerError, TagParts, lex_tag};
 use dtl_lexer::types::{At, TemplateString};
 use dtl_lexer::variable::{
@@ -1248,28 +1248,112 @@ impl<'t, 'py> Parser<'t, 'py> {
         }
         Ok(var)
     }
-    fn parse_lorem(&mut self, _at: At, parts: TagParts) -> Result<Lorem, PyParseError> {
-        let token = lex_lorem(self.template, parts).map_err(ParseError::from)?;
 
-        let count = if let Some(count_at) = token.count_at {
-            let content = self.template.content(count_at);
-            if content.ends_with('|') {
-                return Err(PyParseError::from(ParseError::LoremError(
-                    LoremError::InvalidRemainder {
-                        _at: (count_at.0 + content.len() - 1, 1).into(),
-                    },
-                )));
+    fn parse_lorem(&mut self, _at: At, parts: TagParts) -> Result<Lorem, PyParseError> {
+        let lexer = LoremLexer::new(self.template, parts.clone());
+        let tokens: Vec<LoremToken> = lexer.collect();
+
+        if tokens.is_empty() {
+            return Ok(Lorem {
+                count: TagElement::Int(1.into()),
+                method: LoremMethod::Blocks,
+                common: true,
+                at: parts.at,
+            });
+        }
+
+        if tokens.len() == 1 {
+            if let LoremTokenType::Method(m) = &tokens[0].token_type {
+                return Ok(Lorem {
+                    count: TagElement::Int(1.into()),
+                    method: m.clone(),
+                    common: true,
+                    at: tokens[0].at,
+                });
             }
-            self.parse_variable(content, count_at, count_at.0)?
-        } else {
-            TagElement::Int(1.into())
-        };
+        }
+
+        let mut count: Option<TagElement> = None;
+        let mut count_at: Option<At> = None;
+        let mut method = LoremMethod::Blocks;
+        let mut method_at: Option<At> = None;
+        let mut common = true;
+        let mut random_at: Option<At> = None;
+
+        let mut first_token_type: Option<LoremTokenType> = None;
+
+        for (i, token) in tokens.into_iter().enumerate() {
+            if i == 0 {
+                // Index 0 is ALWAYS treated as the count variable
+                let content = self.template.content(token.at);
+
+                count = Some(self.parse_variable(content, token.at, token.at.0)?);
+                count_at = Some(token.at);
+                first_token_type = Some(token.token_type);
+            } else {
+                match token.token_type {
+                    LoremTokenType::Count => {
+                        let first_at = count_at.unwrap().into();
+                        let second_at = token.at.into();
+
+                        match first_token_type {
+                            Some(LoremTokenType::Method(_)) => {
+                                return Err(ParseError::LoremError(LoremError::CountAfterMethod {
+                                    _method_at: first_at,
+                                    _count_at: second_at,
+                                })
+                                .into());
+                            }
+                            Some(LoremTokenType::Random) => {
+                                return Err(ParseError::LoremError(LoremError::CountAfterRandom {
+                                    _random_at: first_at,
+                                    _count_at: second_at,
+                                })
+                                .into());
+                            }
+                            _ => {
+                                // Standard duplicate: {% lorem 5 2 %}
+                                return Err(ParseError::LoremError(LoremError::DuplicateCount {
+                                    _first: first_at,
+                                    _second: second_at,
+                                })
+                                .into());
+                            }
+                        }
+                    }
+
+                    LoremTokenType::Method(m) => {
+                        if let Some(first) = method_at {
+                            return Err(ParseError::LoremError(LoremError::DuplicateMethod {
+                                _first: first.into(),
+                                _second: token.at.into(),
+                            })
+                            .into());
+                        }
+                        method = m;
+                        method_at = Some(token.at);
+                    }
+
+                    LoremTokenType::Random => {
+                        if let Some(first) = random_at {
+                            return Err(ParseError::LoremError(LoremError::DuplicateRandom {
+                                _first: first.into(),
+                                _second: token.at.into(),
+                            })
+                            .into());
+                        }
+                        common = false;
+                        random_at = Some(token.at);
+                    }
+                }
+            }
+        }
 
         Ok(Lorem {
-            count,
-            method: token.method,
-            common: token.common,
-            at: token.at,
+            count: count.unwrap_or(TagElement::Int(1.into())),
+            method,
+            common,
+            at: parts.at,
         })
     }
 
