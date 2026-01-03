@@ -137,6 +137,17 @@ def test_include_fake_template(assert_render):
     assert_render(template=template, context=context, expected=expected)
 
 
+def test_include_fake_template_only(assert_render):
+    class Template:
+        def render(self, context):
+            return context["foo"]
+
+    template = "{% include template with foo=bar only %}"
+    context = {"template": Template(), "bar": "foo"}
+    expected = "foo"
+    assert_render(template=template, context=context, expected=expected)
+
+
 def test_empty_include(assert_parse_error):
     template = "{% include %}"
     django_message = "'include' tag takes at least one argument: the name of the template to be included."

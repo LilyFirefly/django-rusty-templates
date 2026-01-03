@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::collections::hash_map::Entry;
 use std::iter::zip;
 use std::sync::{Arc, Mutex};
 
@@ -16,6 +17,7 @@ use pyo3::sync::{MutexExt, PyOnceLock};
 use pyo3::types::{PyBool, PyDict, PyInt, PyString, PyType};
 
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
+use crate::template::django_rusty_templates::{Engine, Template, get_template, select_template};
 use crate::utils::PyResultMethods;
 use dtl_lexer::types::{At, TemplateString};
 
@@ -53,6 +55,12 @@ impl ForLoop {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum IncludeTemplateKey {
+    String(String),
+    Vec(Vec<String>),
+}
+
 #[derive(Debug, Default)]
 pub struct Context {
     context: HashMap<String, Vec<Py<PyAny>>>,
@@ -60,6 +68,7 @@ pub struct Context {
     pub request: Option<Py<PyAny>>,
     pub autoescape: bool,
     names: Vec<HashSet<String>>,
+    include_cache: HashMap<IncludeTemplateKey, Arc<Template>>,
 }
 
 impl Context {
@@ -75,6 +84,7 @@ impl Context {
             autoescape,
             loops: Vec::new(),
             names: Vec::new(),
+            include_cache: HashMap::new(),
         }
     }
 
@@ -89,6 +99,7 @@ impl Context {
             autoescape: self.autoescape,
             loops: self.loops.clone(),
             names: self.names.clone(),
+            include_cache: self.include_cache.clone(),
         }
     }
 
@@ -260,6 +271,28 @@ impl Context {
             .str()
             .expect("All elements of the dictionary can be converted to a string");
         forloop_str.to_string()
+    }
+
+    pub fn get_or_insert_include(
+        &mut self,
+        py: Python,
+        engine: &Arc<Engine>,
+        key: &IncludeTemplateKey,
+    ) -> Result<Arc<Template>, PyErr> {
+        match self.include_cache.entry(key.clone()) {
+            Entry::Occupied(entry) => Ok(entry.get().clone()),
+            Entry::Vacant(entry) => {
+                let include = match key {
+                    IncludeTemplateKey::String(content) => {
+                        get_template(engine.clone(), py, Cow::Borrowed(content))?
+                    }
+                    IncludeTemplateKey::Vec(templates) => {
+                        select_template(engine.clone(), py, templates.clone())?
+                    }
+                };
+                Ok(entry.insert(Arc::new(include)).clone())
+            }
+        }
     }
 }
 
