@@ -193,7 +193,7 @@ static WORDS: [&str; 182] = [
     "corrupti",
 ];
 
-static COMMON_WORDS: [&str; 19] = [
+pub static COMMON_WORDS: [&str; 19] = [
     "lorem",
     "ipsum",
     "dolor",

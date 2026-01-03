@@ -10,7 +10,7 @@ use pyo3::prelude::*;
 use pyo3::sync::{MutexExt, PyOnceLock};
 use pyo3::types::{PyBool, PyDict, PyList, PyNone, PyString, PyTuple};
 
-use crate::render::lorem::{paragraphs, words};
+use crate::render::lorem::{COMMON_WORDS, paragraphs, words};
 use dtl_lexer::tag::lorem::LoremMethod;
 use dtl_lexer::types::{At, TemplateString};
 
@@ -682,8 +682,7 @@ impl Render for Tag {
                 let text = match lorem.method {
                     LoremMethod::Words => {
                         let final_count = if val < 0 {
-                            // common words len is 19
-                            (19 + val).max(0) as usize
+                            (COMMON_WORDS.len() as i64 + val).max(0) as usize
                         } else {
                             val as usize
                         };
@@ -691,7 +690,7 @@ impl Render for Tag {
                     }
                     LoremMethod::Paragraphs | LoremMethod::Blocks => {
                         if val <= 0 {
-                            String::new()
+                            return Ok(Cow::Borrowed(""));
                         } else {
                             let count = val as usize;
                             let paras = paragraphs(count, lorem.common);
