@@ -220,14 +220,17 @@ def test_lorem_missing_variable_defaults_to_one(render_output):
     assert output == "lorem"
 
 
-def test_lorem_with_complex_filter_parsing(render_output):
+@pytest.mark.parametrize(
+    "context,expected",
+    [
+        ({"val": 1}, 3),
+        ({}, 5),
+    ],
+)
+def test_lorem_with_complex_filter_parsing(render_output, context, expected):
     template = "{% lorem val|add:2|default:5 w %}"
-
-    output_a = render_output(template=template, context={"val": 1})
-    assert len(output_a.split(" ")) == 3
-
-    output_b = render_output(template=template, context={})
-    assert len(output_b.split(" ")) == 5
+    output_a = render_output(template=template, context=context)
+    assert len(output_a.split(" ")) == expected
 
 
 def test_lorem_parser_error_propagation(assert_parse_error):
@@ -333,13 +336,13 @@ def test_lorem_common_extension_logic(render_output):
     assert words_list[:19] == list(COMMON_WORDS)
 
 
-def test_lorem_default_negative_count_defaults_to_one(render_output):
+def test_lorem_with_negative_count(render_output):
     template = "{% lorem -5 %}"
     output = render_output(template=template, context={})
     assert output == ""
 
 
-def test_lorem_word_negative_count_defaults_to_one(render_output):
+def test_lorem_words_with_negative_count(render_output):
     template = "{% lorem -5 w %}"
     output = render_output(template=template, context={})
     assert output == " ".join(COMMON_WORDS[:-5])
