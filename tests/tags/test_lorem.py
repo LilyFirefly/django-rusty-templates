@@ -72,6 +72,13 @@ def test_lorem_single_paragraph_default(assert_render):
     assert_render(template=template, context={}, expected=f"<p>{COMMON_P}</p>")
 
 
+def test_lorem_random_default(render_output):
+    template = "{% lorem random %}"
+    output = render_output(template=template, context={})
+    assert len(output) > 0
+    assert COMMON_P not in output
+
+
 def test_lorem_blocks(render_output):
     template = "{% lorem 2 b %}"
     output = render_output(template=template, context={})
