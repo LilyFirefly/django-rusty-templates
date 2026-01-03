@@ -46,6 +46,10 @@ cargo-llvm-cov = "0.6.18"
 [package.metadata.cargo-shear]
 ignored = ["cargo-llvm-cov"]
 
+[workspace.metadata.typos]
+[workspace.metadata.typos.files]
+extend-exclude = ["src/render/lorem.rs", "test_if.py"]
+
 [workspace.lints.clippy]
 # See https://rust-lang.github.io/rust-clippy/rust-1.91.0/index.html
 pedantic = { level = "deny", priority = -1 }
