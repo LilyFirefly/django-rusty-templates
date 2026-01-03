@@ -235,11 +235,13 @@ pub fn sentence() -> String {
 
     let mut sentence = sections.join(", ");
 
-    if let Some(first) = sentence.chars().next() {
-        let upper = first.to_uppercase();
-        let rest = &sentence[first.len_utf8()..];
-        sentence = format!("{upper}{rest}");
-    }
+    let first = sentence
+        .chars()
+        .next()
+        .expect("A sentence should have at least one character");
+    let upper = first.to_uppercase();
+    let rest = &sentence[first.len_utf8()..];
+    sentence = format!("{upper}{rest}");
 
     let punctuation = if rng.gen_bool(0.5) { "?" } else { "." };
     sentence.push_str(punctuation);
