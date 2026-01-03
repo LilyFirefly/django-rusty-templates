@@ -1,5 +1,6 @@
 import pytest
 from django.utils.lorem_ipsum import COMMON_P, WORDS, COMMON_WORDS
+from inline_snapshot import snapshot
 
 
 def test_lorem_words(assert_render):
@@ -445,3 +446,24 @@ def test_lorem_words_with_negative_count(render_output):
     template = "{% lorem -5 w %}"
     output = render_output(template=template, context={})
     assert output == " ".join(COMMON_WORDS[:-5])
+
+
+def test_lorem_render_error(assert_render_error):
+    template = "{% lorem count %}"
+    context = {"count": lambda: 1 / 0}
+    django_message = snapshot("division by zero")
+    rusty_message = snapshot("""\
+  × division by zero
+   ╭────
+ 1 │ {% lorem count %}
+   ·          ──┬──
+   ·            ╰── here
+   ╰────
+""")
+    assert_render_error(
+        template=template,
+        context=context,
+        exception=ZeroDivisionError,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
