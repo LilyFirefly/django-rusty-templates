@@ -35,7 +35,6 @@ use crate::filters::UpperFilter;
 use crate::filters::WordcountFilter;
 use crate::filters::WordwrapFilter;
 use crate::filters::YesnoFilter;
-use dtl_lexer::START_TAG_LEN;
 use dtl_lexer::common::{LexerError, text_content_at, translated_text_content_at};
 use dtl_lexer::core::{Lexer, TokenType};
 use dtl_lexer::tag::autoescape::{AutoescapeEnabled, AutoescapeError, lex_autoescape_argument};
@@ -57,6 +56,7 @@ use dtl_lexer::types::{At, TemplateString};
 use dtl_lexer::variable::{
     Argument as ArgumentToken, VariableLexerError, VariableToken, lex_variable_or_filter,
 };
+use dtl_lexer::{START_TAG_LEN, TemplateContent};
 
 use crate::path::{RelativePathError, construct_relative_path};
 use crate::template::django_rusty_templates::Engine;
@@ -738,11 +738,6 @@ pub enum ForParseError {
 
 #[derive(Error, Debug, Diagnostic, PartialEq, Eq)]
 pub enum ParseError {
-    #[error("Empty block tag")]
-    EmptyTag {
-        #[label("here")]
-        at: SourceSpan,
-    },
     #[error("Empty variable tag")]
     EmptyVariable {
         #[label("here")]
@@ -1339,62 +1334,54 @@ impl<'t, 'py> Parser<'t, 'py> {
         tag: &'t str,
         at: At,
     ) -> Result<Either<TokenTree, EndTag>, PyParseError> {
-        let maybe_tag = match lex_tag(tag, at.0 + START_TAG_LEN) {
-            Ok(maybe_tag) => maybe_tag,
-            Err(e) => {
-                let parse_error: ParseError = e.into();
-                return Err(parse_error.into());
-            }
-        };
-        let Some((tag, parts)) = maybe_tag else {
-            return Err(ParseError::EmptyTag { at: at.into() }.into());
-        };
-        Ok(match self.template.content(tag.at) {
-            "url" => Either::Left(self.parse_url(at, parts)?),
-            "load" => Either::Left(self.parse_load(at, parts)?),
-            "autoescape" => Either::Left(self.parse_autoescape(at, parts)?),
+        let tag = lex_tag(tag, at.0 + START_TAG_LEN).map_err(ParseError::from)?;
+
+        Ok(match tag.content(self.template) {
+            "url" => Either::Left(self.parse_url(at, tag.parts)?),
+            "load" => Either::Left(self.parse_load(at, tag.parts)?),
+            "autoescape" => Either::Left(self.parse_autoescape(at, tag.parts)?),
             "endautoescape" => Either::Right(EndTag {
                 end: EndTagType::Autoescape,
                 at,
-                parts,
+                parts: tag.parts,
             }),
             "endverbatim" => Either::Right(EndTag {
                 end: EndTagType::Verbatim,
                 at,
-                parts,
+                parts: tag.parts,
             }),
-            "if" => Either::Left(self.parse_if(at, parts, "if")?),
+            "if" => Either::Left(self.parse_if(at, tag.parts, "if")?),
             "elif" => Either::Right(EndTag {
                 end: EndTagType::Elif,
                 at,
-                parts,
+                parts: tag.parts,
             }),
             "else" => Either::Right(EndTag {
                 end: EndTagType::Else,
                 at,
-                parts,
+                parts: tag.parts,
             }),
             "endif" => Either::Right(EndTag {
                 end: EndTagType::EndIf,
                 at,
-                parts,
+                parts: tag.parts,
             }),
-            "for" => Either::Left(self.parse_for(at, parts)?),
+            "for" => Either::Left(self.parse_for(at, tag.parts)?),
             "empty" => Either::Right(EndTag {
                 end: EndTagType::Empty,
                 at,
-                parts,
+                parts: tag.parts,
             }),
             "endfor" => Either::Right(EndTag {
                 end: EndTagType::EndFor,
                 at,
-                parts,
+                parts: tag.parts,
             }),
-            "include" => Either::Left(self.parse_include(at, parts)?),
-            "lorem" => Either::Left(TokenTree::Tag(Tag::Lorem(self.parse_lorem(at, parts)?))),
+            "include" => Either::Left(self.parse_include(at, tag.parts)?),
+            "lorem" => Either::Left(TokenTree::Tag(Tag::Lorem(self.parse_lorem(at, tag.parts)?))),
             tag_name => match self.external_tags.get(tag_name) {
                 Some(TagContext::Simple(context)) => {
-                    Either::Left(self.parse_simple_tag(context, at, parts)?)
+                    Either::Left(self.parse_simple_tag(context, at, tag.parts)?)
                 }
                 Some(TagContext::SimpleBlock {
                     context,
@@ -1404,12 +1391,12 @@ impl<'t, 'py> Parser<'t, 'py> {
                     tag_name.to_string(),
                     end_tag_name.clone(),
                     at,
-                    parts,
+                    tag.parts,
                 )?),
                 Some(TagContext::EndSimpleBlock) => Either::Right(EndTag {
                     end: EndTagType::Custom(tag_name.to_string()),
                     at,
-                    parts,
+                    parts: tag.parts,
                 }),
                 None => todo!("{tag_name}"),
             },
@@ -2490,7 +2477,10 @@ mod tests {
             let template = "{%  %}";
             let mut parser = Parser::new(py, template.into(), Engine::empty().into(), None);
             let error = parser.parse().unwrap_err().unwrap_parse_error();
-            assert_eq!(error, ParseError::EmptyTag { at: (0, 6).into() });
+            assert_eq!(
+                error,
+                ParseError::BlockError(TagLexerError::EmptyTag { at: (0, 6).into() })
+            );
         });
     }
 
