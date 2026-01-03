@@ -10,7 +10,8 @@ use pyo3::prelude::*;
 use pyo3::sync::{MutexExt, PyOnceLock};
 use pyo3::types::{PyBool, PyDict, PyList, PyNone, PyString, PyTuple};
 
-use crate::render::lorem::{LoremMethod, paragraphs, words};
+use crate::render::lorem::{paragraphs, words};
+use dtl_lexer::tag::lorem::LoremMethod;
 use dtl_lexer::types::{At, TemplateString};
 
 use super::types::{AsBorrowedContent, Content, ContentString, Context, PyContext};
