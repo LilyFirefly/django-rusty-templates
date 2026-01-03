@@ -136,13 +136,15 @@ def test_lorem_method_before_count(assert_parse_error):
     template = "{% lorem p 2 %}"
     django_message = "Incorrect format for 'lorem' tag"
     rusty_message = """\
-  × Incorrect format for 'lorem' tag: count must come before method or random
+  × Incorrect format for 'lorem' tag: 'count' must come before the 'method'
+  │ argument
    ╭────
  1 │ {% lorem p 2 %}
-   ·            ┬
-   ·            ╰── count must come first
+   ·          ┬ ┬
+   ·          │ ╰── count
+   ·          ╰── method
    ╰────
-  help: Move the count argument before the method
+  help: Move the 'count' argument before the 'method' argument
 """
     assert_parse_error(
         template=template,
@@ -155,13 +157,15 @@ def test_lorem_random_before_count(assert_parse_error):
     template = "{% lorem random 2 %}"
     django_message = "Incorrect format for 'lorem' tag"
     rusty_message = """\
-  × Incorrect format for 'lorem' tag: count must come before method or random
+  × Incorrect format for 'lorem' tag: 'count' must come before the 'random'
+  │ argument
    ╭────
  1 │ {% lorem random 2 %}
-   ·                 ┬
-   ·                 ╰── count must come first
+   ·          ───┬── ┬
+   ·             │   ╰── count
+   ·             ╰── random
    ╰────
-  help: Move the count argument before the method
+  help: Move the 'count' argument before the 'random' argument
 """
     assert_parse_error(
         template=template,
@@ -253,11 +257,11 @@ def test_lorem_parser_error_propagation_2(assert_parse_error):
     django_message = "Could not parse the remainder: '|' from 'Count|'"
 
     rusty_message = """\
-  × Invalid filter: ''
+  × Could not parse the remainder
    ╭────
  1 │ {% lorem Count| %}
    ·               ┬
-   ·               ╰── expected filter name after '|'
+   ·               ╰── here
    ╰────
 """
 
