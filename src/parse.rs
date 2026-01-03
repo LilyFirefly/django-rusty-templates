@@ -380,6 +380,23 @@ fn parse_include_template_token(
     })
 }
 
+fn parse_extends_template_token(
+    token: TagElementToken,
+    parser: &Parser,
+) -> Result<IncludeTemplateName, ParseError> {
+    let content_at = token.content_at();
+    let (start, _len) = content_at;
+    let content = parser.template.content(content_at);
+    Ok(match token.token_type {
+        TagElementTokenType::Text => IncludeTemplateName::Text(Text::new(content_at)),
+        TagElementTokenType::Variable => IncludeTemplateName::Variable(
+            parser.parse_variable_or_filter(content, content_at, start)?,
+        ),
+        TagElementTokenType::Numeric => std::todo!(),
+        TagElementTokenType::TranslatedText => std::todo!(),
+    })
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Url {
     pub at: At,
@@ -663,6 +680,11 @@ impl PartialEq for Include {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct Extends {
+    pub template_name: IncludeTemplateName,
+}
+
 #[derive(Clone, Debug)]
 pub struct SimpleTag {
     pub func: Arc<Py<PyAny>>,
@@ -771,6 +793,7 @@ pub enum Tag {
         truthy: Vec<TokenTree>,
         falsey: Option<Vec<TokenTree>>,
     },
+    Extends(Extends),
     For(For),
     Include(Include),
     Load,
@@ -1724,6 +1747,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             "comment" => Either::Left(TokenTree::Tag(Tag::Comment(
                 self.parse_comment(at, tag.parts)?,
             ))),
+            "extends" => Either::Left(self.parse_extends(at, tag.parts)?),
             "now" => Either::Left(TokenTree::Tag(Tag::Now(self.parse_now(tag.parts)?))),
             "templatetag" => Either::Left(TokenTree::Tag(Tag::TemplateTag(
                 lex_templatetag(self.template, tag.parts).map_err(ParseError::from)?,
@@ -2100,6 +2124,37 @@ impl<'t, 'py> Parser<'t, 'py> {
             asvar,
         };
         Ok(TokenTree::Tag(Tag::Url(url)))
+    }
+
+    fn parse_extends(&self, at: At, parts: TagParts) -> Result<TokenTree, ParseError> {
+        let mut lexer = TagElementLexer::new(self.template, parts);
+
+        let Some(token) = lexer.next().transpose()? else {
+            return Err(ParseError::MissingArgument { at: at.into() });
+        };
+
+        if let Some(token) = lexer.next().transpose()? {
+            return Err(ParseError::TooManyPositionalArguments {
+                at: token.at.into(),
+            });
+        }
+
+        let template_name = match parse_extends_template_token(token, self)? {
+            IncludeTemplateName::Text(Text { at }) => {
+                let template_path = self.template.content(at);
+                match construct_relative_path(template_path, self.origin, at)? {
+                    Some(path) => IncludeTemplateName::Relative(RelativePath {
+                        path: path.into_owned(),
+                        at,
+                    }),
+                    None => IncludeTemplateName::Text(Text { at }),
+                }
+            }
+            template_name => template_name,
+        };
+
+        let extends = Extends { template_name };
+        Ok(TokenTree::Tag(Tag::Extends(extends)))
     }
 
     fn parse_include(&self, at: At, parts: TagParts) -> Result<TokenTree, ParseError> {
@@ -3220,6 +3275,21 @@ mod tests {
                     kwargs: Vec::new(),
                     engine,
                 },
+            );
+        });
+    }
+
+    #[test]
+    fn test_extends_tag_partial_eq() {
+        Python::initialize();
+
+        Python::attach(|_| {
+            let template_name = IncludeTemplateName::Variable(TagElement::Float(1.1));
+            assert_eq!(
+                Extends {
+                    template_name: template_name.clone(),
+                },
+                Extends { template_name },
             );
         });
     }
