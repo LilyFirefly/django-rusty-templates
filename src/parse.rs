@@ -51,6 +51,7 @@ use dtl_lexer::tag::include::{
     IncludeWithToken,
 };
 use dtl_lexer::tag::load::{LoadLexer, LoadToken};
+use dtl_lexer::tag::lorem::{LoremError, LoremLexer, LoremMethod, LoremTokenType};
 use dtl_lexer::tag::{TagLexerError, TagParts, lex_tag};
 use dtl_lexer::types::{At, TemplateString};
 use dtl_lexer::variable::{
@@ -70,6 +71,12 @@ use dtl_lexer::types::Variable;
 
 trait Parse<R> {
     fn parse(&self, parser: &Parser) -> Result<R, ParseError>;
+}
+#[derive(Debug, Clone, PartialEq)]
+pub struct Lorem {
+    pub count: TagElement,
+    pub method: LoremMethod,
+    pub common: bool,
 }
 
 impl Parse<Argument> for ArgumentToken {
@@ -621,6 +628,7 @@ pub enum Tag {
     SimpleTag(SimpleTag),
     SimpleBlockTag(SimpleBlockTag),
     Url(Url),
+    Lorem(Lorem),
 }
 
 #[derive(PartialEq, Eq)]
@@ -943,6 +951,16 @@ pub enum ParseError {
         #[label("start tag")]
         start_at: SourceSpan,
     },
+    #[error("Incorrect format for '{tag}' tag")]
+    InvalidTagFormat {
+        tag: &'static str,
+        #[label("here")]
+        at: SourceSpan,
+    },
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    LoremError(#[from] LoremError),
 }
 
 #[derive(Error, Debug)]
@@ -1230,6 +1248,92 @@ impl<'t, 'py> Parser<'t, 'py> {
         Ok(var)
     }
 
+    fn parse_lorem(&mut self, _at: At, parts: TagParts) -> Result<Lorem, PyParseError> {
+        let mut lexer = LoremLexer::new(self.template, parts);
+
+        let first = match lexer.next() {
+            None => {
+                return Ok(Lorem {
+                    count: TagElement::Int(1.into()),
+                    method: LoremMethod::Blocks,
+                    common: true,
+                });
+            }
+            Some(first) => first.expect(
+                "The first LoremLexer token should not be an error (duplicate or out of order)",
+            ),
+        };
+
+        let second = match lexer.next() {
+            None => match first.token_type {
+                LoremTokenType::Method(method) => {
+                    return Ok(Lorem {
+                        count: TagElement::Int(1.into()),
+                        method,
+                        common: true,
+                    });
+                }
+                LoremTokenType::Count => {
+                    return Ok(Lorem {
+                        count: self.parse_variable(
+                            self.template.content(first.at),
+                            first.at,
+                            first.at.0,
+                        )?,
+                        method: LoremMethod::Blocks,
+                        common: true,
+                    });
+                }
+                LoremTokenType::Random => {
+                    return Ok(Lorem {
+                        count: TagElement::Int(1.into()),
+                        method: LoremMethod::Blocks,
+                        common: false,
+                    });
+                }
+            },
+            Some(second) => second.map_err(ParseError::from)?,
+        };
+
+        let count = self.parse_variable(self.template.content(first.at), first.at, first.at.0)?;
+        let third = match lexer.next() {
+            None => match second.token_type {
+                LoremTokenType::Method(method) => {
+                    return Ok(Lorem {
+                        count,
+                        method,
+                        common: true,
+                    });
+                }
+                LoremTokenType::Random => {
+                    return Ok(Lorem {
+                        count,
+                        method: LoremMethod::Blocks,
+                        common: false,
+                    });
+                }
+                _ => unreachable!("Count in second position should already have errored"),
+            },
+            Some(third) => third.map_err(ParseError::from)?,
+        };
+
+        if let Some(fourth) = lexer.next() {
+            fourth.map_err(ParseError::from)?;
+            unreachable!(
+                "A fourth argument should be a duplicate count, method or random, which is already an error"
+            )
+        }
+
+        match (second.token_type, third.token_type) {
+            (LoremTokenType::Method(method), LoremTokenType::Random) => Ok(Lorem {
+                count,
+                method,
+                common: false,
+            }),
+            _ => unreachable!("Should already have errored"),
+        }
+    }
+
     fn parse_tag(
         &mut self,
         tag: &'t str,
@@ -1287,6 +1391,7 @@ impl<'t, 'py> Parser<'t, 'py> {
                 parts,
             }),
             "include" => Either::Left(self.parse_include(at, parts)?),
+            "lorem" => Either::Left(TokenTree::Tag(Tag::Lorem(self.parse_lorem(at, parts)?))),
             tag_name => match self.external_tags.get(tag_name) {
                 Some(TagContext::Simple(context)) => {
                     Either::Left(self.parse_simple_tag(context, at, parts)?)

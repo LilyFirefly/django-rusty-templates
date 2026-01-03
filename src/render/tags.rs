@@ -10,6 +10,8 @@ use pyo3::prelude::*;
 use pyo3::sync::{MutexExt, PyOnceLock};
 use pyo3::types::{PyBool, PyDict, PyList, PyNone, PyString, PyTuple};
 
+use crate::render::lorem::{COMMON_WORDS, paragraphs, words};
+use dtl_lexer::tag::lorem::LoremMethod;
 use dtl_lexer::types::{At, TemplateString};
 
 use super::types::{
@@ -665,6 +667,48 @@ impl Render for Tag {
             Self::SimpleTag(simple_tag) => simple_tag.render(py, template, context)?,
             Self::SimpleBlockTag(simple_tag) => simple_tag.render(py, template, context)?,
             Self::Url(url) => url.render(py, template, context)?,
+            Self::Lorem(lorem) => {
+                let count_content = lorem.count.resolve(
+                    py,
+                    template,
+                    context,
+                    ResolveFailures::IgnoreVariableDoesNotExist,
+                )?;
+                let val = count_content
+                    .and_then(|c| c.to_bigint())
+                    .and_then(|n| n.to_i64())
+                    .unwrap_or(1);
+
+                let text = match lorem.method {
+                    LoremMethod::Words => {
+                        let final_count = if val < 0 {
+                            (COMMON_WORDS.len() as i64 + val).max(0) as usize
+                        } else {
+                            val as usize
+                        };
+                        words(final_count, lorem.common)
+                    }
+                    LoremMethod::Paragraphs | LoremMethod::Blocks => {
+                        if val <= 0 {
+                            return Ok(Cow::Borrowed(""));
+                        } else {
+                            let count = val as usize;
+                            let paras = paragraphs(count, lorem.common);
+                            if matches!(lorem.method, LoremMethod::Paragraphs) {
+                                paras
+                                    .into_iter()
+                                    .map(|p| format!("<p>{}</p>", p))
+                                    .collect::<Vec<_>>()
+                                    .join("\n\n")
+                            } else {
+                                paras.join("\n\n")
+                            }
+                        }
+                    }
+                };
+
+                Cow::Owned(text)
+            }
         })
     }
 }
