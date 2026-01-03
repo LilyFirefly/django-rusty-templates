@@ -332,6 +332,27 @@ def test_lorem_parser_error_propagation(assert_parse_error):
     )
 
 
+def test_lorem_parser_error_propagation_with_method(assert_parse_error):
+    template = "{% lorem n|invalid_filter p %}"
+
+    django_message = "Invalid filter: 'invalid_filter'"
+
+    rusty_message = """\
+  × Invalid filter: 'invalid_filter'
+   ╭────
+ 1 │ {% lorem n|invalid_filter p %}
+   ·            ───────┬──────
+   ·                   ╰── here
+   ╰────
+"""
+
+    assert_parse_error(
+        template=template,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
 def test_lorem_parser_error_propagation_2(assert_parse_error):
     template = "{% lorem Count| %}"
 
