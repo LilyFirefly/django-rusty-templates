@@ -1262,15 +1262,15 @@ impl<'t, 'py> Parser<'t, 'py> {
             });
         }
 
-        if tokens.len() == 1 {
-            if let LoremTokenType::Method(m) = &tokens[0].token_type {
-                return Ok(Lorem {
-                    count: TagElement::Int(1.into()),
-                    method: m.clone(),
-                    common: true,
-                    at: tokens[0].at,
-                });
-            }
+        if tokens.len() == 1
+            && let LoremTokenType::Method(m) = &tokens[0].token_type
+        {
+            return Ok(Lorem {
+                count: TagElement::Int(1.into()),
+                method: m.clone(),
+                common: true,
+                at: tokens[0].at,
+            });
         }
 
         let mut count: Option<TagElement> = None;

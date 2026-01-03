@@ -57,7 +57,7 @@ impl<'t> Iterator for LoremLexer<'t> {
     type Item = LoremToken;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let (at, text) = self.words.get(self.index)?.clone();
+        let (at, text) = *self.words.get(self.index)?;
         self.index += 1;
 
         let token_type = match text {
