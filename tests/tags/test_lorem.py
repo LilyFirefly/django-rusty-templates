@@ -112,6 +112,27 @@ def test_lorem_duplicate_method(assert_parse_error):
     )
 
 
+def test_lorem_duplicate_method_with_method_as_count(assert_parse_error):
+    template = "{% lorem b w p %}"
+    django_message = "Incorrect format for 'lorem' tag"
+    rusty_message = """\
+  × Incorrect format for 'lorem' tag: 'method' argument was provided more than
+  │ once
+   ╭────
+ 1 │ {% lorem b w p %}
+   ·            ┬ ┬
+   ·            │ ╰── second 'method'
+   ·            ╰── first 'method'
+   ╰────
+  help: Try removing the second 'method'
+"""
+    assert_parse_error(
+        template=template,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
 def test_lorem_duplicate_random(assert_parse_error):
     template = "{% lorem 2 p random random %}"
     django_message = "Incorrect format for 'lorem' tag"
@@ -122,6 +143,26 @@ def test_lorem_duplicate_random(assert_parse_error):
    ·              ───┬── ───┬──
    ·                 │      ╰── second 'random'
    ·                 ╰── first 'random'
+   ╰────
+  help: Try removing the second 'random'
+"""
+    assert_parse_error(
+        template=template,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
+def test_lorem_duplicate_random_with_random_as_count(assert_parse_error):
+    template = "{% lorem random random random %}"
+    django_message = "Incorrect format for 'lorem' tag"
+    rusty_message = """\
+  × Incorrect format for 'lorem' tag: 'random' was provided more than once
+   ╭────
+ 1 │ {% lorem random random random %}
+   ·                 ───┬── ───┬──
+   ·                    │      ╰── second 'random'
+   ·                    ╰── first 'random'
    ╰────
   help: Try removing the second 'random'
 """
@@ -174,6 +215,27 @@ def test_lorem_random_before_count(assert_parse_error):
     )
 
 
+def test_lorem_random_before_method(assert_parse_error):
+    template = "{% lorem 2 random p %}"
+    django_message = "Incorrect format for 'lorem' tag"
+    rusty_message = """\
+  × Incorrect format for 'lorem' tag: 'method' must come before the 'random'
+  │ argument
+   ╭────
+ 1 │ {% lorem 2 random p %}
+   ·            ───┬── ┬
+   ·               │   ╰── method
+   ·               ╰── random
+   ╰────
+  help: Move the 'method' argument before the 'random' argument
+"""
+    assert_parse_error(
+        template=template,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
 def test_lorem_keyword_as_variable(render_output):
     template = "{% lorem w w %}"
     output = render_output(
@@ -190,6 +252,15 @@ def test_lorem_random_as_variable(render_output):
         context={"random": 2},
     )
     assert len(output.split(" ")) == 2
+
+
+def test_lorem_random_as_variable_before_random(render_output):
+    template = "{% lorem random random %}"
+    output = render_output(
+        template=template,
+        context={"random": 2},
+    )
+    assert len(output.split("\n\n")) == 2
 
 
 @pytest.mark.parametrize(

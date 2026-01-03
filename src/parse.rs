@@ -51,7 +51,7 @@ use dtl_lexer::tag::include::{
     IncludeWithToken,
 };
 use dtl_lexer::tag::load::{LoadLexer, LoadToken};
-use dtl_lexer::tag::lorem::{LoremError, LoremLexer, LoremMethod, LoremToken, LoremTokenType};
+use dtl_lexer::tag::lorem::{LoremError, LoremLexer, LoremMethod, LoremTokenType};
 use dtl_lexer::tag::{TagLexerError, TagParts, lex_tag};
 use dtl_lexer::types::{At, TemplateString};
 use dtl_lexer::variable::{
@@ -77,7 +77,6 @@ pub struct Lorem {
     pub count: TagElement,
     pub method: LoremMethod,
     pub common: bool,
-    pub at: At,
 }
 
 impl Parse<Argument> for ArgumentToken {
@@ -1250,111 +1249,87 @@ impl<'t, 'py> Parser<'t, 'py> {
     }
 
     fn parse_lorem(&mut self, _at: At, parts: TagParts) -> Result<Lorem, PyParseError> {
-        let lexer = LoremLexer::new(self.template, parts.clone());
-        let tokens: Vec<LoremToken> = lexer.collect();
+        let mut lexer = LoremLexer::new(self.template, parts);
 
-        if tokens.is_empty() {
-            return Ok(Lorem {
-                count: TagElement::Int(1.into()),
-                method: LoremMethod::Blocks,
-                common: true,
-                at: parts.at,
-            });
-        }
-
-        if tokens.len() == 1
-            && let LoremTokenType::Method(m) = &tokens[0].token_type
-        {
-            return Ok(Lorem {
-                count: TagElement::Int(1.into()),
-                method: m.clone(),
-                common: true,
-                at: tokens[0].at,
-            });
-        }
-
-        let mut count: Option<TagElement> = None;
-        let mut count_at: Option<At> = None;
-        let mut method = LoremMethod::Blocks;
-        let mut method_at: Option<At> = None;
-        let mut common = true;
-        let mut random_at: Option<At> = None;
-
-        let mut first_token_type: Option<LoremTokenType> = None;
-
-        for (i, token) in tokens.into_iter().enumerate() {
-            if i == 0 {
-                // Index 0 is ALWAYS treated as the count variable
-                let content = self.template.content(token.at);
-
-                count = Some(self.parse_variable(content, token.at, token.at.0)?);
-                count_at = Some(token.at);
-                first_token_type = Some(token.token_type);
-            } else {
-                match token.token_type {
-                    LoremTokenType::Count => {
-                        let first_at = count_at.unwrap().into();
-                        let second_at = token.at.into();
-
-                        match first_token_type {
-                            Some(LoremTokenType::Method(_)) => {
-                                return Err(ParseError::LoremError(LoremError::CountAfterMethod {
-                                    _method_at: first_at,
-                                    _count_at: second_at,
-                                })
-                                .into());
-                            }
-                            Some(LoremTokenType::Random) => {
-                                return Err(ParseError::LoremError(LoremError::CountAfterRandom {
-                                    _random_at: first_at,
-                                    _count_at: second_at,
-                                })
-                                .into());
-                            }
-                            _ => {
-                                // Standard duplicate: {% lorem 5 2 %}
-                                return Err(ParseError::LoremError(LoremError::DuplicateCount {
-                                    _first: first_at,
-                                    _second: second_at,
-                                })
-                                .into());
-                            }
-                        }
-                    }
-
-                    LoremTokenType::Method(m) => {
-                        if let Some(first) = method_at {
-                            return Err(ParseError::LoremError(LoremError::DuplicateMethod {
-                                _first: first.into(),
-                                _second: token.at.into(),
-                            })
-                            .into());
-                        }
-                        method = m;
-                        method_at = Some(token.at);
-                    }
-
-                    LoremTokenType::Random => {
-                        if let Some(first) = random_at {
-                            return Err(ParseError::LoremError(LoremError::DuplicateRandom {
-                                _first: first.into(),
-                                _second: token.at.into(),
-                            })
-                            .into());
-                        }
-                        common = false;
-                        random_at = Some(token.at);
-                    }
-                }
+        let first = match lexer.next() {
+            None => {
+                return Ok(Lorem {
+                    count: TagElement::Int(1.into()),
+                    method: LoremMethod::Blocks,
+                    common: true,
+                });
             }
+            Some(first) => first.map_err(ParseError::from)?,
+        };
+
+        let second = match lexer.next() {
+            None => match first.token_type {
+                LoremTokenType::Method(method) => {
+                    return Ok(Lorem {
+                        count: TagElement::Int(1.into()),
+                        method,
+                        common: true,
+                    });
+                }
+                LoremTokenType::Count => {
+                    return Ok(Lorem {
+                        count: self.parse_variable(
+                            self.template.content(first.at),
+                            first.at,
+                            first.at.0,
+                        )?,
+                        method: LoremMethod::Blocks,
+                        common: true,
+                    });
+                }
+                LoremTokenType::Random => {
+                    return Ok(Lorem {
+                        count: TagElement::Int(1.into()),
+                        method: LoremMethod::Blocks,
+                        common: false,
+                    });
+                }
+            },
+            Some(second) => second.map_err(ParseError::from)?,
+        };
+
+        let count = self.parse_variable(self.template.content(first.at), first.at, first.at.0)?;
+        let third = match lexer.next() {
+            None => match second.token_type {
+                LoremTokenType::Method(method) => {
+                    return Ok(Lorem {
+                        count,
+                        method,
+                        common: true,
+                    });
+                }
+                LoremTokenType::Random => {
+                    return Ok(Lorem {
+                        count,
+                        method: LoremMethod::Blocks,
+                        common: false,
+                    });
+                }
+                _ => unreachable!("Count in second position should already have errored"),
+            },
+            Some(third) => third.map_err(ParseError::from)?,
+        };
+
+        if let Some(fourth) = lexer.next() {
+            fourth.map_err(ParseError::from)?;
+            unreachable!(
+                "A fourth argument should be a duplicate count, method or random, which is already an error"
+            )
         }
 
-        Ok(Lorem {
-            count: count.unwrap_or(TagElement::Int(1.into())),
-            method,
-            common,
-            at: parts.at,
-        })
+        match (second.token_type, third.token_type) {
+            (LoremTokenType::Method(method), LoremTokenType::Random) => Ok(Lorem {
+                count,
+                method,
+                common: false,
+            }),
+            _ => unreachable!("Should already have errored"),
+        }
     }
 
     fn parse_tag(

@@ -1,3 +1,5 @@
+#![expect(unused_assignments)]
+use crate::common::NextChar;
 use crate::tag::TagParts;
 use crate::types::{At, TemplateString};
 use miette::{Diagnostic, SourceSpan};
@@ -24,51 +26,126 @@ pub struct LoremToken {
 }
 
 pub struct LoremLexer<'t> {
-    words: Vec<(At, &'t str)>,
-    index: usize,
+    rest: &'t str,
+    byte: usize,
+    seen_count: Option<At>,
+    seen_method: Option<At>,
+    seen_random: Option<At>,
 }
 
 impl<'t> LoremLexer<'t> {
     pub fn new(template: TemplateString<'t>, parts: TagParts) -> Self {
-        let content = template.content(parts.at);
+        Self {
+            rest: template.content(parts.at),
+            byte: parts.at.0,
+            seen_count: None,
+            seen_method: None,
+            seen_random: None,
+        }
+    }
 
-        let mut words = Vec::new();
-        let mut start = 0;
-
-        while start < content.len() {
-            if let Some(ws) = content[start..].find(|c: char| !c.is_whitespace()) {
-                let actual = start + ws;
-                let len = content[actual..]
-                    .find(char::is_whitespace)
-                    .unwrap_or(content.len() - actual);
-
-                words.push(((parts.at.0 + actual, len), &content[actual..actual + len]));
-                start = actual + len;
-            } else {
-                break;
+    fn check_method(&mut self, method: LoremMethod, at: At) -> Result<LoremTokenType, LoremError> {
+        if let Some(random_at) = self.seen_random {
+            match self.seen_count {
+                Some(_) => {
+                    return Err(LoremError::MethodAfterRandom {
+                        method_at: at.into(),
+                        random_at: random_at.into(),
+                    });
+                }
+                None => self.seen_count = Some(random_at),
             }
         }
 
-        Self { words, index: 0 }
+        if let Some(method_at) = self.seen_method {
+            match self.seen_count {
+                Some(_) => {
+                    return Err(LoremError::DuplicateMethod {
+                        first: method_at.into(),
+                        second: at.into(),
+                    });
+                }
+                None => self.seen_count = Some(method_at),
+            }
+        }
+        self.seen_method = Some(at);
+        Ok(LoremTokenType::Method(method))
+    }
+
+    fn check_random(&mut self, at: At) -> Result<LoremTokenType, LoremError> {
+        if let Some(random_at) = self.seen_random {
+            match self.seen_count {
+                Some(_) => {
+                    return Err(LoremError::DuplicateRandom {
+                        first: random_at.into(),
+                        second: at.into(),
+                    });
+                }
+                None => self.seen_count = Some(random_at),
+            }
+        }
+        self.seen_random = Some(at);
+        Ok(LoremTokenType::Random)
+    }
+
+    fn check_count(&mut self, count_at: At) -> Result<LoremTokenType, LoremError> {
+        if let Some(first_count_at) = self.seen_count {
+            return Err(LoremError::DuplicateCount {
+                first: first_count_at.into(),
+                second: count_at.into(),
+            });
+        }
+
+        if let Some(method_at) = self.seen_method {
+            return Err(LoremError::CountAfterMethod {
+                count_at: count_at.into(),
+                method_at: method_at.into(),
+            });
+        }
+
+        if let Some(random_at) = self.seen_random {
+            return Err(LoremError::CountAfterRandom {
+                count_at: count_at.into(),
+                random_at: random_at.into(),
+            });
+        }
+
+        self.seen_count = Some(count_at);
+        Ok(LoremTokenType::Count)
     }
 }
 
 impl<'t> Iterator for LoremLexer<'t> {
-    type Item = LoremToken;
+    type Item = Result<LoremToken, LoremError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let (at, text) = *self.words.get(self.index)?;
-        self.index += 1;
+        if self.rest.is_empty() {
+            return None;
+        }
 
-        let token_type = match text {
-            "w" => LoremTokenType::Method(LoremMethod::Words),
-            "p" => LoremTokenType::Method(LoremMethod::Paragraphs),
-            "b" => LoremTokenType::Method(LoremMethod::Blocks),
-            "random" => LoremTokenType::Random,
-            _ => LoremTokenType::Count,
+        let len = self.rest.next_whitespace();
+        let at = (self.byte, len);
+        let token_type = match &self.rest[..len] {
+            "w" => self.check_method(LoremMethod::Words, at),
+            "p" => self.check_method(LoremMethod::Paragraphs, at),
+            "b" => self.check_method(LoremMethod::Blocks, at),
+            "random" => self.check_random(at),
+            _ => self.check_count(at),
+        };
+        let token_type = match token_type {
+            Ok(token_type) => token_type,
+            Err(err) => {
+                self.rest = "";
+                return Some(Err(err));
+            }
         };
 
-        Some(LoremToken { at, token_type })
+        let rest = &self.rest[len..];
+        let next = rest.next_non_whitespace();
+        self.rest = &rest[next..];
+        self.byte = self.byte + len + next;
+
+        Some(Ok(LoremToken { at, token_type }))
     }
 }
 
@@ -78,44 +155,53 @@ pub enum LoremError {
     #[diagnostic(help("Move the 'count' argument before the 'method' argument"))]
     CountAfterMethod {
         #[label("method")]
-        _method_at: SourceSpan,
+        method_at: SourceSpan,
         #[label("count")]
-        _count_at: SourceSpan,
+        count_at: SourceSpan,
     },
 
     #[error("Incorrect format for 'lorem' tag: 'count' must come before the 'random' argument")]
     #[diagnostic(help("Move the 'count' argument before the 'random' argument"))]
     CountAfterRandom {
         #[label("random")]
-        _random_at: SourceSpan,
+        random_at: SourceSpan,
         #[label("count")]
-        _count_at: SourceSpan,
+        count_at: SourceSpan,
+    },
+
+    #[error("Incorrect format for 'lorem' tag: 'method' must come before the 'random' argument")]
+    #[diagnostic(help("Move the 'method' argument before the 'random' argument"))]
+    MethodAfterRandom {
+        #[label("random")]
+        random_at: SourceSpan,
+        #[label("method")]
+        method_at: SourceSpan,
     },
 
     #[error("Incorrect format for 'lorem' tag: 'random' was provided more than once")]
     #[diagnostic(help("Try removing the second 'random'"))]
     DuplicateRandom {
         #[label("first 'random'")]
-        _first: SourceSpan,
+        first: SourceSpan,
         #[label("second 'random'")]
-        _second: SourceSpan,
+        second: SourceSpan,
     },
 
     #[error("Incorrect format for 'lorem' tag: 'method' argument was provided more than once")]
     #[diagnostic(help("Try removing the second 'method'"))]
     DuplicateMethod {
         #[label("first 'method'")]
-        _first: SourceSpan,
+        first: SourceSpan,
         #[label("second 'method'")]
-        _second: SourceSpan,
+        second: SourceSpan,
     },
 
     #[error("Incorrect format for 'lorem' tag: 'count' argument was provided more than once")]
     #[diagnostic(help("Try removing the second 'count'"))]
     DuplicateCount {
         #[label("first 'count'")]
-        _first: SourceSpan,
+        first: SourceSpan,
         #[label("second 'count'")]
-        _second: SourceSpan,
+        second: SourceSpan,
     },
 }
