@@ -28,6 +28,9 @@ use crate::utils::PyResultMethods;
 
 static PROMISE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static REVERSE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+static DJANGO_TIMEZONE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+static DJANGO_DATEFORMAT: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+static DJANGO_FORMATS: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 
 fn current_app(py: Python, request: Option<&Py<PyAny>>) -> PyResult<Py<PyAny>> {
     let Some(request) = request else {
@@ -710,6 +713,55 @@ impl Render for Tag {
                 };
 
                 Cow::Owned(text)
+            }
+            Self::Now(now) => {
+                let mut format = template.content(now.format_at);
+                if format.len() >= 2 {
+                    let bytes = format.as_bytes();
+                    if (bytes[0] == b'"' && bytes[format.len() - 1] == b'"')
+                        || (bytes[0] == b'\'' && bytes[format.len() - 1] == b'\'')
+                    {
+                        format = &format[1..format.len() - 1];
+                    }
+                }
+
+                let timezone = DJANGO_TIMEZONE.get_or_try_init(
+                    py,
+                    || -> Result<Py<PyAny>, PyRenderError> {
+                        Ok(py.import("django.utils.timezone")?.into())
+                    },
+                )?;
+                let now_dt = timezone.call_method0(py, "now")?;
+
+                let rendered = if format.chars().all(|c| c.is_ascii_uppercase() || c == '_') {
+                    let formats = DJANGO_FORMATS.get_or_try_init(
+                        py,
+                        || -> Result<Py<PyAny>, PyRenderError> {
+                            Ok(py.import("django.utils.formats")?.into())
+                        },
+                    )?;
+
+                    formats.call_method1(py, "date_format", (now_dt, format))?
+                } else {
+                    let dateformat = DJANGO_DATEFORMAT.get_or_try_init(
+                        py,
+                        || -> Result<Py<PyAny>, PyRenderError> {
+                            Ok(py.import("django.utils.dateformat")?.into())
+                        },
+                    )?;
+
+                    dateformat.call_method1(py, "format", (now_dt, format))?
+                };
+
+                let rendered: &Bound<PyString> = rendered.bind(py).cast().map_err(PyErr::from)?;
+
+                if let Some(asvar) = now.asvar {
+                    let name = template.content(asvar);
+                    context.insert(name.to_string(), rendered.clone().into_any());
+                    Cow::Borrowed("")
+                } else {
+                    Cow::Owned(rendered.to_str()?.to_owned())
+                }
             }
         })
     }
