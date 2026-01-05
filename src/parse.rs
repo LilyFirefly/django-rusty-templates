@@ -52,6 +52,7 @@ use dtl_lexer::tag::kwarg::{
 };
 use dtl_lexer::tag::load::{LoadLexer, LoadToken};
 use dtl_lexer::tag::lorem::{LoremError, LoremLexer, LoremMethod, LoremTokenType};
+use dtl_lexer::tag::now::{Now, NowError, NowLexer, NowTokenType};
 use dtl_lexer::tag::{TagLexerError, TagParts, lex_tag};
 use dtl_lexer::types::{At, TemplateString};
 use dtl_lexer::variable::{
@@ -646,6 +647,7 @@ pub enum Tag {
     SimpleBlockTag(SimpleBlockTag),
     Url(Url),
     Lorem(Lorem),
+    Now(Now),
 }
 
 #[derive(PartialEq, Eq)]
@@ -973,6 +975,10 @@ pub enum ParseError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     LoremError(#[from] LoremError),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    NowError(#[from] NowError),
 }
 
 #[derive(Error, Debug)]
@@ -1341,6 +1347,52 @@ impl<'t, 'py> Parser<'t, 'py> {
         }
     }
 
+    fn parse_now(&mut self, parts: TagParts) -> Result<Now, PyParseError> {
+        let mut lexer = NowLexer::new(self.template, parts.clone());
+
+        let format_token = match lexer.next() {
+            Some(res) => res.map_err(ParseError::from)?,
+            None => {
+                return Err(ParseError::from(NowError::Syntax {
+                    at: (parts.at.0 + parts.at.1, 0).into(),
+                })
+                .into());
+            }
+        };
+
+        let mut asvar = None;
+
+        if let Some(second_res) = lexer.next() {
+            let second = second_res.map_err(ParseError::from)?;
+
+            if second.token_type != NowTokenType::As {
+                return Err(ParseError::from(NowError::Syntax {
+                    at: second.at.into(),
+                })
+                .into());
+            }
+
+            let third = lexer
+                .next()
+                .ok_or_else(|| NowError::Syntax {
+                    at: second.at.into(),
+                })
+                .map_err(ParseError::from)?
+                .map_err(ParseError::from)?;
+
+            asvar = Some(third.at);
+        }
+
+        if let Some(extra) = lexer.next() {
+            return Err(ParseError::from(extra.unwrap_err()).into());
+        }
+
+        Ok(Now {
+            format_at: format_token.at,
+            asvar,
+        })
+    }
+
     fn parse_tag(
         &mut self,
         tag: &'t str,
@@ -1391,6 +1443,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             }),
             "include" => Either::Left(self.parse_include(at, tag.parts)?),
             "lorem" => Either::Left(TokenTree::Tag(Tag::Lorem(self.parse_lorem(at, tag.parts)?))),
+            "now" => Either::Left(TokenTree::Tag(Tag::Now(self.parse_now(tag.parts)?))),
             tag_name => match self.external_tags.get(tag_name) {
                 Some(TagContext::Simple(context)) => {
                     Either::Left(self.parse_simple_tag(context, at, tag.parts)?)
