@@ -12,6 +12,7 @@ use pyo3::types::{PyBool, PyDict, PyList, PyNone, PyString, PyTuple};
 
 use crate::render::lorem::{COMMON_WORDS, paragraphs, words};
 use dtl_lexer::tag::lorem::LoremMethod;
+use dtl_lexer::tag::now::Now;
 use dtl_lexer::types::{At, TemplateString};
 
 use super::types::{
@@ -714,55 +715,7 @@ impl Render for Tag {
 
                 Cow::Owned(text)
             }
-            Self::Now(now) => {
-                let mut format = template.content(now.format_at);
-                if format.len() >= 2 {
-                    let bytes = format.as_bytes();
-                    if (bytes[0] == b'"' && bytes[format.len() - 1] == b'"')
-                        || (bytes[0] == b'\'' && bytes[format.len() - 1] == b'\'')
-                    {
-                        format = &format[1..format.len() - 1];
-                    }
-                }
-
-                let timezone = DJANGO_TIMEZONE.get_or_try_init(
-                    py,
-                    || -> Result<Py<PyAny>, PyRenderError> {
-                        Ok(py.import("django.utils.timezone")?.into())
-                    },
-                )?;
-                let now_dt = timezone.call_method0(py, "now")?;
-
-                let rendered = if format.chars().all(|c| c.is_ascii_uppercase() || c == '_') {
-                    let formats = DJANGO_FORMATS.get_or_try_init(
-                        py,
-                        || -> Result<Py<PyAny>, PyRenderError> {
-                            Ok(py.import("django.utils.formats")?.into())
-                        },
-                    )?;
-
-                    formats.call_method1(py, "date_format", (now_dt, format))?
-                } else {
-                    let dateformat = DJANGO_DATEFORMAT.get_or_try_init(
-                        py,
-                        || -> Result<Py<PyAny>, PyRenderError> {
-                            Ok(py.import("django.utils.dateformat")?.into())
-                        },
-                    )?;
-
-                    dateformat.call_method1(py, "format", (now_dt, format))?
-                };
-
-                let rendered: &Bound<PyString> = rendered.bind(py).cast().map_err(PyErr::from)?;
-
-                if let Some(asvar) = now.asvar {
-                    let name = template.content(asvar);
-                    context.insert(name.to_string(), rendered.clone().into_any());
-                    Cow::Borrowed("")
-                } else {
-                    Cow::Owned(rendered.to_str()?.to_owned())
-                }
-            }
+            Self::Now(now) => now.render(py, template, context)?,
         })
     }
 }
@@ -1279,5 +1232,55 @@ impl Render for SimpleBlockTag {
             content,
             self.target_var.as_ref(),
         ))
+    }
+}
+
+impl Render for Now {
+    fn render<'t>(
+        &self,
+        py: Python<'_>,
+        template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> RenderResult<'t> {
+        let format = template
+            .content(self.format_at)
+            .trim_matches(|c| c == '"' || c == '\'');
+
+        let tz_mod = DJANGO_TIMEZONE
+            .get_or_try_init(py, || -> Result<Py<PyAny>, PyRenderError> {
+                Ok(py.import("django.utils.timezone")?.into())
+            })?
+            .bind(py);
+        let now_dt = tz_mod.call_method0("now")?;
+
+        let use_named_logic =
+            format.is_empty() || format.chars().all(|c| c.is_ascii_uppercase() || c == '_');
+
+        let result = if use_named_logic {
+            let fmt_mod = DJANGO_FORMATS
+                .get_or_try_init(py, || -> Result<Py<PyAny>, PyRenderError> {
+                    Ok(py.import("django.utils.formats")?.into())
+                })?
+                .bind(py);
+
+            fmt_mod.call_method1("date_format", (now_dt, format))?
+        } else {
+            let df_mod = DJANGO_DATEFORMAT
+                .get_or_try_init(py, || -> Result<Py<PyAny>, PyRenderError> {
+                    Ok(py.import("django.utils.dateformat")?.into())
+                })?
+                .bind(py);
+            df_mod.call_method1("format", (now_dt, format))?
+        };
+
+        let rendered = result.cast::<PyString>().map_err(PyErr::from)?;
+
+        if let Some(asvar_at) = self.asvar {
+            let var_name = template.content(asvar_at);
+            context.insert(var_name.to_string(), rendered.clone().into_any());
+            Ok(Cow::Borrowed(""))
+        } else {
+            Ok(Cow::Owned(rendered.to_str()?.to_owned()))
+        }
     }
 }
