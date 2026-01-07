@@ -50,6 +50,15 @@ impl<'t> TemplateContent<'t> for Tag {
     }
 }
 
+/// Tokenize the template source between `{%` and `%}` into a `Tag`.
+///
+/// A `Tag` has two pieces:
+/// * `at` representing the location of the tag name
+/// * `parts` representing the location of the rest of the tag source
+///
+/// Both pieces are trimmed to have no leading or trailing whitespace.
+///
+/// Returns a TagLexerError when the tag is empty or has an invalid name.
 pub fn lex_tag(tag: &str, start: usize) -> Result<Tag, TagLexerError> {
     let rest = tag.trim_start();
     if rest.trim().is_empty() {
@@ -63,7 +72,7 @@ pub fn lex_tag(tag: &str, start: usize) -> Result<Tag, TagLexerError> {
     }
 
     let start = start + tag.len() - rest.len();
-    let tag = tag.trim();
+    let tag = rest.trim_end();
     let Some(tag_len) = tag.find(|c: char| !c.is_xid_continue()) else {
         let at = (start, tag.len());
         let parts = TagParts {
@@ -78,7 +87,7 @@ pub fn lex_tag(tag: &str, start: usize) -> Result<Tag, TagLexerError> {
     }
     let at = (start, tag_len);
     let rest = &tag[tag_len..];
-    let trimmed = rest.trim();
+    let trimmed = rest.trim_start();
     let start = start + tag_len + rest.len() - trimmed.len();
     let parts = TagParts {
         at: (start, trimmed.len()),
