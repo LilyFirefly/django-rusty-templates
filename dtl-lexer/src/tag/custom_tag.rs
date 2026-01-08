@@ -62,27 +62,6 @@ pub enum SimpleTagLexerError {
     },
 }
 
-impl SimpleTagLexerError {
-    /// Convert SimpleTagLexerError into a LexerError
-    ///
-    /// This converts the IncompleteKeywordArgument error into an
-    /// InvalidRemainder error, which is more appropriate for tags that
-    /// don't use keyword arguments in their API.
-    pub fn into_lexer_error(self) -> LexerError {
-        match self {
-            Self::LexerError(error) => error,
-            Self::IncompleteKeywordArgument { at } => {
-                // Remove the keyword argument part of at, leaving just the =
-                let at = SourceSpan::new(
-                    (at.offset() + at.len() - '='.len_utf8()).into(),
-                    '='.len_utf8(),
-                );
-                LexerError::InvalidRemainder { at }
-            }
-        }
-    }
-}
-
 pub struct SimpleTagLexer<'t> {
     rest: &'t str,
     byte: usize,

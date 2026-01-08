@@ -38,6 +38,7 @@ use crate::filters::YesnoFilter;
 use dtl_lexer::common::{LexerError, text_content_at, translated_text_content_at};
 use dtl_lexer::core::{Lexer, TokenType};
 use dtl_lexer::tag::autoescape::{AutoescapeEnabled, AutoescapeError, lex_autoescape_argument};
+use dtl_lexer::tag::common::{TagElementToken, TagElementTokenType};
 use dtl_lexer::tag::custom_tag::{
     SimpleTagLexer, SimpleTagLexerError, SimpleTagToken, SimpleTagTokenType,
 };
@@ -243,6 +244,22 @@ fn parse_numeric(content: &str, at: At) -> Result<TagElement, ParseError> {
             Ok(f) => Ok(TagElement::Float(f)),
             Err(_) => Err(ParseError::InvalidNumber { at: at.into() }),
         },
+    }
+}
+
+impl Parse<TagElement> for TagElementToken {
+    fn parse(&self, parser: &Parser) -> Result<TagElement, ParseError> {
+        let content_at = self.content_at();
+        let (start, _len) = content_at;
+        let content = parser.template.content(content_at);
+        match self.token_type {
+            TagElementTokenType::Numeric => parse_numeric(content, self.at),
+            TagElementTokenType::Text => Ok(TagElement::Text(Text::new(content_at))),
+            TagElementTokenType::TranslatedText => {
+                Ok(TagElement::TranslatedText(Text::new(content_at)))
+            }
+            TagElementTokenType::Variable => parser.parse_variable(content, content_at, start),
+        }
     }
 }
 
