@@ -5,7 +5,7 @@ use thiserror::Error;
 use crate::common::text_content_at;
 use crate::tag::TagParts;
 use crate::tag::common::TagElementTokenType;
-use crate::tag::kwarg::{SimpleTagLexer, SimpleTagLexerError, SimpleTagToken};
+use crate::tag::kwarg::{TagElementKwargLexer, TagElementKwargLexerError, TagElementKwargToken};
 use crate::types::{At, TemplateString};
 
 #[derive(Debug, PartialEq, Eq)]
@@ -37,14 +37,17 @@ pub enum IncludeWithToken {
 
 pub enum IncludeToken {
     Only(At),
-    Kwarg { kwarg_at: At, token: SimpleTagToken },
+    Kwarg {
+        kwarg_at: At,
+        token: TagElementKwargToken,
+    },
 }
 
 #[derive(Error, Debug, Diagnostic, PartialEq, Eq)]
 pub enum IncludeLexerError {
     #[error(transparent)]
     #[diagnostic(transparent)]
-    SimpleTagLexerError(#[from] SimpleTagLexerError),
+    TagElementKwargLexerError(#[from] TagElementKwargLexerError),
     #[error("Included template name must be a string or iterable of strings.")]
     InvalidTemplateName {
         #[label("invalid template name")]
@@ -75,14 +78,14 @@ pub enum IncludeLexerError {
 }
 
 pub struct IncludeLexer<'t> {
-    lexer: SimpleTagLexer<'t>,
+    lexer: TagElementKwargLexer<'t>,
     template: TemplateString<'t>,
 }
 
 impl<'t> IncludeLexer<'t> {
     pub fn new(template: TemplateString<'t>, parts: TagParts) -> Self {
         Self {
-            lexer: SimpleTagLexer::new(template, parts),
+            lexer: TagElementKwargLexer::new(template, parts),
             template,
         }
     }
@@ -119,7 +122,7 @@ impl<'t> IncludeLexer<'t> {
         }
     }
 
-    fn next_kwarg(&mut self) -> Option<Result<SimpleTagToken, IncludeLexerError>> {
+    fn next_kwarg(&mut self) -> Option<Result<TagElementKwargToken, IncludeLexerError>> {
         match self.lexer.next() {
             None => None,
             Some(Ok(token)) => Some(Ok(token)),
@@ -144,7 +147,7 @@ impl<'t> IncludeLexer<'t> {
         };
         const HELP: &str = "Try adding the 'with' keyword before the argument.";
         match token {
-            SimpleTagToken {
+            TagElementKwargToken {
                 at,
                 token_type: TagElementTokenType::Variable,
                 kwarg: None,

@@ -47,7 +47,9 @@ use dtl_lexer::tag::include::{
     IncludeLexer, IncludeLexerError, IncludeTemplateToken, IncludeTemplateTokenType, IncludeToken,
     IncludeWithToken,
 };
-use dtl_lexer::tag::kwarg::{SimpleTagLexer, SimpleTagLexerError, SimpleTagToken};
+use dtl_lexer::tag::kwarg::{
+    TagElementKwargLexer, TagElementKwargLexerError, TagElementKwargToken,
+};
 use dtl_lexer::tag::load::{LoadLexer, LoadToken};
 use dtl_lexer::tag::lorem::{LoremError, LoremLexer, LoremMethod, LoremTokenType};
 use dtl_lexer::tag::{TagLexerError, TagParts, lex_tag};
@@ -261,7 +263,7 @@ impl Parse<TagElement> for TagElementToken {
     }
 }
 
-impl Parse<TagElement> for SimpleTagToken {
+impl Parse<TagElement> for TagElementKwargToken {
     fn parse(&self, parser: &Parser) -> Result<TagElement, ParseError> {
         let content_at = self.content_at();
         let (start, _len) = content_at;
@@ -796,7 +798,7 @@ pub enum ParseError {
     RelativePathError(#[from] RelativePathError),
     #[error(transparent)]
     #[diagnostic(transparent)]
-    SimpleTagLexerError(#[from] SimpleTagLexerError),
+    TagElementKwargLexerError(#[from] TagElementKwargLexerError),
     #[error(transparent)]
     #[diagnostic(transparent)]
     VariableError(#[from] VariableLexerError),
@@ -1427,7 +1429,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         let mut seen_kwargs: HashMap<&str, At> = HashMap::new();
         let params_count = context.params.len();
         let mut tokens =
-            SimpleTagLexer::new(self.template, parts).collect::<Result<Vec<_>, _>>()?;
+            TagElementKwargLexer::new(self.template, parts).collect::<Result<Vec<_>, _>>()?;
         let tokens_count = tokens.len();
         let target_var =
             if tokens_count >= 2 && self.template.content(tokens[tokens_count - 2].at) == "as" {
@@ -1734,7 +1736,7 @@ impl<'t, 'py> Parser<'t, 'py> {
     }
 
     fn parse_url(&self, at: At, parts: TagParts) -> Result<TokenTree, ParseError> {
-        let mut lexer = SimpleTagLexer::new(self.template, parts);
+        let mut lexer = TagElementKwargLexer::new(self.template, parts);
         let Some(view_token) = lexer.next() else {
             return Err(ParseError::UrlTagNoArguments { at: at.into() });
         };
@@ -1747,12 +1749,12 @@ impl<'t, 'py> Parser<'t, 'py> {
         let mut rev = tokens.iter().rev();
         let variable = match (rev.next(), rev.next()) {
             (
-                Some(SimpleTagToken {
+                Some(TagElementKwargToken {
                     at: last,
                     token_type: TagElementTokenType::Variable,
                     ..
                 }),
-                Some(SimpleTagToken {
+                Some(TagElementKwargToken {
                     at: prev,
                     token_type: TagElementTokenType::Variable,
                     ..
