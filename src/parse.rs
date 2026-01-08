@@ -663,7 +663,7 @@ impl EndTagType {
 struct EndTag {
     at: At,
     end: EndTagType,
-    parts: TagParts,
+    parts: Option<TagParts>,
 }
 
 impl EndTag {
@@ -1338,39 +1338,39 @@ impl<'t, 'py> Parser<'t, 'py> {
             "endautoescape" => Either::Right(EndTag {
                 end: EndTagType::Autoescape,
                 at,
-                parts: tag.parts,
+                parts: None,
             }),
             "endverbatim" => Either::Right(EndTag {
                 end: EndTagType::Verbatim,
                 at,
-                parts: tag.parts,
+                parts: None,
             }),
             "if" => Either::Left(self.parse_if(at, tag.parts, "if")?),
             "elif" => Either::Right(EndTag {
                 end: EndTagType::Elif,
                 at,
-                parts: tag.parts,
+                parts: Some(tag.parts),
             }),
             "else" => Either::Right(EndTag {
                 end: EndTagType::Else,
                 at,
-                parts: tag.parts,
+                parts: None,
             }),
             "endif" => Either::Right(EndTag {
                 end: EndTagType::EndIf,
                 at,
-                parts: tag.parts,
+                parts: None,
             }),
             "for" => Either::Left(self.parse_for(at, tag.parts)?),
             "empty" => Either::Right(EndTag {
                 end: EndTagType::Empty,
                 at,
-                parts: tag.parts,
+                parts: None,
             }),
             "endfor" => Either::Right(EndTag {
                 end: EndTagType::EndFor,
                 at,
-                parts: tag.parts,
+                parts: None,
             }),
             "include" => Either::Left(self.parse_include(at, tag.parts)?),
             "lorem" => Either::Left(TokenTree::Tag(Tag::Lorem(self.parse_lorem(at, tag.parts)?))),
@@ -1391,7 +1391,7 @@ impl<'t, 'py> Parser<'t, 'py> {
                 Some(TagContext::EndSimpleBlock) => Either::Right(EndTag {
                     end: EndTagType::Custom(tag_name.to_string()),
                     at,
-                    parts: tag.parts,
+                    parts: None,
                 }),
                 None => todo!("{tag_name}"),
             },
@@ -1875,12 +1875,12 @@ impl<'t, 'py> Parser<'t, 'py> {
             EndTag {
                 at,
                 end: EndTagType::Elif,
-                parts,
+                parts: Some(parts),
             } => Some(vec![self.parse_if(at, parts, "elif")?]),
             EndTag {
                 at,
                 end: EndTagType::Else,
-                parts: _parts,
+                parts: None,
             } => {
                 let (nodes, _) = self.parse_until(vec![EndTagType::EndIf], "else".into(), at)?;
                 Some(nodes)
@@ -1888,7 +1888,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             EndTag {
                 at: _end_at,
                 end: EndTagType::EndIf,
-                parts: _parts,
+                parts: None,
             } => None,
             _ => unreachable!(),
         };
