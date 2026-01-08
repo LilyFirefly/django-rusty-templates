@@ -1,3 +1,6 @@
+import pytest
+from django.template import TemplateSyntaxError
+from django.template.exceptions import TemplateDoesNotExist
 from inline_snapshot import snapshot
 
 
@@ -10,6 +13,41 @@ def test_blocks(assert_render):
         template=template,
         context={"title": "Using blocks", "user": {"name": "Lily"}},
         expected="\n# Using blocks\nHello Lily!\n",
+    )
+
+
+def test_extends_no_blocks(assert_render):
+    template = "{% extends 'basic.txt' %}"
+    assert_render(template=template, context={"user": "Lily"}, expected="Hello Lily!\n")
+
+
+def test_extends(assert_render):
+    template = "{% extends 'base.txt' %}{% block body %}Some content{% endblock body %}"
+    assert_render(template=template, context={}, expected="# Header\nSome content\n")
+
+
+def test_extends_super(assert_render):
+    template = """\
+{% extends 'base.txt' %}{% block header %}{{ block.super }}
+## Subtitle{% endblock header %}{% block body %}Some content{% endblock body %}"""
+    assert_render(
+        template=template, context={}, expected="# Header\n## Subtitle\nSome content\n"
+    )
+
+
+def test_extends_after_whitespace(assert_render):
+    template = (
+        "  {% extends 'base.txt' %}{% block body %}Some content{% endblock body %}"
+    )
+    assert_render(template=template, context={}, expected="  # Header\nSome content\n")
+
+
+def test_extends_after_text(assert_render):
+    template = (
+        "Text {% extends 'base.txt' %}{% block body %}Some content{% endblock body %}"
+    )
+    assert_render(
+        template=template, context={}, expected="Text # Header\nSome content\n"
     )
 
 
@@ -193,4 +231,114 @@ def test_extends_unexpected_endblock(assert_parse_error):
 """)
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_extends_int(template_engine):
+    template = "{% extends 1 %}"
+
+    if template_engine.name == "rusty":
+        with pytest.raises(TemplateSyntaxError) as exc_info:
+            template_engine.from_string(template)
+        assert str(exc_info.value) == snapshot("""\
+  × Template name must be a string or a variable
+   ╭────
+ 1 │ {% extends 1 %}
+   ·            ┬
+   ·            ╰── here
+   ╰────
+""")
+
+    else:
+        template = template_engine.from_string(template)
+        with pytest.raises(TypeError) as exc_info:
+            template.render({})
+        assert str(exc_info.value) == snapshot(
+            "join() argument must be str, bytes, or os.PathLike object, not 'int'"
+        )
+
+
+def test_extends_float(template_engine):
+    template = "{% extends 1.2 %}"
+
+    if template_engine.name == "rusty":
+        with pytest.raises(TemplateSyntaxError) as exc_info:
+            template_engine.from_string(template)
+        assert str(exc_info.value) == snapshot("""\
+  × Template name must be a string or a variable
+   ╭────
+ 1 │ {% extends 1.2 %}
+   ·            ─┬─
+   ·             ╰── here
+   ╰────
+""")
+
+    else:
+        template = template_engine.from_string(template)
+        with pytest.raises(TypeError) as exc_info:
+            template.render({})
+        assert str(exc_info.value) == snapshot(
+            "join() argument must be str, bytes, or os.PathLike object, not 'float'"
+        )
+
+
+def test_extends_missing_template_string(assert_render_error):
+    template = "{% extends 'missing.txt' %}"
+    django_message = snapshot("missing.txt")
+    rusty_message = snapshot("""\
+  × missing.txt
+   ╭────
+ 1 │ {% extends 'missing.txt' %}
+   ·             ─────┬─────
+   ·                  ╰── here
+   ╰────
+""")
+    assert_render_error(
+        template=template,
+        context={},
+        exception=TemplateDoesNotExist,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
+def test_extends_missing_template_variable(assert_render_error):
+    template = "{% extends template_name %}"
+    django_message = snapshot("missing.txt")
+    rusty_message = snapshot("""\
+  × missing.txt
+   ╭────
+ 1 │ {% extends template_name %}
+   ·            ──────┬──────
+   ·                  ╰── here
+   ╰────
+""")
+    assert_render_error(
+        template=template,
+        context={"template_name": "missing.txt"},
+        exception=TemplateDoesNotExist,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
+def test_extends_invalid_variable(assert_render_error):
+    template = "{% extends template_name %}"
+    django_message = snapshot(
+        "join() argument must be str, bytes, or os.PathLike object, not 'int'"
+    )
+    rusty_message = snapshot("""\
+  × Included template name must be a string or iterable of strings.
+   ╭────
+ 1 │ {% extends template_name %}
+   ·            ──────┬──────
+   ·                  ╰── invalid template name: 123
+   ╰────
+""")
+    assert_render_error(
+        template=template,
+        context={"template_name": 123},
+        exception=TypeError,
+        django_message=django_message,
+        rusty_message=rusty_message,
     )
