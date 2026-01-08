@@ -39,6 +39,7 @@ use crate::filters::YesnoFilter;
 use dtl_lexer::common::{LexerError, text_content_at, translated_text_content_at};
 use dtl_lexer::core::{Lexer, TokenType};
 use dtl_lexer::tag::autoescape::{AutoescapeEnabled, AutoescapeError, lex_autoescape_argument};
+use dtl_lexer::tag::block::{BlockLexerError, BlockType, lex_block};
 use dtl_lexer::tag::common::{TagElementLexer, TagElementToken, TagElementTokenType};
 use dtl_lexer::tag::forloop::{ForLexer, ForLexerError, ForLexerInError, ForTokenType};
 use dtl_lexer::tag::ifcondition::{
@@ -607,6 +608,12 @@ pub struct Extends {
     pub template_name: IncludeTemplateName,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct Block {
+    name: String,
+    nodes: Vec<TokenTree>,
+}
+
 #[derive(Clone, Debug)]
 pub struct SimpleTag {
     pub func: Arc<Py<PyAny>>,
@@ -671,6 +678,7 @@ pub enum Tag {
         enabled: AutoescapeEnabled,
         nodes: Vec<TokenTree>,
     },
+    Block(Block),
     If {
         condition: IfCondition,
         truthy: Vec<TokenTree>,
@@ -697,6 +705,7 @@ enum EndTagType {
     Else,
     EndIf,
     Empty,
+    EndBlock(Option<String>),
     EndFor,
     Verbatim,
     Custom(String),
@@ -710,6 +719,8 @@ impl EndTagType {
             Self::Else => "else",
             Self::EndIf => "endif",
             Self::Empty => "empty",
+            Self::EndBlock(None) => "'endblock'",
+            Self::EndBlock(Some(name)) => return Cow::Owned(format!("'endblock {name}'")),
             Self::EndFor => "endfor",
             Self::Verbatim => "endverbatim",
             Self::Custom(s) => return Cow::Owned(s.clone()),
@@ -810,6 +821,9 @@ pub enum ParseError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     AutoescapeError(#[from] AutoescapeError),
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    BlockLexerError(#[from] BlockLexerError),
     #[error(transparent)]
     #[diagnostic(transparent)]
     BlockError(#[from] TagLexerError),
@@ -1230,12 +1244,22 @@ impl<'t, 'py> Parser<'t, 'py> {
                         if until.contains(&end_tag.end) {
                             return Ok((nodes, end_tag));
                         }
+                        let expected = match until.len() {
+                            0 => unreachable!(),
+                            1 => until[0].as_cow(),
+                            n => {
+                                let end_tags = until[..n - 1]
+                                    .iter()
+                                    .map(EndTagType::as_cow)
+                                    .collect::<Vec<_>>()
+                                    .join(", ");
+                                let last = until[n - 1].as_cow();
+                                Cow::Owned(format!("{end_tags} or {last}"))
+                            }
+                        }
+                        .to_string();
                         return Err(ParseError::WrongEndTag {
-                            expected: until
-                                .iter()
-                                .map(EndTagType::as_cow)
-                                .collect::<Vec<_>>()
-                                .join(", "),
+                            expected,
                             unexpected: end_tag.as_cow(),
                             at: end_tag.at.into(),
                             start_at: start_at.into(),
@@ -1474,6 +1498,17 @@ impl<'t, 'py> Parser<'t, 'py> {
                 at,
                 parts: None,
             }),
+            "block" => Either::Left(self.parse_block(at, tag.parts)?),
+            "endblock" => {
+                let token = lex_block(self.template, tag.parts, BlockType::End)
+                    .map_err(ParseError::from)?;
+                let name = token.map(|token| self.template.content(token.at).to_string());
+                Either::Right(EndTag {
+                    end: EndTagType::EndBlock(name),
+                    at,
+                    parts: None,
+                })
+            }
             "endverbatim" => Either::Right(EndTag {
                 end: EndTagType::Verbatim,
                 at,
@@ -1958,6 +1993,21 @@ impl<'t, 'py> Parser<'t, 'py> {
 
         let extends = Extends { template_name };
         Ok(TokenTree::Tag(Tag::Extends(extends)))
+    }
+
+    fn parse_block(&mut self, at: At, parts: TagParts) -> Result<TokenTree, PyParseError> {
+        let token = lex_block(self.template, parts, BlockType::Start).map_err(ParseError::from)?;
+        let token = match token {
+            Some(token) => token,
+            None => std::todo!(),
+        };
+        let name = self.template.content(token.at).to_string();
+        let until = vec![
+            EndTagType::EndBlock(None),
+            EndTagType::EndBlock(Some(name.clone())),
+        ];
+        let (nodes, _) = self.parse_until(until, "endblock".into(), at)?;
+        Ok(TokenTree::Tag(Tag::Block(Block { name, nodes })))
     }
 
     fn parse_include(&self, at: At, parts: TagParts) -> Result<TokenTree, ParseError> {
