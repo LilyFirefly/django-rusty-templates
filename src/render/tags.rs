@@ -859,6 +859,30 @@ impl<'t, 'py> IncludeTemplate<'py> {
             }
         }
     }
+
+    fn render_with_blocks(
+        &'t self,
+        py: Python<'py>,
+        context: &mut Context,
+        at: At,
+        template: TemplateString<'t>,
+        blocks: &HashMap<String, Block>,
+    ) -> RenderResult<'t> {
+        match self {
+            Self::Template(parent_template) => {
+                parent_template.render_with_blocks(py, context, blocks, template)
+            }
+            Self::Callable(callable) => {
+                let py_context = build_pycontext(py, context)?;
+                let result = callable.call1((py_context.clone(),));
+                retrieve_context(py, py_context, context);
+                match result {
+                    Ok(content) => Ok(Cow::Owned(content.to_string())),
+                    Err(error) => Err(error.annotate(py, at, "here", template).into()),
+                }
+            }
+        }
+    }
 }
 
 fn template_at(template_name: &IncludeTemplateName) -> At {
@@ -1206,7 +1230,13 @@ impl Render for Extends {
         let template_name = resolve_template_name(py, &self.template_name, template, context)?;
         let parent = self.get_template(template_name, py, template, context)?;
         parent
-            .render(py, context, template_at(&self.template_name), template)
+            .render_with_blocks(
+                py,
+                context,
+                template_at(&self.template_name),
+                template,
+                &self.blocks,
+            )
             .map(|content| Cow::Owned(content.into_owned()))
     }
 }

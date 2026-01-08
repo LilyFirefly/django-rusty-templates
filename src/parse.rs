@@ -608,6 +608,7 @@ pub struct Extends {
     pub template_name: IncludeTemplateName,
     pub origin: Option<String>,
     pub engine: Arc<Engine>,
+    pub blocks: HashMap<String, Block>,
 }
 
 impl PartialEq for Extends {
@@ -618,13 +619,15 @@ impl PartialEq for Extends {
         // We only use `eq` in tests, so this concession is acceptable here.
         self.origin == other.origin
             && self.template_name.eq(&other.template_name)
+            && self.blocks.eq(&other.blocks)
             && Arc::ptr_eq(&self.engine, &other.engine)
     }
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Block {
-    name: String,
+    at: At,
+    pub name: String,
     pub nodes: Vec<TokenTree>,
 }
 
@@ -879,6 +882,13 @@ pub enum ParseError {
         first_at: SourceSpan,
         #[label("second here")]
         second_at: SourceSpan,
+    },
+    #[error("")]
+    DuplicateBlock {
+        #[label("first here")]
+        old_block_at: SourceSpan,
+        #[label("duplicate here")]
+        new_block_at: SourceSpan,
     },
     #[error("{extends_tag} must be the first tag in the template.")]
     #[diagnostic(help("Move the extends tag before other tags and variables."))]
@@ -1970,31 +1980,35 @@ impl<'t, 'py> Parser<'t, 'py> {
         Ok(TokenTree::Tag(Tag::Url(url)))
     }
 
-    fn parse_extends(&self, at: At, parts: TagParts) -> Result<TokenTree, ParseError> {
+    fn parse_extends(&mut self, at: At, parts: TagParts) -> Result<TokenTree, PyParseError> {
         if let Some(first_tag_at) = self.first_tag {
             return Err(ParseError::ExtendsAfterTag {
                 extends_tag: self.template.content(at).to_string(),
                 extends_at: at.into(),
                 first_tag_at: first_tag_at.into(),
-            });
+            }
+            .into());
         }
 
         let mut lexer = TagElementLexer::new(self.template, parts);
 
-        let Some(token) = lexer.next().transpose()? else {
-            return Err(ParseError::MissingArgument { at: at.into() });
+        let Some(token) = lexer.next().transpose().map_err(ParseError::from)? else {
+            return Err(ParseError::MissingArgument { at: at.into() }.into());
         };
 
-        if let Some(token) = lexer.next().transpose()? {
+        if let Some(token) = lexer.next().transpose().map_err(ParseError::from)? {
             return Err(ParseError::TooManyPositionalArguments {
                 at: token.at.into(),
-            });
+            }
+            .into());
         }
 
         let template_name = match parse_extends_template_token(token, self)? {
             IncludeTemplateName::Text(Text { at }) => {
                 let template_path = self.template.content(at);
-                match construct_relative_path(template_path, self.origin, at)? {
+                match construct_relative_path(template_path, self.origin, at)
+                    .map_err(ParseError::from)?
+                {
                     Some(path) => IncludeTemplateName::Relative(RelativePath {
                         path: path.into_owned(),
                         at,
@@ -2005,12 +2019,47 @@ impl<'t, 'py> Parser<'t, 'py> {
             template_name => template_name,
         };
 
+        let mut blocks = HashMap::new();
+        while let Some(block) = self.next_block()? {
+            let new_at = block.at;
+            if let Some(old_block) = blocks.insert(block.name.clone(), block) {
+                return Err(ParseError::DuplicateBlock {
+                    old_block_at: old_block.at.into(),
+                    new_block_at: new_at.into(),
+                }
+                .into());
+            }
+        }
+
         let extends = Extends {
             template_name,
             origin: self.origin.map(ToString::to_string),
             engine: self.engine.clone(),
+            blocks,
         };
         Ok(TokenTree::Tag(Tag::Extends(extends)))
+    }
+
+    fn next_block(&mut self) -> Result<Option<Block>, PyParseError> {
+        while let Some(token) = self.lexer.next() {
+            match token.token_type {
+                TokenType::Text | TokenType::Comment | TokenType::Variable => continue,
+                TokenType::Tag => match self.parse_tag(token.content(self.template), token.at)? {
+                    Either::Left(token_tree) => match token_tree {
+                        TokenTree::Tag(Tag::Block(block)) => return Ok(Some(block)),
+                        _ => continue,
+                    },
+                    Either::Right(end_tag) => {
+                        return Err(ParseError::UnexpectedEndTag {
+                            at: end_tag.at.into(),
+                            unexpected: end_tag.as_cow(),
+                        }
+                        .into());
+                    }
+                },
+            };
+        }
+        Ok(None)
     }
 
     fn parse_block(&mut self, at: At, parts: TagParts) -> Result<TokenTree, PyParseError> {
@@ -2025,7 +2074,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             EndTagType::EndBlock(Some(name.clone())),
         ];
         let (nodes, _) = self.parse_until(until, "endblock".into(), at)?;
-        Ok(TokenTree::Tag(Tag::Block(Block { name, nodes })))
+        Ok(TokenTree::Tag(Tag::Block(Block { at, name, nodes })))
     }
 
     fn parse_include(&self, at: At, parts: TagParts) -> Result<TokenTree, ParseError> {
