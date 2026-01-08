@@ -4,9 +4,7 @@ use thiserror::Error;
 
 use crate::common::text_content_at;
 use crate::tag::TagParts;
-use crate::tag::custom_tag::{
-    SimpleTagLexer, SimpleTagLexerError, SimpleTagToken, SimpleTagTokenType,
-};
+use crate::tag::kwarg::{SimpleTagLexer, SimpleTagLexerError, SimpleTagToken, SimpleTagTokenType};
 use crate::types::{At, TemplateString};
 
 #[derive(Debug, PartialEq, Eq)]

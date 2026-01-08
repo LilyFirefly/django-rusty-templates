@@ -39,9 +39,6 @@ use dtl_lexer::common::{LexerError, text_content_at, translated_text_content_at}
 use dtl_lexer::core::{Lexer, TokenType};
 use dtl_lexer::tag::autoescape::{AutoescapeEnabled, AutoescapeError, lex_autoescape_argument};
 use dtl_lexer::tag::common::{TagElementToken, TagElementTokenType};
-use dtl_lexer::tag::custom_tag::{
-    SimpleTagLexer, SimpleTagLexerError, SimpleTagToken, SimpleTagTokenType,
-};
 use dtl_lexer::tag::forloop::{ForLexer, ForLexerError, ForLexerInError, ForTokenType};
 use dtl_lexer::tag::ifcondition::{
     IfConditionAtom, IfConditionLexer, IfConditionOperator, IfConditionTokenType,
@@ -49,6 +46,9 @@ use dtl_lexer::tag::ifcondition::{
 use dtl_lexer::tag::include::{
     IncludeLexer, IncludeLexerError, IncludeTemplateToken, IncludeTemplateTokenType, IncludeToken,
     IncludeWithToken,
+};
+use dtl_lexer::tag::kwarg::{
+    SimpleTagLexer, SimpleTagLexerError, SimpleTagToken, SimpleTagTokenType,
 };
 use dtl_lexer::tag::load::{LoadLexer, LoadToken};
 use dtl_lexer::tag::lorem::{LoremError, LoremLexer, LoremMethod, LoremTokenType};
