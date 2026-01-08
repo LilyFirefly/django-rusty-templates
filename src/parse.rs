@@ -69,10 +69,9 @@ use crate::types::Argument;
 use crate::types::ArgumentType;
 use crate::types::ForVariable;
 use crate::types::ForVariableName;
-
 use crate::types::Text;
 use crate::types::TranslatedText;
-use dtl_lexer::types::Variable;
+use crate::types::Variable;
 
 trait Parse<R> {
     fn parse(&self, parser: &Parser) -> Result<R, ParseError>;
@@ -95,7 +94,7 @@ impl Parse<Argument> for ArgumentToken {
         Ok(match *self {
             Self::Variable(at) => Argument {
                 at,
-                argument_type: parser.parse_for_variable(at).into(),
+                argument_type: ArgumentType::Variable(parser.parse_for_variable(at)),
             },
             Self::Text(at) => Argument {
                 at,
@@ -127,7 +126,6 @@ pub enum TagElement {
     Text(Text),
     TranslatedText(Text),
     Variable(Variable),
-    ForVariable(ForVariable),
     Filter(Box<Filter>),
 }
 
@@ -767,7 +765,6 @@ pub enum TokenTree {
     Float(f64),
     Tag(Tag),
     Variable(Variable),
-    ForVariable(ForVariable),
     Filter(Box<Filter>),
 }
 
@@ -777,28 +774,9 @@ impl From<TagElement> for TokenTree {
             TagElement::Text(text) => Self::Text(text),
             TagElement::TranslatedText(text) => Self::TranslatedText(text),
             TagElement::Variable(variable) => Self::Variable(variable),
-            TagElement::ForVariable(variable) => Self::ForVariable(variable),
             TagElement::Filter(filter) => Self::Filter(filter),
             TagElement::Int(n) => Self::Int(n),
             TagElement::Float(f) => Self::Float(f),
-        }
-    }
-}
-
-impl From<Either<Variable, ForVariable>> for TagElement {
-    fn from(variable: Either<Variable, ForVariable>) -> Self {
-        match variable {
-            Either::Left(v) => Self::Variable(v),
-            Either::Right(v) => Self::ForVariable(v),
-        }
-    }
-}
-
-impl From<Either<Variable, ForVariable>> for ArgumentType {
-    fn from(variable: Either<Variable, ForVariable>) -> Self {
-        match variable {
-            Either::Left(v) => Self::Variable(v),
-            Either::Right(v) => Self::ForVariable(v),
         }
     }
 }
@@ -1307,7 +1285,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         .into())
     }
 
-    fn parse_for_variable(&self, at: At) -> Either<Variable, ForVariable> {
+    fn parse_for_variable(&self, at: At) -> Variable {
         let mut parts = self.template.content(at).split('.');
         if self.forloop_depth == 0
             || parts
@@ -1316,10 +1294,10 @@ impl<'t, 'py> Parser<'t, 'py> {
                 .trim()
                 != "forloop"
         {
-            return Either::Left(Variable::new(at));
+            return Variable::Variable(at);
         }
         let Some(part) = parts.next_back() else {
-            return Either::Right(ForVariable {
+            return Variable::ForVariable(ForVariable {
                 variant: ForVariableName::Object,
                 parent_count: 0,
                 at,
@@ -1333,12 +1311,12 @@ impl<'t, 'py> Parser<'t, 'py> {
             "first" => ForVariableName::First,
             "last" => ForVariableName::Last,
             "parentloop" => ForVariableName::Object,
-            _ => return Either::Left(Variable::new(at)),
+            _ => return Variable::Variable(at),
         };
         let parts: Vec<_> = parts.collect();
         for part in &parts {
             if part.trim() != "parentloop" {
-                return Either::Left(Variable::new(at));
+                return Variable::Variable(at);
             }
         }
         let mut parent_count = parts.len();
@@ -1346,9 +1324,9 @@ impl<'t, 'py> Parser<'t, 'py> {
             parent_count += 1;
         }
         if parent_count > self.forloop_depth {
-            return Either::Left(Variable::new(at));
+            return Variable::Variable(at);
         }
-        Either::Right(ForVariable {
+        Variable::ForVariable(ForVariable {
             variant,
             parent_count,
             at,
@@ -1366,7 +1344,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             return Err(ParseError::EmptyVariable { at: at.into() });
         };
         let mut var = match variable_token {
-            VariableToken::Variable => self.parse_for_variable(at).into(),
+            VariableToken::Variable => TagElement::Variable(self.parse_for_variable(at)),
             VariableToken::Int(n) => TagElement::Int(n),
             VariableToken::Float(f) => TagElement::Float(f),
         };
@@ -2259,6 +2237,7 @@ mod tests {
         template::django_rusty_templates::{Engine, Template},
     };
     use dtl_lexer::common::LexerError;
+    use dtl_lexer::types::PartsIterator;
 
     fn get_external_filter(node: &TokenTree) -> Arc<Py<PyAny>> {
         match node {
@@ -2342,10 +2321,11 @@ mod tests {
             let template = TemplateString("{{ foo }}");
             let mut parser = Parser::new(py, template, Engine::empty().into(), None);
             let nodes = parser.parse().unwrap();
-            let variable = Variable { at: (3, 3) };
+            let variable_at = (3, 3);
+            let variable = Variable::Variable(variable_at);
             assert_eq!(nodes, vec![TokenTree::Variable(variable)]);
             assert_eq!(
-                variable.parts(template).collect::<Vec<_>>(),
+                PartsIterator::new(template, variable_at).collect::<Vec<_>>(),
                 vec![("foo", (3, 3))]
             );
         });
@@ -2359,10 +2339,11 @@ mod tests {
             let template = TemplateString("{{ foo.bar.baz }}");
             let mut parser = Parser::new(py, template, Engine::empty().into(), None);
             let nodes = parser.parse().unwrap();
-            let variable = Variable { at: (3, 11) };
+            let variable_at = (3, 11);
+            let variable = Variable::Variable(variable_at);
             assert_eq!(nodes, vec![TokenTree::Variable(variable)]);
             assert_eq!(
-                variable.parts(template).collect::<Vec<_>>(),
+                PartsIterator::new(template, variable_at).collect::<Vec<_>>(),
                 vec![("foo", (3, 3)), ("bar", (7, 3)), ("baz", (11, 3))]
             );
         });
@@ -2380,7 +2361,8 @@ mod tests {
 
             assert_eq!(nodes.len(), 1);
 
-            let foo = Variable { at: (3, 3) };
+            let foo_at = (3, 3);
+            let foo = Variable::Variable(foo_at);
             let external = get_external_filter(&nodes[0]);
             assert!(external.is_none(py));
             let bar = TokenTree::Filter(Box::new(Filter {
@@ -2394,7 +2376,7 @@ mod tests {
             }));
             assert_eq!(nodes, vec![bar]);
             assert_eq!(
-                foo.parts(template).collect::<Vec<_>>(),
+                PartsIterator::new(template, foo_at).collect::<Vec<_>>(),
                 vec![("foo", (3, 3))]
             );
         });
@@ -2432,7 +2414,7 @@ mod tests {
             let nodes = parser.parse().unwrap();
             assert_eq!(nodes.len(), 1);
 
-            let foo = TagElement::Variable(Variable { at: (3, 3) });
+            let foo = TagElement::Variable(Variable::Variable((3, 3)));
             let external = get_external_filter_tag_element(&nodes[0]);
             assert!(external.is_none(py));
             let bar = TagElement::Filter(Box::new(Filter {
@@ -2470,8 +2452,9 @@ mod tests {
             let nodes = parser.parse().unwrap();
             assert_eq!(nodes.len(), 1);
 
-            let foo = TagElement::Variable(Variable { at: (3, 3) });
-            let baz = Variable { at: (11, 3) };
+            let foo = TagElement::Variable(Variable::Variable((3, 3)));
+            let baz_at = (11, 3);
+            let baz = Variable::Variable(baz_at);
             let external = get_external_filter(&nodes[0]);
             assert!(external.is_none(py));
             let bar = TokenTree::Filter(Box::new(Filter {
@@ -2488,7 +2471,7 @@ mod tests {
             }));
             assert_eq!(nodes, vec![bar]);
             assert_eq!(
-                baz.parts(template).collect::<Vec<_>>(),
+                PartsIterator::new(template, baz_at).collect::<Vec<_>>(),
                 vec![("baz", (11, 3))]
             );
         });
@@ -2504,7 +2487,7 @@ mod tests {
             let mut parser = Parser::new_with_filters(py, template, filters);
             let nodes = parser.parse().unwrap();
 
-            let foo = TagElement::Variable(Variable { at: (3, 3) });
+            let foo = TagElement::Variable(Variable::Variable((3, 3)));
             let baz = Text::new((12, 3));
             let external = get_external_filter(&nodes[0]);
             assert!(external.is_none(py));
@@ -2535,7 +2518,7 @@ mod tests {
             let mut parser = Parser::new_with_filters(py, template, filters);
             let nodes = parser.parse().unwrap();
 
-            let foo = TagElement::Variable(Variable { at: (3, 3) });
+            let foo = TagElement::Variable(Variable::Variable((3, 3)));
             let baz = TranslatedText::new((14, 3));
             let external = get_external_filter(&nodes[0]);
             assert!(external.is_none(py));
@@ -2566,7 +2549,7 @@ mod tests {
             let mut parser = Parser::new_with_filters(py, template.into(), filters);
             let nodes = parser.parse().unwrap();
 
-            let foo = TagElement::Variable(Variable { at: (3, 3) });
+            let foo = TagElement::Variable(Variable::Variable((3, 3)));
             let num = Argument {
                 at: (11, 5),
                 argument_type: ArgumentType::Float(5.2e3),
@@ -2596,7 +2579,7 @@ mod tests {
             let mut parser = Parser::new_with_filters(py, template.into(), filters);
             let nodes = parser.parse().unwrap();
 
-            let foo = TagElement::Variable(Variable { at: (3, 3) });
+            let foo = TagElement::Variable(Variable::Variable((3, 3)));
             let num = Argument {
                 at: (11, 2),
                 argument_type: ArgumentType::Int(99.into()),
@@ -2626,7 +2609,7 @@ mod tests {
             let mut parser = Parser::new_with_filters(py, template.into(), filters);
             let nodes = parser.parse().unwrap();
 
-            let foo = TagElement::Variable(Variable { at: (3, 3) });
+            let foo = TagElement::Variable(Variable::Variable((3, 3)));
             let num = Argument {
                 at: (11, 17),
                 argument_type: ArgumentType::Int("99999999999999999".parse::<BigInt>().unwrap()),
@@ -2693,8 +2676,9 @@ mod tests {
             let mut parser = Parser::new(py, template, Engine::empty().into(), None);
             let nodes = parser.parse().unwrap();
 
-            let foo = TagElement::Variable(Variable { at: (3, 3) });
-            let baz = Variable { at: (15, 3) };
+            let foo = TagElement::Variable(Variable::Variable((3, 3)));
+            let baz_at = (15, 3);
+            let baz = Variable::Variable(baz_at);
             let bar = TokenTree::Filter(Box::new(Filter {
                 at: (7, 7),
                 all_at: (3, 11),
@@ -2709,7 +2693,7 @@ mod tests {
             }));
             assert_eq!(nodes, vec![bar]);
             assert_eq!(
-                baz.parts(template).collect::<Vec<_>>(),
+                PartsIterator::new(template, baz_at).collect::<Vec<_>>(),
                 vec![("baz", (15, 3))]
             );
         });
@@ -2842,7 +2826,7 @@ mod tests {
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
-                view_name: TagElement::Variable(Variable { at: (7, 14) }),
+                view_name: TagElement::Variable(Variable::Variable((7, 14))),
                 args: vec![],
                 kwargs: vec![],
                 variable: None,
@@ -2861,7 +2845,7 @@ mod tests {
             let mut parser = Parser::new(py, template.into(), Engine::empty().into(), None);
             let nodes = parser.parse().unwrap();
 
-            let some_view_name = TagElement::Variable(Variable { at: (7, 14) });
+            let some_view_name = TagElement::Variable(Variable::Variable((7, 14)));
             let home = Text { at: (31, 4) };
             let default = Box::new(Filter {
                 at: (22, 7),
@@ -2928,13 +2912,13 @@ mod tests {
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
-                view_name: TagElement::Variable(Variable { at: (7, 14) }),
+                view_name: TagElement::Variable(Variable::Variable((7, 14))),
                 args: vec![
                     TagElement::Text(Text { at: (23, 3) }),
                     TagElement::Filter(Box::new(Filter {
                         at: (32, 7),
                         all_at: (28, 11),
-                        left: TagElement::Variable(Variable { at: (28, 3) }),
+                        left: TagElement::Variable(Variable::Variable((28, 3))),
                         filter: FilterType::Default(DefaultFilter::new(
                             Argument {
                                 at: (40, 6),
@@ -2965,7 +2949,7 @@ mod tests {
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
-                view_name: TagElement::Variable(Variable { at: (7, 14) }),
+                view_name: TagElement::Variable(Variable::Variable((7, 14))),
                 args: vec![],
                 kwargs: vec![
                     ("foo".to_string(), TagElement::Text(Text { at: (27, 3) })),
@@ -2988,7 +2972,7 @@ mod tests {
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
-                view_name: TagElement::Variable(Variable { at: (7, 14) }),
+                view_name: TagElement::Variable(Variable::Variable((7, 14))),
                 args: vec![TagElement::Text(Text { at: (23, 3) })],
                 kwargs: vec![],
                 variable: Some("some_url".to_string()),
@@ -3008,7 +2992,7 @@ mod tests {
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
-                view_name: TagElement::Variable(Variable { at: (7, 14) }),
+                view_name: TagElement::Variable(Variable::Variable((7, 14))),
                 args: vec![],
                 kwargs: vec![("foo".to_string(), TagElement::Text(Text { at: (27, 3) }))],
                 variable: Some("some_url".to_string()),
@@ -3028,11 +3012,11 @@ mod tests {
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
-                view_name: TagElement::Variable(Variable { at: (7, 14) }),
+                view_name: TagElement::Variable(Variable::Variable((7, 14))),
                 args: vec![
                     TagElement::Text(Text { at: (23, 3) }),
-                    TagElement::Variable(Variable { at: (28, 3) }),
-                    TagElement::Variable(Variable { at: (32, 4) }),
+                    TagElement::Variable(Variable::Variable((28, 3))),
+                    TagElement::Variable(Variable::Variable((32, 4))),
                 ],
                 kwargs: vec![],
                 variable: None,

@@ -1,6 +1,6 @@
 use num_bigint::BigInt;
 
-use dtl_lexer::types::{At, Variable};
+use dtl_lexer::types::At;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Text {
@@ -25,9 +25,14 @@ impl TranslatedText {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub enum Variable {
+    Variable(At),
+    ForVariable(ForVariable),
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum ArgumentType {
     Variable(Variable),
-    ForVariable(ForVariable),
     Text(Text),
     TranslatedText(TranslatedText),
     Int(BigInt),
