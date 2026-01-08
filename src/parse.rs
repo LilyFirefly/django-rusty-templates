@@ -85,7 +85,7 @@ impl Parse<Argument> for ArgumentToken {
         Ok(match *self {
             Self::Variable(at) => Argument {
                 at,
-                argument_type: ArgumentType::Variable(parser.parse_for_variable(at)),
+                argument_type: ArgumentType::Variable(parser.parse_variable(at)),
             },
             Self::Text(at) => Argument {
                 at,
@@ -257,7 +257,9 @@ impl Parse<TagElement> for TagElementToken {
             TagElementTokenType::TranslatedText => {
                 Ok(TagElement::TranslatedText(Text::new(content_at)))
             }
-            TagElementTokenType::Variable => parser.parse_variable(content, content_at, start),
+            TagElementTokenType::Variable => {
+                parser.parse_variable_or_filter(content, content_at, start)
+            }
         }
     }
 }
@@ -273,7 +275,9 @@ impl Parse<TagElement> for TagElementKwargToken {
             TagElementTokenType::TranslatedText => {
                 Ok(TagElement::TranslatedText(Text::new(content_at)))
             }
-            TagElementTokenType::Variable => parser.parse_variable(content, content_at, start),
+            TagElementTokenType::Variable => {
+                parser.parse_variable_or_filter(content, content_at, start)
+            }
         }
     }
 }
@@ -287,9 +291,9 @@ fn parse_include_template_token(
     let content = parser.template.content(content_at);
     Ok(match token.token_type {
         IncludeTemplateTokenType::Text => IncludeTemplateName::Text(Text::new(content_at)),
-        IncludeTemplateTokenType::Variable => {
-            IncludeTemplateName::Variable(parser.parse_variable(content, content_at, start)?)
-        }
+        IncludeTemplateTokenType::Variable => IncludeTemplateName::Variable(
+            parser.parse_variable_or_filter(content, content_at, start)?,
+        ),
     })
 }
 
@@ -302,9 +306,9 @@ fn parse_extends_template_token(
     let content = parser.template.content(content_at);
     Ok(match token.token_type {
         TagElementTokenType::Text => IncludeTemplateName::Text(Text::new(content_at)),
-        TagElementTokenType::Variable => {
-            IncludeTemplateName::Variable(parser.parse_variable(content, content_at, start)?)
-        }
+        TagElementTokenType::Variable => IncludeTemplateName::Variable(
+            parser.parse_variable_or_filter(content, content_at, start)?,
+        ),
         TagElementTokenType::Numeric => std::todo!(),
         TagElementTokenType::TranslatedText => std::todo!(),
     })
@@ -370,7 +374,7 @@ fn parse_if_binding_power(
             IfCondition::Variable(TagElement::TranslatedText(Text::new(token_at)))
         }
         IfConditionTokenType::Atom(IfConditionAtom::Variable) => {
-            IfCondition::Variable(parser.parse_variable(content, token_at, token.at.0)?)
+            IfCondition::Variable(parser.parse_variable_or_filter(content, token_at, token.at.0)?)
         }
         IfConditionTokenType::Not => {
             let if_condition = parse_if_binding_power(parser, lexer, NOT_BINDING_POWER, token_at)?;
@@ -528,7 +532,7 @@ fn parse_for_loop(
         ForTokenType::TranslatedText => {
             TagElement::TranslatedText(Text::new(translated_text_content_at(expression_token.at)))
         }
-        ForTokenType::Variable => parser.parse_variable(
+        ForTokenType::Variable => parser.parse_variable_or_filter(
             expression_content,
             expression_token.at,
             expression_token.at.0,
@@ -1165,7 +1169,7 @@ impl<'t, 'py> Parser<'t, 'py> {
                     if self.first_tag.is_none() {
                         self.first_tag = Some(token.at);
                     }
-                    self.parse_variable(
+                    self.parse_variable_or_filter(
                         token.content(self.template),
                         token.at,
                         token.at.0 + START_TAG_LEN,
@@ -1205,7 +1209,7 @@ impl<'t, 'py> Parser<'t, 'py> {
                 TokenType::Text => TokenTree::Text(Text::new(token.at)),
                 TokenType::Comment => continue,
                 TokenType::Variable => self
-                    .parse_variable(
+                    .parse_variable_or_filter(
                         token.content(self.template),
                         token.at,
                         token.at.0 + START_TAG_LEN,
@@ -1255,7 +1259,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         .into())
     }
 
-    fn parse_for_variable(&self, at: At) -> Variable {
+    fn parse_variable(&self, at: At) -> Variable {
         let mut parts = self.template.content(at).split('.');
         if self.forloop_depth == 0
             || parts
@@ -1303,7 +1307,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         })
     }
 
-    fn parse_variable(
+    fn parse_variable_or_filter(
         &self,
         variable: &str,
         at: At,
@@ -1314,7 +1318,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             return Err(ParseError::EmptyVariable { at: at.into() });
         };
         let mut var = match variable_token {
-            VariableToken::Variable => TagElement::Variable(self.parse_for_variable(at)),
+            VariableToken::Variable => TagElement::Variable(self.parse_variable(at)),
             VariableToken::Int(n) => TagElement::Int(n),
             VariableToken::Float(f) => TagElement::Float(f),
         };
@@ -1373,7 +1377,8 @@ impl<'t, 'py> Parser<'t, 'py> {
             Some(second) => second.map_err(ParseError::from)?,
         };
 
-        let count = self.parse_variable(self.template.content(first.at), first.at, first.at.0)?;
+        let count =
+            self.parse_variable_or_filter(self.template.content(first.at), first.at, first.at.0)?;
         let third = match lexer.next() {
             None => match second.token_type {
                 LoremTokenType::Method(method) => {
