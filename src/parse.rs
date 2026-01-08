@@ -1295,13 +1295,17 @@ impl<'t, 'py> Parser<'t, 'py> {
 
     fn parse_variable(&self, at: At) -> Variable {
         let mut parts = self.template.content(at).split('.');
-        if self.forloop_depth == 0
-            || parts
-                .next()
-                .expect("a variable can always be split into at least one part")
-                .trim()
-                != "forloop"
-        {
+        let first = parts
+            .next()
+            .expect("a variable can always be split into at least one part")
+            .trim();
+        if first == "block" {
+            return match parts.next() {
+                Some(part) if part.trim() == "super" => Variable::BlockSuper(at),
+                _ => Variable::Variable(at),
+            };
+        }
+        if self.forloop_depth == 0 || first != "forloop" {
             return Variable::Variable(at);
         }
         let Some(part) = parts.next_back() else {

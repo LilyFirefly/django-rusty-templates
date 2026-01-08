@@ -494,7 +494,7 @@ pub mod django_rusty_templates {
     #[pyclass(skip_from_py_object)]
     pub struct Template {
         pub filename: Option<PathBuf>,
-        pub template: String,
+        pub template: Arc<String>,
         pub nodes: Vec<TokenTree>,
         pub engine: Arc<Engine>,
     }
@@ -523,7 +523,7 @@ pub mod django_rusty_templates {
                 }
             };
             Ok(Self {
-                template: template.to_string(),
+                template: Arc::new(template.to_string()),
                 filename: Some(filename),
                 nodes,
                 engine,
@@ -544,7 +544,7 @@ pub mod django_rusty_templates {
                 }
             };
             Ok(Self {
-                template,
+                template: Arc::new(template),
                 filename: None,
                 nodes,
                 engine,
@@ -574,7 +574,7 @@ pub mod django_rusty_templates {
                 let content = match node {
                     TokenTree::Tag(Tag::Block(block)) => match blocks.get(&block.name) {
                         Some(child_block) => {
-                            context.block = Some(block.clone());
+                            context.block = Some((Arc::new(block.clone()), self.template.clone()));
                             let rendered = child_block.render(py, template, context);
                             context.block = None;
                             rendered?
