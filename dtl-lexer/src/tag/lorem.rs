@@ -1,6 +1,7 @@
 #![expect(unused_assignments)]
-use crate::common::NextChar;
+use crate::common::LexerError;
 use crate::tag::TagParts;
+use crate::tag::custom_tag::{SimpleTagLexer, SimpleTagToken};
 use crate::types::{At, TemplateString};
 use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
@@ -14,7 +15,7 @@ pub enum LoremMethod {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum LoremTokenType {
-    Count,
+    Count(SimpleTagToken),
     Method(LoremMethod),
     Random,
 }
@@ -26,8 +27,8 @@ pub struct LoremToken {
 }
 
 pub struct LoremLexer<'t> {
-    rest: &'t str,
-    byte: usize,
+    template: TemplateString<'t>,
+    lexer: SimpleTagLexer<'t>,
     seen_count: Option<At>,
     seen_method: Option<At>,
     seen_random: Option<At>,
@@ -36,8 +37,8 @@ pub struct LoremLexer<'t> {
 impl<'t> LoremLexer<'t> {
     pub fn new(template: TemplateString<'t>, parts: TagParts) -> Self {
         Self {
-            rest: template.content(parts.at),
-            byte: parts.at.0,
+            template,
+            lexer: SimpleTagLexer::new(template, parts),
             seen_count: None,
             seen_method: None,
             seen_random: None,
@@ -88,7 +89,11 @@ impl<'t> LoremLexer<'t> {
         Ok(LoremTokenType::Random)
     }
 
-    fn check_count(&mut self, count_at: At) -> Result<LoremTokenType, LoremError> {
+    fn check_count(
+        &mut self,
+        count_at: At,
+        token: SimpleTagToken,
+    ) -> Result<LoremTokenType, LoremError> {
         if let Some(first_count_at) = self.seen_count {
             return Err(LoremError::DuplicateCount {
                 first: first_count_at.into(),
@@ -111,7 +116,15 @@ impl<'t> LoremLexer<'t> {
         }
 
         self.seen_count = Some(count_at);
-        Ok(LoremTokenType::Count)
+        Ok(LoremTokenType::Count(token))
+    }
+
+    fn next_kwarg(&mut self) -> Option<Result<SimpleTagToken, LoremError>> {
+        match self.lexer.next() {
+            None => None,
+            Some(Ok(token)) => Some(Ok(token)),
+            Some(Err(error)) => Some(Err(error.into_lexer_error().into())),
+        }
     }
 }
 
@@ -119,38 +132,34 @@ impl<'t> Iterator for LoremLexer<'t> {
     type Item = Result<LoremToken, LoremError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.rest.is_empty() {
-            return None;
+        let token = match self.next_kwarg()? {
+            Ok(token) => token,
+            Err(error) => return Some(Err(error)),
+        };
+
+        if let Some(kwarg_at) = token.kwarg {
+            return Some(Err(LoremError::UnexpectedKeywordArgument {
+                at: kwarg_at.into(),
+            }));
         }
 
-        let len = self.rest.next_whitespace();
-        let at = (self.byte, len);
-        let token_type = match &self.rest[..len] {
+        let at = token.at;
+        let token_type = match self.template.content(at) {
             "w" => self.check_method(LoremMethod::Words, at),
             "p" => self.check_method(LoremMethod::Paragraphs, at),
             "b" => self.check_method(LoremMethod::Blocks, at),
             "random" => self.check_random(at),
-            _ => self.check_count(at),
+            _ => self.check_count(at, token),
         };
-        let token_type = match token_type {
-            Ok(token_type) => token_type,
-            Err(err) => {
-                self.rest = "";
-                return Some(Err(err));
-            }
-        };
-
-        let rest = &self.rest[len..];
-        let next = rest.next_non_whitespace();
-        self.rest = &rest[next..];
-        self.byte = self.byte + len + next;
-
-        Some(Ok(LoremToken { at, token_type }))
+        Some(token_type.map(|token_type| LoremToken { at, token_type }))
     }
 }
 
 #[derive(Debug, Diagnostic, Error, PartialEq, Eq)]
 pub enum LoremError {
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    LexerError(#[from] LexerError),
     #[error("Incorrect format for 'lorem' tag: 'count' must come before the 'method' argument")]
     #[diagnostic(help("Move the 'count' argument before the 'method' argument"))]
     CountAfterMethod {
@@ -203,5 +212,10 @@ pub enum LoremError {
         first: SourceSpan,
         #[label("second 'count'")]
         second: SourceSpan,
+    },
+    #[error("Unexpected keyword argument")]
+    UnexpectedKeywordArgument {
+        #[label("here")]
+        at: SourceSpan,
     },
 }
