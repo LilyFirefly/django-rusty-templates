@@ -393,7 +393,11 @@ fn parse_extends_template_token(
         TagElementTokenType::Variable => IncludeTemplateName::Variable(
             parser.parse_variable_or_filter(content, content_at, start)?,
         ),
-        TagElementTokenType::Numeric => std::todo!(),
+        TagElementTokenType::Numeric => {
+            return Err(ParseError::InvalidTemplateName {
+                at: content_at.into(),
+            });
+        }
         TagElementTokenType::TranslatedText => std::todo!(),
     })
 }
@@ -681,9 +685,23 @@ impl PartialEq for Include {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Extends {
     pub template_name: IncludeTemplateName,
+    pub origin: Option<String>,
+    pub engine: Arc<Engine>,
+}
+
+impl PartialEq for Extends {
+    fn eq(&self, other: &Self) -> bool {
+        // We use `Arc::ptr_eq` here to avoid needing the `py` token for true
+        // equality comparison between two `Py` smart pointers.
+        //
+        // We only use `eq` in tests, so this concession is acceptable here.
+        self.origin == other.origin
+            && self.template_name.eq(&other.template_name)
+            && Arc::ptr_eq(&self.engine, &other.engine)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -1158,8 +1176,8 @@ pub enum ParseError {
         at: SourceSpan,
     },
 
-    #[error("Invalid variable name")]
-    InvalidVariableName {
+    #[error("Template name must be a string or a variable")]
+    InvalidTemplateName {
         #[label("here")]
         at: SourceSpan,
     },
@@ -2218,7 +2236,11 @@ impl<'t, 'py> Parser<'t, 'py> {
             template_name => template_name,
         };
 
-        let extends = Extends { template_name };
+        let extends = Extends {
+            template_name,
+            origin: self.origin.map(ToString::to_string),
+            engine: self.engine.clone(),
+        };
         Ok(TokenTree::Tag(Tag::Extends(extends)))
     }
 
@@ -3364,12 +3386,19 @@ mod tests {
         Python::initialize();
 
         Python::attach(|_| {
+            let engine: Arc<Engine> = Engine::empty().into();
             let template_name = IncludeTemplateName::Variable(TagElement::Float(1.1));
             assert_eq!(
                 Extends {
                     template_name: template_name.clone(),
+                    origin: None,
+                    engine: engine.clone(),
                 },
-                Extends { template_name },
+                Extends {
+                    template_name,
+                    origin: None,
+                    engine,
+                },
             );
         });
     }
