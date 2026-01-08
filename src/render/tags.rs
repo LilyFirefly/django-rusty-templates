@@ -1079,11 +1079,11 @@ impl Render for Extends {
 impl Render for Block {
     fn render<'t>(
         &self,
-        _py: Python,
-        _template: TemplateString<'t>,
-        _context: &mut Context,
+        py: Python,
+        template: TemplateString<'t>,
+        context: &mut Context,
     ) -> RenderResult<'t> {
-        todo!()
+        self.nodes.render(py, template, context)
     }
 }
 
