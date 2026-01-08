@@ -626,7 +626,7 @@ pub struct Extends {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Block {
     name: String,
-    nodes: Vec<TokenTree>,
+    pub nodes: Vec<TokenTree>,
 }
 
 #[derive(Clone, Debug)]

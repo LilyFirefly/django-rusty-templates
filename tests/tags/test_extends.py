@@ -1,6 +1,18 @@
 from inline_snapshot import snapshot
 
 
+def test_blocks(assert_render):
+    template = """
+{% block header %}# {{ title }}{% endblock header %}
+{% block body %}Hello {{ user.name }}!{% endblock %}
+"""
+    assert_render(
+        template=template,
+        context={"title": "Using blocks", "user": {"name": "Lily"}},
+        expected="\n# Using blocks\nHello Lily!\n",
+    )
+
+
 def test_extends_no_blocks(assert_render):
     template = "{% extends 'basic.txt' %}"
     assert_render(template=template, context={"user": "Lily"}, expected="Hello Lily!\n")
