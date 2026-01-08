@@ -21,8 +21,8 @@ use super::types::{
 use super::{Evaluate, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
 use crate::parse::{
-    CsrfToken, Extends, For, IfCondition, Include, IncludeTemplateName, SimpleBlockTag, SimpleTag,
-    Tag, TagElement, Url,
+    Block, CsrfToken, Extends, For, IfCondition, Include, IncludeTemplateName, SimpleBlockTag,
+    SimpleTag, Tag, TagElement, Url,
 };
 use crate::path::construct_relative_path;
 use crate::template::django_rusty_templates::{NoReverseMatch, Template, TemplateDoesNotExist};
@@ -668,6 +668,7 @@ impl Render for Tag {
                     falsey.render(py, template, context)?
                 }
             }
+            Self::Block(block_tag) => block_tag.render(py, template, context)?,
             Self::Extends(extends_tag) => extends_tag.render(py, template, context)?,
             Self::For(for_tag) => for_tag.render(py, template, context)?,
             Self::Include(include_tag) => include_tag.render(py, template, context)?,
@@ -1065,6 +1066,17 @@ impl Render for Include {
 }
 
 impl Render for Extends {
+    fn render<'t>(
+        &self,
+        _py: Python,
+        _template: TemplateString<'t>,
+        _context: &mut Context,
+    ) -> RenderResult<'t> {
+        todo!()
+    }
+}
+
+impl Render for Block {
     fn render<'t>(
         &self,
         _py: Python,
