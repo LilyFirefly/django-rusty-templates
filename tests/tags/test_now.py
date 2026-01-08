@@ -73,7 +73,7 @@ def test_now_no_args(assert_parse_error):
     template = "{% now %}"
     django_message = "'now' statement takes one argument"
     rusty_message = """\
-  × 'now' statement takes one argument
+  × Expected an argument
    ╭────
  1 │ {% now %}
    ·       ▲
