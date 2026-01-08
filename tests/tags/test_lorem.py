@@ -496,11 +496,11 @@ def test_lorem_unexpected_kwarg(assert_parse_error):
     template = "{% lorem count=1 %}"
     django_message = snapshot("Could not parse the remainder: '=1' from 'count=1'")
     rusty_message = snapshot("""\
-  × Unexpected keyword argument
+  × Could not parse the remainder
    ╭────
  1 │ {% lorem count=1 %}
-   ·          ──┬──
-   ·            ╰── here
+   ·               ─┬
+   ·                ╰── here
    ╰────
 """)
     assert_parse_error(

@@ -1,7 +1,7 @@
 #![expect(unused_assignments)]
 use crate::common::LexerError;
 use crate::tag::TagParts;
-use crate::tag::custom_tag::{SimpleTagLexer, SimpleTagToken};
+use crate::tag::common::{TagElementLexer, TagElementToken};
 use crate::types::{At, TemplateString};
 use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
@@ -15,7 +15,7 @@ pub enum LoremMethod {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum LoremTokenType {
-    Count(SimpleTagToken),
+    Count(TagElementToken),
     Method(LoremMethod),
     Random,
 }
@@ -28,7 +28,7 @@ pub struct LoremToken {
 
 pub struct LoremLexer<'t> {
     template: TemplateString<'t>,
-    lexer: SimpleTagLexer<'t>,
+    lexer: TagElementLexer<'t>,
     seen_count: Option<At>,
     seen_method: Option<At>,
     seen_random: Option<At>,
@@ -38,7 +38,7 @@ impl<'t> LoremLexer<'t> {
     pub fn new(template: TemplateString<'t>, parts: TagParts) -> Self {
         Self {
             template,
-            lexer: SimpleTagLexer::new(template, parts),
+            lexer: TagElementLexer::new(template, parts),
             seen_count: None,
             seen_method: None,
             seen_random: None,
@@ -92,7 +92,7 @@ impl<'t> LoremLexer<'t> {
     fn check_count(
         &mut self,
         count_at: At,
-        token: SimpleTagToken,
+        token: TagElementToken,
     ) -> Result<LoremTokenType, LoremError> {
         if let Some(first_count_at) = self.seen_count {
             return Err(LoremError::DuplicateCount {
@@ -118,30 +118,16 @@ impl<'t> LoremLexer<'t> {
         self.seen_count = Some(count_at);
         Ok(LoremTokenType::Count(token))
     }
-
-    fn next_kwarg(&mut self) -> Option<Result<SimpleTagToken, LoremError>> {
-        match self.lexer.next() {
-            None => None,
-            Some(Ok(token)) => Some(Ok(token)),
-            Some(Err(error)) => Some(Err(error.into_lexer_error().into())),
-        }
-    }
 }
 
 impl<'t> Iterator for LoremLexer<'t> {
     type Item = Result<LoremToken, LoremError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let token = match self.next_kwarg()? {
+        let token = match self.lexer.next()? {
             Ok(token) => token,
-            Err(error) => return Some(Err(error)),
+            Err(error) => return Some(Err(error.into())),
         };
-
-        if let Some(kwarg_at) = token.kwarg {
-            return Some(Err(LoremError::UnexpectedKeywordArgument {
-                at: kwarg_at.into(),
-            }));
-        }
 
         let at = token.at;
         let token_type = match self.template.content(at) {

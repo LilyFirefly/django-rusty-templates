@@ -1,8 +1,9 @@
 pub mod autoescape;
-pub mod custom_tag;
+pub mod common;
 pub mod forloop;
 pub mod ifcondition;
 pub mod include;
+pub mod kwarg;
 pub mod load;
 pub mod lorem;
 
