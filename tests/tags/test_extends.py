@@ -11,6 +11,11 @@ def test_extends(assert_render):
     assert_render(template=template, context={}, expected="# Header\nSome content\n")
 
 
+def test_extends_endblock_no_name(assert_render):
+    template = "{% extends 'base.txt' %}{% block body %}Some content{% endblock %}"
+    assert_render(template=template, context={}, expected="# Header\nSome content\n")
+
+
 def test_extends_super(assert_render):
     template = """\
 {% extends 'base.txt' %}{% block header %}{{ block.super }}
@@ -37,12 +42,8 @@ def test_extends_after_text(assert_render):
 
 
 def test_extends_after_comment(assert_render):
-    template = (
-        "{# Comment #}{% extends 'base.txt' %}{% block body %}Some content{% endblock body %}"
-    )
-    assert_render(
-        template=template, context={}, expected="# Header\nSome content\n"
-    )
+    template = "{# Comment #}{% extends 'base.txt' %}{% block body %}Some content{% endblock body %}"
+    assert_render(template=template, context={}, expected="# Header\nSome content\n")
 
 
 def test_extends_after_variable(assert_parse_error):
@@ -99,6 +100,61 @@ def test_extends_after_load_tag(assert_parse_error):
    ·            ╰── first tag here
    ╰────
   help: Move the extends tag before other tags and variables.
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_block_too_many_arguments(assert_parse_error):
+    template = "{% extends 'base.txt' %}{% block body with extra arguments %}Some content{% endblock %}"
+    django_message = snapshot("'block' tag takes only one argument")
+    rusty_message = snapshot("""\
+  × 'block' tag takes only one argument
+   ╭────
+ 1 │ {% extends 'base.txt' %}{% block body with extra arguments %}Some content{% endblock %}
+   ·                                       ──────────┬─────────
+   ·                                                 ╰── unexpected argument(s)
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_endblock_too_many_arguments(assert_parse_error):
+    template = "{% extends 'base.txt' %}{% block body %}Some content{% endblock body with extra arguments %}"
+    django_message = snapshot(
+        "Invalid block tag on line 1: 'endblock', expected 'endblock' or 'endblock body'. Did you forget to register or load this tag?"
+    )
+    rusty_message = snapshot("""\
+  × 'endblock' tag takes only one argument
+   ╭────
+ 1 │ {% extends 'base.txt' %}{% block body %}Some content{% endblock body with extra arguments %}
+   ·                                                                      ──────────┬─────────
+   ·                                                                                ╰── unexpected argument(s)
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_endblock_wrong_name(assert_parse_error):
+    template = (
+        "{% extends 'base.txt' %}{% block body %}Some content{% endblock other %}"
+    )
+    django_message = snapshot(
+        "Invalid block tag on line 1: 'endblock', expected 'endblock' or 'endblock body'. Did you forget to register or load this tag?"
+    )
+    rusty_message = snapshot("""\
+  × Unexpected tag 'endblock other', expected 'endblock' or 'endblock body'
+   ╭────
+ 1 │ {% extends 'base.txt' %}{% block body %}Some content{% endblock other %}
+   ·                         ────────┬───────            ──────────┬─────────
+   ·                                 │                             ╰── unexpected tag
+   ·                                 ╰── start tag
+   ╰────
 """)
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
