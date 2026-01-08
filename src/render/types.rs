@@ -17,7 +17,7 @@ use pyo3::sync::{MutexExt, PyOnceLock};
 use pyo3::types::{PyBool, PyDict, PyInt, PyString, PyType};
 
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
-use crate::parse::CycleId;
+use crate::parse::{Block, CycleId};
 use crate::template::django_rusty_templates::{Engine, Template, get_template, select_template};
 use crate::utils::PyResultMethods;
 use dtl_lexer::types::{At, TemplateString};
@@ -71,6 +71,7 @@ pub struct Context {
     names: Vec<HashSet<String>>,
     include_cache: HashMap<IncludeTemplateKey, Arc<Template>>,
     cycle_indices: HashMap<CycleId, usize>,
+    pub block: Option<(Arc<Block>, Arc<String>)>,
 }
 
 impl Context {
@@ -88,6 +89,7 @@ impl Context {
             names: Vec::new(),
             include_cache: HashMap::new(),
             cycle_indices: HashMap::new(),
+            block: None,
         }
     }
 
@@ -104,6 +106,7 @@ impl Context {
             names: self.names.clone(),
             include_cache: self.include_cache.clone(),
             cycle_indices: self.cycle_indices.clone(),
+            block: self.block.clone(),
         }
     }
 
