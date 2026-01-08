@@ -26,6 +26,7 @@ use crate::parse::{
 };
 use crate::path::construct_relative_path;
 use crate::template::django_rusty_templates::{NoReverseMatch, Template, TemplateDoesNotExist};
+use crate::types::Variable;
 use crate::utils::PyResultMethods;
 
 static PROMISE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
@@ -888,9 +889,11 @@ impl<'t, 'py> IncludeTemplate<'py> {
 fn template_at(template_name: &IncludeTemplateName) -> At {
     match template_name {
         IncludeTemplateName::Text(text) => text.at,
-        IncludeTemplateName::Variable(TagElement::Variable(variable)) => variable.at,
+        IncludeTemplateName::Variable(TagElement::Variable(Variable::Variable(at))) => *at,
+        IncludeTemplateName::Variable(TagElement::Variable(Variable::ForVariable(
+            for_variable,
+        ))) => for_variable.at,
         IncludeTemplateName::Variable(TagElement::Filter(filter)) => filter.all_at,
-        IncludeTemplateName::Variable(TagElement::ForVariable(variable)) => variable.at,
         IncludeTemplateName::Relative(relative) => relative.at,
         IncludeTemplateName::Variable(_) => unreachable!(),
     }
