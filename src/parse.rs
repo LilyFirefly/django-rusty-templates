@@ -52,7 +52,7 @@ use dtl_lexer::tag::kwarg::{
 };
 use dtl_lexer::tag::load::{LoadLexer, LoadToken};
 use dtl_lexer::tag::lorem::{LoremError, LoremLexer, LoremMethod, LoremTokenType};
-use dtl_lexer::tag::now::{Now, NowError, NowLexer, NowTokenType};
+use dtl_lexer::tag::now::{Now, NowError, NowLexer};
 use dtl_lexer::tag::{TagLexerError, TagParts, lex_tag};
 use dtl_lexer::types::{At, TemplateString};
 use dtl_lexer::variable::{
@@ -1350,47 +1350,22 @@ impl<'t, 'py> Parser<'t, 'py> {
     fn parse_now(&mut self, parts: TagParts) -> Result<Now, PyParseError> {
         let mut lexer = NowLexer::new(self.template, parts.clone());
 
-        let format_token = match lexer.next() {
-            Some(res) => res.map_err(ParseError::from)?,
-            None => {
-                return Err(ParseError::from(NowError::Syntax {
-                    at: (parts.at.0 + parts.at.1, 0).into(),
-                })
-                .into());
-            }
-        };
+        let format_at = lexer
+            .lex_format()
+            .map_err(|_| ParseError::MissingArgument {
+                at: parts.at.into(),
+            })?;
 
-        let mut asvar = None;
+        let asvar = lexer.lex_variable().map_err(ParseError::from)?;
 
-        if let Some(second_res) = lexer.next() {
-            let second = second_res.map_err(ParseError::from)?;
-
-            if second.token_type != NowTokenType::As {
-                return Err(ParseError::from(NowError::Syntax {
-                    at: second.at.into(),
-                })
-                .into());
-            }
-
-            let third = lexer
-                .next()
-                .ok_or_else(|| NowError::Syntax {
-                    at: second.at.into(),
-                })
-                .map_err(ParseError::from)?
-                .map_err(ParseError::from)?;
-
-            asvar = Some(third.at);
+        if let Some(extra) = lexer.extra_token().map_err(ParseError::from)? {
+            return Err(ParseError::from(NowError::Syntax {
+                at: extra.at.into(),
+            })
+            .into());
         }
 
-        if let Some(extra) = lexer.next() {
-            return Err(ParseError::from(extra.unwrap_err()).into());
-        }
-
-        Ok(Now {
-            format_at: format_token.at,
-            asvar,
-        })
+        Ok(Now { format_at, asvar })
     }
 
     fn parse_tag(
