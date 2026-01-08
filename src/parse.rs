@@ -852,6 +852,16 @@ pub enum ParseError {
         #[label("second here")]
         second_at: SourceSpan,
     },
+    #[error("{extends_tag} must be the first tag in the template.")]
+    #[diagnostic(help("Move the extends tag before other tags and variables."))]
+    ExtendsAfterTag {
+        extends_tag: String,
+        #[label("extends tag here")]
+        extends_at: SourceSpan,
+        #[label("first tag here")]
+        first_tag_at: SourceSpan,
+    },
+
     #[error("Invalid filter: '{filter}'")]
     InvalidFilter {
         filter: String,
@@ -1120,6 +1130,7 @@ pub struct Parser<'t, 'py> {
     external_tags: HashMap<String, TagContext<'py>>,
     external_filters: HashMap<String, Bound<'py, PyAny>>,
     forloop_depth: usize,
+    first_tag: Option<At>,
 }
 
 impl<'t, 'py> Parser<'t, 'py> {
@@ -1138,6 +1149,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             external_tags: HashMap::new(),
             external_filters: HashMap::new(),
             forloop_depth: 0,
+            first_tag: None,
         }
     }
 
@@ -1156,6 +1168,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             external_tags: HashMap::new(),
             external_filters,
             forloop_depth: 0,
+            first_tag: None,
         }
     }
 
@@ -1165,11 +1178,24 @@ impl<'t, 'py> Parser<'t, 'py> {
             let node = match token.token_type {
                 TokenType::Text => TokenTree::Text(Text::new(token.at)),
                 TokenType::Comment => continue,
-                TokenType::Variable => self
-                    .parse_variable(token.content(self.template), token.at, token.trimmed_at().0)?
-                    .into(),
+                TokenType::Variable => {
+                    if self.first_tag.is_none() {
+                        self.first_tag = Some(token.at);
+                    }
+                    self.parse_variable(
+                        token.content(self.template),
+                        token.at,
+                        token.trimmed_at().0,
+                    )?
+                    .into()
+                }
                 TokenType::Tag => match self.parse_tag(token.content(self.template), token.at)? {
-                    Either::Left(token_tree) => token_tree,
+                    Either::Left(token_tree) => {
+                        if self.first_tag.is_none() {
+                            self.first_tag = Some(token.at);
+                        }
+                        token_tree
+                    }
                     Either::Right(end_tag) => {
                         return Err(ParseError::UnexpectedEndTag {
                             at: end_tag.at.into(),
@@ -1896,6 +1922,14 @@ impl<'t, 'py> Parser<'t, 'py> {
     }
 
     fn parse_extends(&self, at: At, parts: TagParts) -> Result<TokenTree, ParseError> {
+        if let Some(first_tag_at) = self.first_tag {
+            return Err(ParseError::ExtendsAfterTag {
+                extends_tag: self.template.content(at).to_string(),
+                extends_at: at.into(),
+                first_tag_at: first_tag_at.into(),
+            });
+        }
+
         let mut lexer = TagElementLexer::new(self.template, parts);
 
         let Some(token) = lexer.next().transpose()? else {

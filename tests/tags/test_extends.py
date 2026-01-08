@@ -36,12 +36,30 @@ def test_extends_after_text(assert_render):
     )
 
 
+def test_extends_after_comment(assert_render):
+    template = (
+        "{# Comment #}{% extends 'base.txt' %}{% block body %}Some content{% endblock body %}"
+    )
+    assert_render(
+        template=template, context={}, expected="# Header\nSome content\n"
+    )
+
+
 def test_extends_after_variable(assert_parse_error):
     template = "{{ variable }} {% extends 'base.txt' %}{% block body %}Some content{% endblock body %}"
     django_message = snapshot(
         "{% extends 'base.txt' %} must be the first tag in the template."
     )
-    rusty_message = snapshot()
+    rusty_message = snapshot("""\
+  × {% extends 'base.txt' %} must be the first tag in the template.
+   ╭────
+ 1 │ {{ variable }} {% extends 'base.txt' %}{% block body %}Some content{% endblock body %}
+   · ───────┬────── ────────────┬───────────
+   ·        │                   ╰── extends tag here
+   ·        ╰── first tag here
+   ╰────
+  help: Move the extends tag before other tags and variables.
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -52,7 +70,16 @@ def test_extends_after_tag(assert_parse_error):
     django_message = snapshot(
         "{% extends 'base.txt' %} must be the first tag in the template."
     )
-    rusty_message = snapshot()
+    rusty_message = snapshot("""\
+  × {% extends 'base.txt' %} must be the first tag in the template.
+   ╭────
+ 1 │ {% url 'home' %} {% extends 'base.txt' %}{% block body %}Some content{% endblock body %}
+   · ────────┬─────── ────────────┬───────────
+   ·         │                    ╰── extends tag here
+   ·         ╰── first tag here
+   ╰────
+  help: Move the extends tag before other tags and variables.
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
@@ -63,7 +90,16 @@ def test_extends_after_load_tag(assert_parse_error):
     django_message = snapshot(
         "{% extends 'base.txt' %} must be the first tag in the template."
     )
-    rusty_message = snapshot()
+    rusty_message = snapshot("""\
+  × {% extends 'base.txt' %} must be the first tag in the template.
+   ╭────
+ 1 │ {% load custom_tags %} {% extends 'base.txt' %}{% block body %}Some content{% endblock body %}
+   · ───────────┬────────── ────────────┬───────────
+   ·            │                       ╰── extends tag here
+   ·            ╰── first tag here
+   ╰────
+  help: Move the extends tag before other tags and variables.
+""")
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
