@@ -70,7 +70,7 @@ pub struct Context {
     pub autoescape: bool,
     names: Vec<HashSet<String>>,
     include_cache: HashMap<IncludeTemplateKey, Arc<Template>>,
-    pub block: Option<Block>,
+    pub block: Option<(Arc<Block>, Arc<String>)>,
 }
 
 impl Context {
