@@ -127,6 +127,18 @@ impl Resolve for Variable {
                     }
                 }))
             }
+            Self::BlockSuper(_) => match &context.block {
+                Some((block, template)) => {
+                    let template = template.clone();
+                    let rendered = block
+                        .clone()
+                        .render(py, TemplateString(&template), context)?;
+                    Ok(Some(Content::String(ContentString::String(Cow::Owned(
+                        rendered.to_string(),
+                    )))))
+                }
+                None => std::todo!(),
+            },
         }
     }
 }
@@ -183,6 +195,7 @@ impl Resolve for Argument {
                     None => {
                         let at = match variable {
                             Variable::Variable(at) => *at,
+                            Variable::BlockSuper(at) => *at,
                             Variable::ForVariable(for_variable) => for_variable.at,
                         };
                         let key = template.content(at).to_string();
