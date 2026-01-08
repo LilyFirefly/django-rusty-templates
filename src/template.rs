@@ -573,7 +573,12 @@ pub mod django_rusty_templates {
             for node in &self.nodes {
                 let content = match node {
                     TokenTree::Tag(Tag::Block(block)) => match blocks.get(&block.name) {
-                        Some(child_block) => child_block.render(py, template, context)?,
+                        Some(child_block) => {
+                            context.block = Some(block.clone());
+                            let rendered = child_block.render(py, template, context);
+                            context.block = None;
+                            rendered?
+                        }
                         None => node.render(py, parent_template, context)?,
                     },
                     node => node.render(py, parent_template, context)?,
