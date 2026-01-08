@@ -127,6 +127,16 @@ impl Resolve for Variable {
                     }
                 }))
             }
+            Self::BlockSuper(_) => {
+                let (block, template) = context
+                    .block
+                    .clone()
+                    .expect("Should already have raised if None.");
+                let rendered = block.render(py, TemplateString(&template), context)?;
+                Ok(Some(Content::String(ContentString::String(Cow::Owned(
+                    rendered.to_string(),
+                )))))
+            }
         }
     }
 }
@@ -183,6 +193,9 @@ impl Resolve for Argument {
                     None => {
                         let at = match variable {
                             Variable::Variable(at) => *at,
+                            Variable::BlockSuper(_) => {
+                                unreachable!("A BlockSuper should always resolve.")
+                            }
                             Variable::ForVariable(_) => {
                                 unreachable!("A ForVariable should always resolve.")
                             }
