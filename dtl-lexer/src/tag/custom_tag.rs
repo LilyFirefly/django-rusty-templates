@@ -62,6 +62,22 @@ pub enum SimpleTagLexerError {
     },
 }
 
+impl SimpleTagLexerError {
+    pub fn into_lexer_error(self) -> LexerError {
+        match self {
+            Self::LexerError(error) => error,
+            Self::IncompleteKeywordArgument { at } => {
+                // Remove the keyword argument part of at, leaving just the =
+                let at = SourceSpan::new(
+                    (at.offset() + at.len() - '='.len_utf8()).into(),
+                    '='.len_utf8(),
+                );
+                LexerError::InvalidRemainder { at }
+            }
+        }
+    }
+}
+
 pub struct SimpleTagLexer<'t> {
     rest: &'t str,
     byte: usize,

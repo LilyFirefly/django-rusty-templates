@@ -1,6 +1,7 @@
 #![expect(unused_assignments)]
+use crate::common::LexerError;
 use crate::tag::TagParts;
-use crate::tag::custom_tag::{SimpleTagLexer, SimpleTagLexerError, SimpleTagToken};
+use crate::tag::custom_tag::{SimpleTagLexer, SimpleTagToken};
 use crate::types::{At, TemplateString};
 use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
@@ -122,7 +123,7 @@ impl<'t> LoremLexer<'t> {
         match self.lexer.next() {
             None => None,
             Some(Ok(token)) => Some(Ok(token)),
-            Some(Err(error)) => Some(Err(error.into())),
+            Some(Err(error)) => Some(Err(error.into_lexer_error().into())),
         }
     }
 }
@@ -158,7 +159,7 @@ impl<'t> Iterator for LoremLexer<'t> {
 pub enum LoremError {
     #[error(transparent)]
     #[diagnostic(transparent)]
-    SimpleTagLexerError(#[from] SimpleTagLexerError),
+    LexerError(#[from] LexerError),
     #[error("Incorrect format for 'lorem' tag: 'count' must come before the 'method' argument")]
     #[diagnostic(help("Move the 'count' argument before the 'method' argument"))]
     CountAfterMethod {
