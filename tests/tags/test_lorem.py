@@ -467,3 +467,8 @@ def test_lorem_render_error(assert_render_error):
         django_message=django_message,
         rusty_message=rusty_message,
     )
+
+
+def test_lorem_variable_argument_whitespace(assert_render):
+    template = "{% lorem count|default:' ' %}"
+    assert_render(template=template, context={}, expected=COMMON_P)

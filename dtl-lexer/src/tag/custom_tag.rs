@@ -9,7 +9,7 @@ use crate::common::{
 use crate::tag::TagParts;
 use crate::types::{At, TemplateString};
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum SimpleTagTokenType {
     Numeric,
     Text,
@@ -17,7 +17,7 @@ pub enum SimpleTagTokenType {
     Variable,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct SimpleTagToken {
     pub at: At,
     pub token_type: SimpleTagTokenType,

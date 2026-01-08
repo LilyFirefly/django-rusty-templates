@@ -1268,13 +1268,10 @@ impl<'t, 'py> Parser<'t, 'py> {
                         common: true,
                     });
                 }
-                LoremTokenType::Count => {
+                LoremTokenType::Count(token) => {
+                    let count = token.parse(self)?;
                     return Ok(Lorem {
-                        count: self.parse_variable(
-                            self.template.content(first.at),
-                            first.at,
-                            first.at.0,
-                        )?,
+                        count,
                         method: LoremMethod::Blocks,
                         common: true,
                     });
