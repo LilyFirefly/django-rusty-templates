@@ -63,6 +63,11 @@ pub enum SimpleTagLexerError {
 }
 
 impl SimpleTagLexerError {
+    /// Convert SimpleTagLexerError into a LexerError
+    ///
+    /// This converts the IncompleteKeywordArgument error into an
+    /// InvalidRemainder error, which is more appropriate for tags that
+    /// don't use keyword arguments in their API.
     pub fn into_lexer_error(self) -> LexerError {
         match self {
             Self::LexerError(error) => error,
