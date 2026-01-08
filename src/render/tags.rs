@@ -861,65 +861,65 @@ impl<'t, 'py> IncludeTemplate<'py> {
     }
 }
 
-impl Include {
-    fn template_at(&self) -> At {
-        match &self.template_name {
-            IncludeTemplateName::Text(text) => text.at,
-            IncludeTemplateName::Variable(TagElement::Variable(variable)) => variable.at,
-            IncludeTemplateName::Variable(TagElement::Filter(filter)) => filter.all_at,
-            IncludeTemplateName::Variable(TagElement::ForVariable(variable)) => variable.at,
-            IncludeTemplateName::Relative(relative) => relative.at,
-            IncludeTemplateName::Variable(_) => unreachable!(),
-        }
+fn template_at(template_name: &IncludeTemplateName) -> At {
+    match template_name {
+        IncludeTemplateName::Text(text) => text.at,
+        IncludeTemplateName::Variable(TagElement::Variable(variable)) => variable.at,
+        IncludeTemplateName::Variable(TagElement::Filter(filter)) => filter.all_at,
+        IncludeTemplateName::Variable(TagElement::ForVariable(variable)) => variable.at,
+        IncludeTemplateName::Relative(relative) => relative.at,
+        IncludeTemplateName::Variable(_) => unreachable!(),
     }
+}
 
-    fn invalid_template_name(
-        &self,
-        py: Python<'_>,
-        content: &str,
-        template: TemplateString<'_>,
-    ) -> PyRenderError {
-        PyTypeError::new_err("Included template name must be a string or iterable of strings.")
-            .annotate(
+fn resolve_template_name<'t, 'py>(
+    py: Python<'py>,
+    template_name: &'t IncludeTemplateName,
+    template: TemplateString<'t>,
+    context: &mut Context,
+) -> Result<Content<'t, 'py>, PyRenderError> {
+    let resolved_template_name = match template_name {
+        IncludeTemplateName::Text(text) => text
+            .resolve(py, template, context, ResolveFailures::Raise)
+            .expect("Text should always be resolvable"),
+        IncludeTemplateName::Variable(tag_element) => {
+            tag_element.resolve(py, template, context, ResolveFailures::Raise)?
+        }
+        IncludeTemplateName::Relative(relative) => Some(Content::String(ContentString::String(
+            Cow::Borrowed(&relative.path),
+        ))),
+    };
+    match resolved_template_name {
+        Some(template_name) => Ok(template_name),
+        None => {
+            let error = TemplateDoesNotExist::new_err("No template names provided").annotate(
                 py,
-                self.template_at(),
-                &format!("invalid template name: {content}"),
+                template_at(template_name),
+                "This variable is not in the context",
                 template,
-            )
-            .into()
-    }
-
-    fn resolve_template_name<'t, 'py>(
-        &'t self,
-        py: Python<'py>,
-        template: TemplateString<'t>,
-        context: &mut Context,
-    ) -> Result<Content<'t, 'py>, PyRenderError> {
-        let template_name = match &self.template_name {
-            IncludeTemplateName::Text(text) => text
-                .resolve(py, template, context, ResolveFailures::Raise)
-                .expect("Text should always be resolvable"),
-            IncludeTemplateName::Variable(tag_element) => {
-                tag_element.resolve(py, template, context, ResolveFailures::Raise)?
-            }
-            IncludeTemplateName::Relative(relative) => Some(Content::String(
-                ContentString::String(Cow::Borrowed(&relative.path)),
-            )),
-        };
-        match template_name {
-            Some(template_name) => Ok(template_name),
-            None => {
-                let error = TemplateDoesNotExist::new_err("No template names provided").annotate(
-                    py,
-                    self.template_at(),
-                    "This variable is not in the context",
-                    template,
-                );
-                Err(error.into())
-            }
+            );
+            Err(error.into())
         }
     }
+}
 
+fn invalid_template_name(
+    py: Python<'_>,
+    template_name: &IncludeTemplateName,
+    content: &str,
+    template: TemplateString<'_>,
+) -> PyRenderError {
+    PyTypeError::new_err("Included template name must be a string or iterable of strings.")
+        .annotate(
+            py,
+            template_at(template_name),
+            &format!("invalid template name: {content}"),
+            template,
+        )
+        .into()
+}
+
+impl Include {
     fn get_template<'t, 'py>(
         &self,
         template_name: Content<'t, 'py>,
@@ -946,7 +946,7 @@ impl Include {
                     let template_path = match construct_relative_path(
                         template_path,
                         self.origin.as_deref(),
-                        self.template_at(),
+                        template_at(&self.template_name),
                     )
                     .map_err(RenderError::from)?
                     {
@@ -965,15 +965,16 @@ impl Include {
                         )
                         .annotate(
                             py,
-                            self.template_at(),
+                            template_at(&self.template_name),
                             &format!("invalid template name: {content:?}"),
                             template,
                         )
                         .into());
                     }
                     let Ok(templates) = content.extract::<Vec<String>>() else {
-                        return Err(self.invalid_template_name(
+                        return Err(invalid_template_name(
                             py,
+                            &self.template_name,
                             &format!("{content}"),
                             template,
                         ));
@@ -985,17 +986,41 @@ impl Include {
                 }
             }
             Content::Int(content) => {
-                return Err(self.invalid_template_name(py, &format!("{content}"), template));
+                return Err(invalid_template_name(
+                    py,
+                    &self.template_name,
+                    &format!("{content}"),
+                    template,
+                ));
             }
             Content::Float(content) => {
-                return Err(self.invalid_template_name(py, &format!("{content}"), template));
+                return Err(invalid_template_name(
+                    py,
+                    &self.template_name,
+                    &format!("{content}"),
+                    template,
+                ));
             }
-            Content::Bool(true) => return Err(self.invalid_template_name(py, "True", template)),
-            Content::Bool(false) => return Err(self.invalid_template_name(py, "False", template)),
+            Content::Bool(true) => {
+                return Err(invalid_template_name(
+                    py,
+                    &self.template_name,
+                    "True",
+                    template,
+                ));
+            }
+            Content::Bool(false) => {
+                return Err(invalid_template_name(
+                    py,
+                    &self.template_name,
+                    "False",
+                    template,
+                ));
+            }
         }
         .map_err(|error| {
             error
-                .annotate(py, self.template_at(), "here", template)
+                .annotate(py, template_at(&self.template_name), "here", template)
                 .into()
         })
     }
@@ -1008,7 +1033,7 @@ impl Render for Include {
         template: TemplateString<'t>,
         context: &mut Context,
     ) -> RenderResult<'t> {
-        let template_name = self.resolve_template_name(py, template, context)?;
+        let template_name = resolve_template_name(py, &self.template_name, template, context)?;
         let include = self.get_template(template_name, py, template, context)?;
         match self.only {
             false => {
@@ -1032,7 +1057,7 @@ impl Render for Include {
                     context.append(key.to_string(), value);
                 }
                 let rendered = include
-                    .render(py, context, self.template_at(), template)
+                    .render(py, context, template_at(&self.template_name), template)
                     .map(|content| Cow::Owned(content.into_owned()));
                 for key in names {
                     context.pop_variable(key);
@@ -1058,21 +1083,131 @@ impl Render for Include {
                     .map(|request| request.clone_ref(py));
                 let mut new_context = Context::new(inner_context, request, context.autoescape);
                 include
-                    .render(py, &mut new_context, self.template_at(), template)
+                    .render(
+                        py,
+                        &mut new_context,
+                        template_at(&self.template_name),
+                        template,
+                    )
                     .map(|content| Cow::Owned(content.into_owned()))
             }
         }
     }
 }
 
+impl Extends {
+    fn get_template<'t, 'py>(
+        &self,
+        template_name: Content<'t, 'py>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
+        context: &'t mut Context,
+    ) -> Result<IncludeTemplate<'py>, PyRenderError> {
+        match template_name {
+            Content::String(content) => {
+                let key = IncludeTemplateKey::String(content.content().to_string());
+                context
+                    .get_or_insert_include(py, &self.engine, &key)
+                    .map(IncludeTemplate::Template)
+            }
+            Content::Py(content) => {
+                if let Some(render) = content.getattr_opt(intern!(py, "render"))?
+                    && render.is_callable()
+                {
+                    Ok(IncludeTemplate::Callable(render))
+                } else if content.is_instance_of::<PyString>() {
+                    let template_path = content
+                        .extract()
+                        .expect("PyString should be compatible with Cow<str>");
+                    let template_path = match construct_relative_path(
+                        template_path,
+                        self.origin.as_deref(),
+                        template_at(&self.template_name),
+                    )
+                    .map_err(RenderError::from)?
+                    {
+                        Some(path) => path.to_string(),
+                        None => template_path.to_string(),
+                    };
+                    let key = IncludeTemplateKey::String(template_path);
+                    context
+                        .get_or_insert_include(py, &self.engine, &key)
+                        .map(IncludeTemplate::Template)
+                } else {
+                    let promise = PROMISE.import(py, "django.utils.functional", "Promise")?;
+                    if content.is_instance(promise)? {
+                        return Err(PyTypeError::new_err(
+                            "Included template name cannot be a translatable string.",
+                        )
+                        .annotate(
+                            py,
+                            template_at(&self.template_name),
+                            &format!("invalid template name: {content:?}"),
+                            template,
+                        )
+                        .into());
+                    }
+                    return Err(invalid_template_name(
+                        py,
+                        &self.template_name,
+                        &format!("{content}"),
+                        template,
+                    ));
+                }
+            }
+            Content::Int(content) => {
+                return Err(invalid_template_name(
+                    py,
+                    &self.template_name,
+                    &format!("{content}"),
+                    template,
+                ));
+            }
+            Content::Float(content) => {
+                return Err(invalid_template_name(
+                    py,
+                    &self.template_name,
+                    &format!("{content}"),
+                    template,
+                ));
+            }
+            Content::Bool(true) => {
+                return Err(invalid_template_name(
+                    py,
+                    &self.template_name,
+                    "True",
+                    template,
+                ));
+            }
+            Content::Bool(false) => {
+                return Err(invalid_template_name(
+                    py,
+                    &self.template_name,
+                    "False",
+                    template,
+                ));
+            }
+        }
+        .map_err(|error| {
+            error
+                .annotate(py, template_at(&self.template_name), "here", template)
+                .into()
+        })
+    }
+}
+
 impl Render for Extends {
     fn render<'t>(
         &self,
-        _py: Python,
-        _template: TemplateString<'t>,
-        _context: &mut Context,
+        py: Python,
+        template: TemplateString<'t>,
+        context: &mut Context,
     ) -> RenderResult<'t> {
-        todo!()
+        let template_name = resolve_template_name(py, &self.template_name, template, context)?;
+        let parent = self.get_template(template_name, py, template, context)?;
+        parent
+            .render(py, context, template_at(&self.template_name), template)
+            .map(|content| Cow::Owned(content.into_owned()))
     }
 }
 
