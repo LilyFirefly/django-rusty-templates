@@ -26,6 +26,22 @@ def test_extends(assert_render):
     assert_render(template=template, context={}, expected="# Header\nSome content\n")
 
 
+def test_extends_variable(assert_render):
+    template = (
+        "{% extends template_name %}{% block body %}Some content{% endblock body %}"
+    )
+    assert_render(
+        template=template,
+        context={"template_name": "base.txt"},
+        expected="# Header\nSome content\n",
+    )
+
+
+def test_extends_endblock_no_name(assert_render):
+    template = "{% extends 'base.txt' %}{% block body %}Some content{% endblock %}"
+    assert_render(template=template, context={}, expected="# Header\nSome content\n")
+
+
 def test_extends_super(assert_render):
     template = """\
 {% extends 'base.txt' %}{% block header %}{{ block.super }}
@@ -48,6 +64,20 @@ def test_extends_after_text(assert_render):
     )
     assert_render(
         template=template, context={}, expected="Text # Header\nSome content\n"
+    )
+
+
+def test_extends_after_comment(assert_render):
+    template = "{# Comment #}{% extends 'base.txt' %}{% block body %}Some content{% endblock body %}"
+    assert_render(template=template, context={}, expected="# Header\nSome content\n")
+
+
+def test_extends_content_outside_blocks(assert_render):
+    template = "{% extends 'base.txt' %}Not included{% block body %}Some content{% endblock body %}{{ variable }}{% include 'basic.txt' %}"
+    assert_render(
+        template=template,
+        context={"variable": "also not included"},
+        expected="# Header\nSome content\n",
     )
 
 
@@ -209,6 +239,23 @@ def test_endblock_wrong_name(assert_parse_error):
    ·                         ────────┬───────            ──────────┬─────────
    ·                                 │                             ╰── unexpected tag
    ·                                 ╰── start tag
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_extends_duplicate_block(assert_parse_error):
+    template = "{% extends 'base.txt' %}{% block foo %}{% endblock foo %}{% block foo %}{% endblock foo %}"
+    django_message = snapshot("'block' tag with name 'foo' appears more than once")
+    rusty_message = snapshot("""\
+  × \n\
+   ╭────
+ 1 │ {% extends 'base.txt' %}{% block foo %}{% endblock foo %}{% block foo %}{% endblock foo %}
+   ·                         ───────┬───────                  ───────┬───────
+   ·                                │                                ╰── duplicate here
+   ·                                ╰── first here
    ╰────
 """)
     assert_parse_error(
