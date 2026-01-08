@@ -472,3 +472,37 @@ def test_lorem_render_error(assert_render_error):
 def test_lorem_variable_argument_whitespace(assert_render):
     template = "{% lorem count|default:' ' %}"
     assert_render(template=template, context={}, expected=COMMON_P)
+
+
+def test_lorem_broken_variable(assert_parse_error):
+    template = "{% lorem _count %}"
+    django_message = snapshot(
+        "Variables and attributes may not begin with underscores: '_count'"
+    )
+    rusty_message = snapshot("""\
+  × Expected a valid variable name
+   ╭────
+ 1 │ {% lorem _count %}
+   ·          ───┬──
+   ·             ╰── here
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_lorem_unexpected_kwarg(assert_parse_error):
+    template = "{% lorem count=1 %}"
+    django_message = snapshot("Could not parse the remainder: '=1' from 'count=1'")
+    rusty_message = snapshot("""\
+  × Unexpected keyword argument
+   ╭────
+ 1 │ {% lorem count=1 %}
+   ·          ──┬──
+   ·            ╰── here
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )

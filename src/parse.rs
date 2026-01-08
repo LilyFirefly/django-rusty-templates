@@ -1254,9 +1254,7 @@ impl<'t, 'py> Parser<'t, 'py> {
                     common: true,
                 });
             }
-            Some(first) => first.expect(
-                "The first LoremLexer token should not be an error (duplicate or out of order)",
-            ),
+            Some(first) => first.map_err(ParseError::from)?,
         };
 
         let second = match lexer.next() {
