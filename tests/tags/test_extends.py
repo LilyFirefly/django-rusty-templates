@@ -1,21 +1,15 @@
 from inline_snapshot import snapshot
 
 
-def test_unmatched_block_tag(assert_parse_error):
-    template = "{% block foo %}"
-    django_message = snapshot(
-        "Unclosed tag on line 1: 'block'. Looking for one of: endblock."
-    )
-    rusty_message = snapshot("""\
-  × Unclosed 'block' tag. Looking for one of: 'endblock', 'endblock foo'
-   ╭────
- 1 │ {% block foo %}
-   · ───────┬───────
-   ·        ╰── started here
-   ╰────
-""")
-    assert_parse_error(
-        template=template, django_message=django_message, rusty_message=rusty_message
+def test_blocks(assert_render):
+    template = """
+{% block header %}# {{ title }}{% endblock header %}
+{% block body %}Hello {{ user.name }}!{% endblock %}
+"""
+    assert_render(
+        template=template,
+        context={"title": "Using blocks", "user": {"name": "Lily"}},
+        expected="\n# Using blocks\nHello Lily!\n",
     )
 
 
@@ -104,6 +98,24 @@ def test_extends_extra_argument(assert_parse_error):
  1 │ {% extends 'base.txt' extra %}
    ·                       ──┬──
    ·                         ╰── here
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_unmatched_block_tag(assert_parse_error):
+    template = "{% block foo %}"
+    django_message = snapshot(
+        "Unclosed tag on line 1: 'block'. Looking for one of: endblock."
+    )
+    rusty_message = snapshot("""\
+  × Unclosed 'block' tag. Looking for one of: 'endblock', 'endblock foo'
+   ╭────
+ 1 │ {% block foo %}
+   · ───────┬───────
+   ·        ╰── started here
    ╰────
 """)
     assert_parse_error(
