@@ -1,5 +1,3 @@
-use crate::TemplateContent;
-
 pub type At = (usize, usize);
 
 #[derive(Clone, Copy)]
@@ -32,6 +30,14 @@ pub struct PartsIterator<'t> {
     start: usize,
 }
 
+impl<'t> PartsIterator<'t> {
+    pub fn new(template: TemplateString<'t>, at: At) -> Self {
+        let start = at.0;
+        let variable = template.content(at);
+        Self { variable, start }
+    }
+}
+
 impl<'t> Iterator for PartsIterator<'t> {
     type Item = (&'t str, At);
 
@@ -54,28 +60,5 @@ impl<'t> Iterator for PartsIterator<'t> {
                 Some((part, (self.start, part.len())))
             }
         }
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Variable {
-    pub at: At,
-}
-
-impl<'t> Variable {
-    pub fn new(at: At) -> Self {
-        Self { at }
-    }
-
-    pub fn parts(&self, template: TemplateString<'t>) -> impl Iterator<Item = (&'t str, At)> {
-        let start = self.at.0;
-        let variable = template.content(self.at);
-        PartsIterator { variable, start }
-    }
-}
-
-impl<'t> TemplateContent<'t> for Variable {
-    fn content(&self, template: TemplateString<'t>) -> &'t str {
-        template.content(self.at)
     }
 }
