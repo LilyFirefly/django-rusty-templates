@@ -4,7 +4,8 @@ use thiserror::Error;
 
 use crate::common::text_content_at;
 use crate::tag::TagParts;
-use crate::tag::kwarg::{SimpleTagLexer, SimpleTagLexerError, SimpleTagToken, SimpleTagTokenType};
+use crate::tag::common::TagElementTokenType;
+use crate::tag::kwarg::{SimpleTagLexer, SimpleTagLexerError, SimpleTagToken};
 use crate::types::{At, TemplateString};
 
 #[derive(Debug, PartialEq, Eq)]
@@ -97,14 +98,14 @@ impl<'t> IncludeLexer<'t> {
             }),
             None => {
                 let token_type = match token.token_type {
-                    SimpleTagTokenType::Text => IncludeTemplateTokenType::Text,
-                    SimpleTagTokenType::Variable => IncludeTemplateTokenType::Variable,
-                    SimpleTagTokenType::Numeric => {
+                    TagElementTokenType::Text => IncludeTemplateTokenType::Text,
+                    TagElementTokenType::Variable => IncludeTemplateTokenType::Variable,
+                    TagElementTokenType::Numeric => {
                         return Err(IncludeLexerError::InvalidTemplateName {
                             at: token.at.into(),
                         });
                     }
-                    SimpleTagTokenType::TranslatedText => {
+                    TagElementTokenType::TranslatedText => {
                         return Err(IncludeLexerError::TranslatedTemplateName {
                             at: token.at.into(),
                         });
@@ -145,7 +146,7 @@ impl<'t> IncludeLexer<'t> {
         match token {
             SimpleTagToken {
                 at,
-                token_type: SimpleTagTokenType::Variable,
+                token_type: TagElementTokenType::Variable,
                 kwarg: None,
             } => match self.template.content(at) {
                 "with" => Ok(IncludeWithToken::With(at)),
@@ -176,7 +177,7 @@ impl<'t> Iterator for IncludeLexer<'t> {
         Some(match token.kwarg {
             Some(kwarg_at) => Ok(IncludeToken::Kwarg { kwarg_at, token }),
             None => {
-                if token.token_type == SimpleTagTokenType::Variable
+                if token.token_type == TagElementTokenType::Variable
                     && self.template.content(token.at) == "only"
                 {
                     self.lex_only(token.at)

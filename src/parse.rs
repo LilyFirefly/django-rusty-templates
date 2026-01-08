@@ -47,9 +47,7 @@ use dtl_lexer::tag::include::{
     IncludeLexer, IncludeLexerError, IncludeTemplateToken, IncludeTemplateTokenType, IncludeToken,
     IncludeWithToken,
 };
-use dtl_lexer::tag::kwarg::{
-    SimpleTagLexer, SimpleTagLexerError, SimpleTagToken, SimpleTagTokenType,
-};
+use dtl_lexer::tag::kwarg::{SimpleTagLexer, SimpleTagLexerError, SimpleTagToken};
 use dtl_lexer::tag::load::{LoadLexer, LoadToken};
 use dtl_lexer::tag::lorem::{LoremError, LoremLexer, LoremMethod, LoremTokenType};
 use dtl_lexer::tag::{TagLexerError, TagParts, lex_tag};
@@ -269,12 +267,12 @@ impl Parse<TagElement> for SimpleTagToken {
         let (start, _len) = content_at;
         let content = parser.template.content(content_at);
         match self.token_type {
-            SimpleTagTokenType::Numeric => parse_numeric(content, self.at),
-            SimpleTagTokenType::Text => Ok(TagElement::Text(Text::new(content_at))),
-            SimpleTagTokenType::TranslatedText => {
+            TagElementTokenType::Numeric => parse_numeric(content, self.at),
+            TagElementTokenType::Text => Ok(TagElement::Text(Text::new(content_at))),
+            TagElementTokenType::TranslatedText => {
                 Ok(TagElement::TranslatedText(Text::new(content_at)))
             }
-            SimpleTagTokenType::Variable => parser.parse_variable(content, content_at, start),
+            TagElementTokenType::Variable => parser.parse_variable(content, content_at, start),
         }
     }
 }
@@ -1751,12 +1749,12 @@ impl<'t, 'py> Parser<'t, 'py> {
             (
                 Some(SimpleTagToken {
                     at: last,
-                    token_type: SimpleTagTokenType::Variable,
+                    token_type: TagElementTokenType::Variable,
                     ..
                 }),
                 Some(SimpleTagToken {
                     at: prev,
-                    token_type: SimpleTagTokenType::Variable,
+                    token_type: TagElementTokenType::Variable,
                     ..
                 }),
             ) => {

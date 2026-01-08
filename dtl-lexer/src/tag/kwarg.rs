@@ -7,30 +7,23 @@ use crate::common::{
     translated_text_content_at,
 };
 use crate::tag::TagParts;
+use crate::tag::common::TagElementTokenType;
 use crate::types::{At, TemplateString};
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum SimpleTagTokenType {
-    Numeric,
-    Text,
-    TranslatedText,
-    Variable,
-}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct SimpleTagToken {
     pub at: At,
-    pub token_type: SimpleTagTokenType,
+    pub token_type: TagElementTokenType,
     pub kwarg: Option<At>,
 }
 
 impl SimpleTagToken {
     pub fn content_at(&self) -> At {
         match self.token_type {
-            SimpleTagTokenType::Variable => self.at,
-            SimpleTagTokenType::Numeric => self.at,
-            SimpleTagTokenType::Text => text_content_at(self.at),
-            SimpleTagTokenType::TranslatedText => translated_text_content_at(self.at),
+            TagElementTokenType::Variable => self.at,
+            TagElementTokenType::Numeric => self.at,
+            TagElementTokenType::Text => text_content_at(self.at),
+            TagElementTokenType::TranslatedText => translated_text_content_at(self.at),
         }
     }
 
@@ -81,7 +74,7 @@ impl<'t> SimpleTagLexer<'t> {
         self.byte = byte;
         SimpleTagToken {
             at,
-            token_type: SimpleTagTokenType::Numeric,
+            token_type: TagElementTokenType::Numeric,
             kwarg,
         }
     }
@@ -97,7 +90,7 @@ impl<'t> SimpleTagLexer<'t> {
                 self.rest = rest;
                 self.byte = byte;
                 Ok(SimpleTagToken {
-                    token_type: SimpleTagTokenType::Text,
+                    token_type: TagElementTokenType::Text,
                     at,
                     kwarg,
                 })
@@ -119,7 +112,7 @@ impl<'t> SimpleTagLexer<'t> {
                 self.rest = rest;
                 self.byte = byte;
                 Ok(SimpleTagToken {
-                    token_type: SimpleTagTokenType::TranslatedText,
+                    token_type: TagElementTokenType::TranslatedText,
                     at,
                     kwarg,
                 })
@@ -151,7 +144,7 @@ impl<'t> SimpleTagLexer<'t> {
         self.rest = rest;
         self.byte = byte;
         Ok(SimpleTagToken {
-            token_type: SimpleTagTokenType::Variable,
+            token_type: TagElementTokenType::Variable,
             at,
             kwarg,
         })
@@ -228,7 +221,7 @@ mod tests {
         let tokens: Vec<_> = lexer.collect();
         let name = SimpleTagToken {
             at: (7, 5),
-            token_type: SimpleTagTokenType::Text,
+            token_type: TagElementTokenType::Text,
             kwarg: None,
         };
         assert_eq!(tokens, vec![Ok(name)]);
@@ -242,7 +235,7 @@ mod tests {
         let tokens: Vec<_> = lexer.collect();
         let name = SimpleTagToken {
             at: (7, 5),
-            token_type: SimpleTagTokenType::Text,
+            token_type: TagElementTokenType::Text,
             kwarg: None,
         };
         assert_eq!(tokens, vec![Ok(name)]);
@@ -268,7 +261,7 @@ mod tests {
         let tokens: Vec<_> = lexer.collect();
         let name = SimpleTagToken {
             at: (7, 3),
-            token_type: SimpleTagTokenType::Variable,
+            token_type: TagElementTokenType::Variable,
             kwarg: None,
         };
         assert_eq!(tokens, vec![Ok(name)]);
@@ -282,7 +275,7 @@ mod tests {
         let tokens: Vec<_> = lexer.collect();
         let name = SimpleTagToken {
             at: (7, 18),
-            token_type: SimpleTagTokenType::Variable,
+            token_type: TagElementTokenType::Variable,
             kwarg: None,
         };
         assert_eq!(tokens, vec![Ok(name)]);
@@ -296,7 +289,7 @@ mod tests {
         let tokens: Vec<_> = lexer.collect();
         let name = SimpleTagToken {
             at: (7, 19),
-            token_type: SimpleTagTokenType::Variable,
+            token_type: TagElementTokenType::Variable,
             kwarg: None,
         };
         assert_eq!(tokens, vec![Ok(name)]);
@@ -310,7 +303,7 @@ mod tests {
         let tokens: Vec<_> = lexer.collect();
         let name = SimpleTagToken {
             at: (7, 19),
-            token_type: SimpleTagTokenType::Variable,
+            token_type: TagElementTokenType::Variable,
             kwarg: None,
         };
         assert_eq!(tokens, vec![Ok(name)]);
@@ -324,7 +317,7 @@ mod tests {
         let tokens: Vec<_> = lexer.collect();
         let name = SimpleTagToken {
             at: (7, 22),
-            token_type: SimpleTagTokenType::Variable,
+            token_type: TagElementTokenType::Variable,
             kwarg: None,
         };
         assert_eq!(tokens, vec![Ok(name)]);
@@ -338,7 +331,7 @@ mod tests {
         let tokens: Vec<_> = lexer.collect();
         let name = SimpleTagToken {
             at: (7, 4),
-            token_type: SimpleTagTokenType::Variable,
+            token_type: TagElementTokenType::Variable,
             kwarg: None,
         };
         assert_eq!(tokens, vec![Ok(name)]);
@@ -352,7 +345,7 @@ mod tests {
         let tokens: Vec<_> = lexer.collect();
         let name = SimpleTagToken {
             at: (7, 8),
-            token_type: SimpleTagTokenType::TranslatedText,
+            token_type: TagElementTokenType::TranslatedText,
             kwarg: None,
         };
         assert_eq!(tokens, vec![Ok(name)]);
@@ -378,7 +371,7 @@ mod tests {
         let tokens: Vec<_> = lexer.collect();
         let name = SimpleTagToken {
             at: (7, 1),
-            token_type: SimpleTagTokenType::Numeric,
+            token_type: TagElementTokenType::Numeric,
             kwarg: None,
         };
         assert_eq!(tokens, vec![Ok(name)]);
@@ -392,7 +385,7 @@ mod tests {
         let tokens: Vec<_> = lexer.collect();
         let name = SimpleTagToken {
             at: (12, 5),
-            token_type: SimpleTagTokenType::Text,
+            token_type: TagElementTokenType::Text,
             kwarg: Some((7, 4)),
         };
         assert_eq!(tokens, vec![Ok(name)]);
@@ -406,7 +399,7 @@ mod tests {
         let tokens: Vec<_> = lexer.collect();
         let name = SimpleTagToken {
             at: (12, 5),
-            token_type: SimpleTagTokenType::Text,
+            token_type: TagElementTokenType::Text,
             kwarg: Some((7, 4)),
         };
         assert_eq!(tokens, vec![Ok(name)]);
@@ -420,7 +413,7 @@ mod tests {
         let tokens: Vec<_> = lexer.collect();
         let name = SimpleTagToken {
             at: (12, 3),
-            token_type: SimpleTagTokenType::Variable,
+            token_type: TagElementTokenType::Variable,
             kwarg: Some((7, 4)),
         };
         assert_eq!(tokens, vec![Ok(name)]);
@@ -434,7 +427,7 @@ mod tests {
         let tokens: Vec<_> = lexer.collect();
         let name = SimpleTagToken {
             at: (12, 4),
-            token_type: SimpleTagTokenType::Variable,
+            token_type: TagElementTokenType::Variable,
             kwarg: Some((7, 4)),
         };
         assert_eq!(tokens, vec![Ok(name)]);
@@ -448,7 +441,7 @@ mod tests {
         let tokens: Vec<_> = lexer.collect();
         let name = SimpleTagToken {
             at: (12, 8),
-            token_type: SimpleTagTokenType::TranslatedText,
+            token_type: TagElementTokenType::TranslatedText,
             kwarg: Some((7, 4)),
         };
         assert_eq!(tokens, vec![Ok(name)]);
@@ -462,7 +455,7 @@ mod tests {
         let tokens: Vec<_> = lexer.collect();
         let name = SimpleTagToken {
             at: (12, 1),
-            token_type: SimpleTagTokenType::Numeric,
+            token_type: TagElementTokenType::Numeric,
             kwarg: Some((7, 4)),
         };
         assert_eq!(tokens, vec![Ok(name)]);
@@ -476,12 +469,12 @@ mod tests {
         let tokens: Vec<_> = lexer.collect();
         let home = SimpleTagToken {
             at: (7, 6),
-            token_type: SimpleTagTokenType::Text,
+            token_type: TagElementTokenType::Text,
             kwarg: None,
         };
         let next = SimpleTagToken {
             at: (14, 4),
-            token_type: SimpleTagTokenType::Variable,
+            token_type: TagElementTokenType::Variable,
             kwarg: None,
         };
         assert_eq!(tokens, vec![Ok(home), Ok(next)]);
