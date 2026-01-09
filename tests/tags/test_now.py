@@ -224,3 +224,12 @@ def test_now_double_quote_incomplete(assert_render):
         context={},
         expected=date_format(FIXED_TIME, "DATE_FORMAT"),
     )
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_numeric_format(assert_render):
+    assert_render(
+        template="{% now 123 %}",
+        context={},
+        expected=django_format(FIXED_TIME, "2"),
+    )

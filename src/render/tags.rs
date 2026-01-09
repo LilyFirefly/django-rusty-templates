@@ -1242,9 +1242,12 @@ impl Render for Now {
         template: TemplateString<'t>,
         context: &mut Context,
     ) -> RenderResult<'t> {
-        let format = template
-            .content(self.format_at)
-            .trim_matches(|c| c == '"' || c == '\'');
+        let raw = template.content(self.format_at);
+        let format = if raw.len() >= 2 {
+            &raw[1..raw.len() - 1]
+        } else {
+            ""
+        };
 
         let tz_mod = DJANGO_TIMEZONE
             .get_or_try_init(py, || -> Result<Py<PyAny>, PyRenderError> {
