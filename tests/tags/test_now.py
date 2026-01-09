@@ -1,69 +1,60 @@
+import time_machine
 from datetime import datetime
 from django.utils import timezone
 from django.utils.formats import date_format
 from django.utils.dateformat import format as django_format
 from django.test import override_settings
 
+# Year: 2026, Month: 1 (Jan), Day: 8, Hour: 12
+FIXED_TIME = datetime(2026, 1, 8, 12, 0, 0)
 
+
+@time_machine.travel(FIXED_TIME)
 def test_now_01(assert_render):
-    expected = "%d %d %d" % (
-        datetime.now().day,
-        datetime.now().month,
-        datetime.now().year,
-    )
-
+    expected = f"{FIXED_TIME.day} {FIXED_TIME.month} {FIXED_TIME.year}"
     assert_render(template='{% now "j n Y" %}', context={}, expected=expected)
 
 
+@time_machine.travel(FIXED_TIME)
 def test_now_02(assert_render):
     assert_render(
         template='{% now "DATE_FORMAT" %}',
         context={},
-        expected=date_format(datetime.now()),
+        expected=date_format(FIXED_TIME),
     )
 
 
+@time_machine.travel(FIXED_TIME)
 def test_now_03(assert_render):
-    expected = "%d %d %d" % (
-        datetime.now().day,
-        datetime.now().month,
-        datetime.now().year,
-    )
+    expected = f"{FIXED_TIME.day} {FIXED_TIME.month} {FIXED_TIME.year}"
     assert_render(template="{% now 'j n Y' %}", context={}, expected=expected)
 
 
+@time_machine.travel(FIXED_TIME)
 def test_now_04(assert_render):
     assert_render(
         template="{% now 'DATE_FORMAT' %}",
         context={},
-        expected=date_format(datetime.now()),
+        expected=date_format(FIXED_TIME),
     )
 
 
+@time_machine.travel(FIXED_TIME)
 def test_now_05(assert_render):
-    expected = '%d "%d" %d' % (
-        datetime.now().day,
-        datetime.now().month,
-        datetime.now().year,
-    )
+    expected = f'{FIXED_TIME.day} "{FIXED_TIME.month}" {FIXED_TIME.year}'
     assert_render(template="{% now 'j \"n\" Y'%}", context={}, expected=expected)
 
 
+@time_machine.travel(FIXED_TIME)
 def test_now_06(assert_render):
-    expected = "%d '%d' %d" % (
-        datetime.now().day,
-        datetime.now().month,
-        datetime.now().year,
-    )
+    expected = f"{FIXED_TIME.day} '{FIXED_TIME.month}' {FIXED_TIME.year}"
     assert_render(template="{% now \"j 'n' Y\"%}", context={}, expected=expected)
 
 
+@time_machine.travel(FIXED_TIME)
 def test_now_07(assert_render):
-    expected = "-%d %d %d-" % (
-        datetime.now().day,
-        datetime.now().month,
-        datetime.now().year,
-    )
+    date_part = f"{FIXED_TIME.day} {FIXED_TIME.month} {FIXED_TIME.year}"
+    expected = f"-{date_part}-"
     assert_render(
         template='{% now "j n Y" as N %}-{{N}}-', context={}, expected=expected
     )
@@ -102,16 +93,11 @@ def test_now_too_many_args(assert_parse_error):
     )
 
 
+@time_machine.travel(FIXED_TIME)
 def test_now_as_var_scope(assert_render):
     template = "{% now 'j n Y' as x %}{{ x }}|{{ x }}"
-    expected = "%d %d %d|%d %d %d" % (
-        datetime.now().day,
-        datetime.now().month,
-        datetime.now().year,
-        datetime.now().day,
-        datetime.now().month,
-        datetime.now().year,
-    )
+    val = f"{FIXED_TIME.day} {FIXED_TIME.month} {FIXED_TIME.year}"
+    expected = f"{val}|{val}"
     assert_render(template=template, context={}, expected=expected)
 
 
@@ -147,48 +133,54 @@ def test_now_as_extra_tokens(assert_parse_error):
     )
 
 
+@time_machine.travel(FIXED_TIME)
 def test_now_named_formats(assert_render):
-    now = datetime.now()
     formats = ["TIME_FORMAT", "SHORT_DATE_FORMAT", "YEAR_MONTH_FORMAT"]
     for fmt in formats:
         assert_render(
-            template=f'{{% now "{fmt}" %}}', context={}, expected=date_format(now, fmt)
+            template=f'{{% now "{fmt}" %}}',
+            context={},
+            expected=date_format(FIXED_TIME, fmt),
         )
 
 
+@time_machine.travel(FIXED_TIME)
 def test_now_empty_string(assert_render):
-    expected = date_format(datetime.now())
+    expected = date_format(FIXED_TIME)
     assert_render(template='{% now "" %}', context={}, expected=expected)
 
 
+@time_machine.travel(FIXED_TIME)
 def test_now_as_var_overwrite(assert_render):
-    expected = str(datetime.now().year)
+    expected = FIXED_TIME.strftime("%Y")
     template = "{% now 'Y' as x %}{{ x }}"
     assert_render(template=template, context={"x": "old"}, expected=expected)
 
 
+@time_machine.travel(FIXED_TIME)
 def test_now_as_var_overwrites_none(assert_render):
-    expected = str(datetime.now().year)
+    expected = FIXED_TIME.strftime("%Y")
     assert_render(
         template="{% now 'Y' as x %}{{ x }}", context={"x": None}, expected=expected
     )
 
 
+@time_machine.travel(FIXED_TIME)
 def test_now_unicode_and_escapes(assert_render):
-    now = datetime.now()
-    expected = f"{now.day} o {now.month}"
+    expected = f"{FIXED_TIME.day} o {FIXED_TIME.month}"
     assert_render(template=r"{% now 'j \o n' %}", context={}, expected=expected)
 
 
+@time_machine.travel(FIXED_TIME)
 def test_now_non_ascii_format(assert_render):
-    now = datetime.now()
-    expected = f"{now.year} • {now.month}"
+    expected = f"{FIXED_TIME.year} • {FIXED_TIME.month}"
     assert_render(template="{% now 'Y • n' %}", context={}, expected=expected)
 
 
+@time_machine.travel(FIXED_TIME)
 def test_now_very_long_format(assert_render):
     long_format = "Y " * 1000
-    year = str(datetime.now().year)
+    year = FIXED_TIME.strftime("%Y")
     expected = (year + " ") * 1000
     assert_render(
         template=f'{{% now "{long_format.strip()}" %}}',
@@ -205,6 +197,7 @@ def test_now_timezone_aware(assert_render):
 
 
 @override_settings(USE_TZ=False)
+@time_machine.travel(FIXED_TIME)
 def test_now_timezone_naive(assert_render):
-    expected = str(datetime.now().hour)
+    expected = FIXED_TIME.strftime("%H")
     assert_render(template="{% now 'H' %}", context={}, expected=expected)
