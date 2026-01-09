@@ -10,13 +10,13 @@ FIXED_TIME = datetime(2026, 1, 8, 12, 0, 0)
 
 
 @time_machine.travel(FIXED_TIME)
-def test_now_01(assert_render):
+def test_now_basic_format(assert_render):
     expected = f"{FIXED_TIME.day} {FIXED_TIME.month} {FIXED_TIME.year}"
     assert_render(template='{% now "j n Y" %}', context={}, expected=expected)
 
 
 @time_machine.travel(FIXED_TIME)
-def test_now_02(assert_render):
+def test_now_named_setting(assert_render):
     assert_render(
         template='{% now "DATE_FORMAT" %}',
         context={},
@@ -25,13 +25,13 @@ def test_now_02(assert_render):
 
 
 @time_machine.travel(FIXED_TIME)
-def test_now_03(assert_render):
+def test_now_single_quotes(assert_render):
     expected = f"{FIXED_TIME.day} {FIXED_TIME.month} {FIXED_TIME.year}"
     assert_render(template="{% now 'j n Y' %}", context={}, expected=expected)
 
 
 @time_machine.travel(FIXED_TIME)
-def test_now_04(assert_render):
+def test_now_named_setting_single_quotes(assert_render):
     assert_render(
         template="{% now 'DATE_FORMAT' %}",
         context={},
@@ -40,19 +40,19 @@ def test_now_04(assert_render):
 
 
 @time_machine.travel(FIXED_TIME)
-def test_now_05(assert_render):
+def test_now_nested_double_quotes(assert_render):
     expected = f'{FIXED_TIME.day} "{FIXED_TIME.month}" {FIXED_TIME.year}'
     assert_render(template="{% now 'j \"n\" Y'%}", context={}, expected=expected)
 
 
 @time_machine.travel(FIXED_TIME)
-def test_now_06(assert_render):
+def test_now_nested_single_quotes(assert_render):
     expected = f"{FIXED_TIME.day} '{FIXED_TIME.month}' {FIXED_TIME.year}"
     assert_render(template="{% now \"j 'n' Y\"%}", context={}, expected=expected)
 
 
 @time_machine.travel(FIXED_TIME)
-def test_now_07(assert_render):
+def test_now_as_variable(assert_render):
     date_part = f"{FIXED_TIME.day} {FIXED_TIME.month} {FIXED_TIME.year}"
     expected = f"-{date_part}-"
     assert_render(
@@ -64,12 +64,13 @@ def test_now_no_args(assert_parse_error):
     template = "{% now %}"
     django_message = "'now' statement takes one argument"
     rusty_message = """\
-  × Expected an argument
+  × Expected a format string
    ╭────
  1 │ {% now %}
    ·       ▲
-   ·       ╰── here
+   ·       ╰── missing format
    ╰────
+  help: The 'now' tag requires a format string, like "Y-m-d" or "DATE_FORMAT".
 """
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
@@ -79,12 +80,13 @@ def test_now_no_args(assert_parse_error):
 def test_now_too_many_args(assert_parse_error):
     template = '{% now "j n Y" extra %}'
     rusty_message = """\
-  × 'now' statement takes one argument
+  × Unexpected argument after format string
    ╭────
  1 │ {% now "j n Y" extra %}
    ·                ──┬──
-   ·                  ╰── here
+   ·                  ╰── unexpected argument
    ╰────
+  help: If you want to store the result in a variable, use the 'as' keyword.
 """
     assert_parse_error(
         template=template,
@@ -107,12 +109,13 @@ def test_now_as_without_name(assert_parse_error):
         template=template,
         django_message="'now' statement takes one argument",
         rusty_message="""\
-  × 'now' statement takes one argument
+  × Expected a variable name after 'as'
    ╭────
  1 │ {% now "j n Y" as %}
-   ·                ─┬
-   ·                 ╰── here
+   ·                  ▲
+   ·                  ╰── expected a variable name here
    ╰────
+  help: Provide a name to store the date string, e.g. 'as my_var'
 """,
     )
 
@@ -123,12 +126,14 @@ def test_now_as_extra_tokens(assert_parse_error):
         template=template,
         django_message="'now' statement takes one argument",
         rusty_message="""\
-  × 'now' statement takes one argument
+  × Unexpected argument after variable name
    ╭────
  1 │ {% now "j n Y" as x y %}
    ·                     ┬
-   ·                     ╰── here
+   ·                     ╰── extra argument
    ╰────
+  help: The 'now' tag only accepts one variable assignment. Try removing this
+        extra argument.
 """,
     )
 
