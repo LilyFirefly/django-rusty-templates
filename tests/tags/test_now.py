@@ -1,3 +1,4 @@
+import pytest
 import time_machine
 from datetime import datetime
 from django.utils import timezone
@@ -232,4 +233,222 @@ def test_now_numeric_format(assert_render):
         template="{% now 123 %}",
         context={},
         expected=django_format(FIXED_TIME, "2"),
+    )
+
+
+@pytest.mark.parametrize(
+    "fmt",
+    [
+        "TIME_FORMAT",
+        "DATE_FORMAT",
+        "DATETIME_FORMAT",
+        "SHORT_DATE_FORMAT",
+        "SHORT_DATETIME_FORMAT",
+    ],
+)
+@time_machine.travel(FIXED_TIME)
+def test_now_all_named_logic(assert_render, fmt):
+    assert_render(
+        template=f'{{% now "{fmt}" %}}',
+        context={},
+        expected=date_format(FIXED_TIME, fmt),
+    )
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_as_different_name(assert_render):
+    assert_render(
+        template='{% now "Y" as current_year %}Year: {{ current_year }}',
+        context={},
+        expected=f"Year: {FIXED_TIME.year}",
+    )
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_empty_format(assert_render):
+    assert_render(
+        template='{% now "" %}',
+        context={},
+        expected=date_format(FIXED_TIME, "DATE_FORMAT"),
+    )
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_escaped_same_quote(assert_render):
+    expected = f'{FIXED_TIME.day} " {FIXED_TIME.month}'
+    assert_render(
+        template=r"{% now 'j \" n' %}",
+        context={},
+        expected=expected,
+    )
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_excessive_whitespace(assert_render):
+    expected = FIXED_TIME.strftime("%Y")
+    assert_render(
+        template='{%   now    "Y"      %}',
+        context={},
+        expected=expected,
+    )
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_tabs(assert_render):
+    expected = FIXED_TIME.strftime("%Y")
+    assert_render(
+        template='{%\tnow\t"Y"\t%}',
+        context={},
+        expected=expected,
+    )
+
+
+def test_now_as_uppercase(assert_parse_error):
+    assert_parse_error(
+        template='{% now "Y" AS x %}',
+        django_message="'now' statement takes one argument",
+        rusty_message="""\
+  × Unexpected argument after format string
+   ╭────
+ 1 │ {% now "Y" AS x %}
+   ·            ─┬
+   ·             ╰── unexpected argument
+   ╰────
+  help: If you want to store the result in a variable, use the 'as' keyword.
+""",
+    )
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_format_named_as(assert_render):
+    assert_render(
+        template='{% now "as" %}',
+        context={},
+        expected=django_format(FIXED_TIME, "as"),
+    )
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_as_var_named_now(assert_render):
+    assert_render(
+        template='{% now "Y" as now %}{{ now }}',
+        context={},
+        expected=str(FIXED_TIME.year),
+    )
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_overwrites_nested_context(assert_render):
+    context = {"x": {"y": "old"}}
+    assert_render(
+        template='{% now "Y" as x %}{{ x }}',
+        context=context,
+        expected=str(FIXED_TIME.year),
+    )
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_reassign_same_var(assert_render):
+    assert_render(
+        template='{% now "Y" as x %}{% now "n" as x %}{{ x }}',
+        context={},
+        expected=str(FIXED_TIME.month),
+    )
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_invalid_format_tokens(assert_render):
+    assert_render(
+        template='{% now "Q W Z" %}',
+        context={},
+        expected=django_format(FIXED_TIME, "Q W Z"),
+    )
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_literal_percent(assert_render):
+    assert_render(
+        template="{% now 'Y %% m' %}",
+        context={},
+        expected=django_format(FIXED_TIME, "Y %% m"),
+    )
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_long_variable_name(assert_render):
+    var = "x" * 10_000
+    assert_render(
+        template=f'{{% now "Y" as {var} %}}{{{{ {var} }}}}',
+        context={},
+        expected=str(FIXED_TIME.year),
+    )
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_many_invocations(assert_render):
+    template = " ".join(['{% now "Y" %}'] * 1000)
+    expected = " ".join([str(FIXED_TIME.year)] * 1000)
+    assert_render(template=template, context={}, expected=expected)
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_garbage_format(assert_render):
+    assert_render(
+        template="{% now '%%%INVALID%%%' %}",
+        context={},
+        expected="%%%0Jan.VPMFalse0Thu%%%",
+    )
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_unknown_named_format_literal(assert_render):
+    assert_render(
+        template="{% now 'NOT_A_REAL_FORMAT' %}",
+        context={},
+        expected="Jan.+0000UTC_PM_RJanuaryPMFalse_January+0000RJanPMUTC",
+    )
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_non_string_result(monkeypatch, assert_render_error):
+    import django.utils.dateformat
+
+    def bad_format(*args, **kwargs):
+        return 123
+
+    monkeypatch.setattr(django.utils.dateformat, "format", bad_format)
+
+    assert_render_error(
+        template="{% now 'Y' %}",
+        context={},
+        exception=TypeError,
+        django_message="sequence item 0: expected str instance, int found",
+        rusty_message="'int' object cannot be cast as 'str'",
+    )
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_cached_formatter_failure(monkeypatch, assert_render_error):
+    import django.utils.formats
+
+    def bad_date_format(*args, **kwargs):
+        raise RuntimeError("cached failure")
+
+    monkeypatch.setattr(django.utils.formats, "date_format", bad_date_format)
+
+    assert_render_error(
+        template="{% now 'DATE_FORMAT' %}",
+        context={},
+        exception=RuntimeError,
+        django_message="cached failure",
+        rusty_message="cached failure",
+    )
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_weird_mixed_quotes(assert_render):
+    assert_render(
+        template="{% now \"'Y'\" %}",
+        context={},
+        expected=f"'{str(FIXED_TIME.year)}'",
     )
