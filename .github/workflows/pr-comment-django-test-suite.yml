@@ -13,6 +13,11 @@ on: # zizmor: ignore[dangerous-triggers] # We mitigate potential issues in `Skip
         description: The ecosystem workflow that triggers the workflow run
         required: true
 
+# Cancel running jobs for the same workflow and branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   comment:
     runs-on: ubuntu-latest

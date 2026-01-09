@@ -11,6 +11,11 @@ permissions: {}
 env:
   RUSTFLAGS: "-Dwarnings"
 
+# Cancel running jobs for the same workflow and branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   clippy_check:
     runs-on: ubuntu-latest
