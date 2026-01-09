@@ -1253,16 +1253,25 @@ impl Render for Now {
             .bind(py);
         let now_dt = tz_mod.call_method0("now")?;
 
-        let use_named_logic =
-            format.is_empty() || format.chars().all(|c| c.is_ascii_uppercase() || c == '_');
+        let is_named_format = matches!(
+            format,
+            "DATE_FORMAT"
+                | "DATETIME_FORMAT"
+                | "SHORT_DATE_FORMAT"
+                | "SHORT_DATETIME_FORMAT"
+                | "YEAR_MONTH_FORMAT"
+                | "MONTH_DAY_FORMAT"
+                | "TIME_FORMAT"
+        );
 
-        let result = if use_named_logic {
+        let use_named_logic = format.is_empty() || is_named_format;
+
+        let result: Bound<'_, PyAny> = if use_named_logic {
             let fmt_mod = DJANGO_FORMATS
                 .get_or_try_init(py, || -> Result<Py<PyAny>, PyRenderError> {
                     Ok(py.import("django.utils.formats")?.into())
                 })?
                 .bind(py);
-
             fmt_mod.call_method1("date_format", (now_dt, format))?
         } else {
             let df_mod = DJANGO_DATEFORMAT
@@ -1273,13 +1282,12 @@ impl Render for Now {
             df_mod.call_method1("format", (now_dt, format))?
         };
 
-        let rendered = result.cast::<PyString>().map_err(PyErr::from)?;
-
         if let Some(asvar_at) = self.asvar {
             let var_name = template.content(asvar_at);
-            context.insert(var_name.to_string(), rendered.clone().into_any());
+            context.insert(var_name.to_string(), result);
             Ok(Cow::Borrowed(""))
         } else {
+            let rendered = result.cast_into::<PyString>().map_err(PyErr::from)?;
             Ok(Cow::Owned(rendered.to_str()?.to_owned()))
         }
     }
