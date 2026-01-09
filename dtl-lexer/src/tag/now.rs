@@ -1,5 +1,6 @@
 use crate::common::{LexerError, check_variable_attrs};
 use crate::tag::TagParts;
+use crate::tag::common::TagElementTokenType::Variable;
 use crate::tag::common::{TagElementLexer, TagElementToken};
 use crate::types::{At, TemplateString};
 use miette::{Diagnostic, SourceSpan};
@@ -30,7 +31,16 @@ impl<'t> NowLexer<'t> {
         match self.lexer.next() {
             None => Ok(None),
             Some(Ok(token)) => Ok(Some(token)),
-            Some(Err(err)) => Err(err.into()),
+            Some(Err(err)) => match err {
+                LexerError::IncompleteString { at } => {
+                    let at_tuple = (at.offset(), at.len());
+                    Ok(Some(TagElementToken {
+                        at: at_tuple,
+                        token_type: Variable,
+                    }))
+                }
+                _ => Err(err.into()),
+            },
         }
     }
 

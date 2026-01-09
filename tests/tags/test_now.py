@@ -206,3 +206,21 @@ def test_now_timezone_aware(assert_render):
 def test_now_timezone_naive(assert_render):
     expected = FIXED_TIME.strftime("%H")
     assert_render(template="{% now 'H' %}", context={}, expected=expected)
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_single_quote_incomplete(assert_render):
+    assert_render(
+        template="{% now ' %}",
+        context={},
+        expected=date_format(FIXED_TIME, "DATE_FORMAT"),
+    )
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_double_quote_incomplete(assert_render):
+    assert_render(
+        template='{% now " %}',
+        context={},
+        expected=date_format(FIXED_TIME, "DATE_FORMAT"),
+    )
