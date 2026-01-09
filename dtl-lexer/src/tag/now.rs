@@ -36,8 +36,8 @@ impl<'t> NowLexer<'t> {
 
     pub fn lex_format(&mut self) -> Result<At, NowError> {
         let Some(token) = self.next_element()? else {
-            return Err(NowError::Syntax {
-                at: self.parts.at.into(),
+            return Err(NowError::MissingFormat {
+                _at: self.parts.at.into(),
             });
         };
         Ok(token.at)
@@ -51,8 +51,9 @@ impl<'t> NowLexer<'t> {
         match self.template.content(token.at) {
             "as" => {
                 let Some(var) = self.next_element()? else {
-                    return Err(NowError::Syntax {
-                        at: token.at.into(),
+                    let position_after_as = token.at.0 + token.at.1;
+                    return Err(NowError::MissingVariableAfterAs {
+                        _at: SourceSpan::new(position_after_as.into(), 0usize),
                     });
                 };
 
@@ -60,14 +61,19 @@ impl<'t> NowLexer<'t> {
 
                 Ok(Some(var.at))
             }
-            _ => Err(NowError::Syntax {
-                at: token.at.into(),
+            _ => Err(NowError::UnexpectedAfterFormat {
+                _at: token.at.into(),
             }),
         }
     }
 
     pub fn extra_token(&mut self) -> Result<Option<TagElementToken>, NowError> {
-        self.next_element()
+        match self.next_element()? {
+            None => Ok(None),
+            Some(token) => Err(NowError::UnexpectedAfterVariable {
+                _at: token.at.into(),
+            }),
+        }
     }
 }
 
@@ -77,9 +83,35 @@ pub enum NowError {
     #[diagnostic(transparent)]
     LexerError(#[from] LexerError),
 
-    #[error("'now' statement takes one argument")]
-    Syntax {
-        #[label("here")]
-        at: SourceSpan,
+    #[error("Unexpected argument after format string")]
+    #[diagnostic(help("If you want to store the result in a variable, use the 'as' keyword."))]
+    UnexpectedAfterFormat {
+        #[label("unexpected argument")]
+        _at: SourceSpan,
+    },
+
+    #[error("Expected a variable name after 'as'")]
+    #[diagnostic(help("Provide a name to store the date string, e.g. 'as my_var'"))]
+    MissingVariableAfterAs {
+        #[label("expected a variable name here")]
+        _at: SourceSpan,
+    },
+
+    #[error("Unexpected argument after variable name")]
+    #[diagnostic(help(
+        "The 'now' tag only accepts one variable assignment. Try removing this extra argument."
+    ))]
+    UnexpectedAfterVariable {
+        #[label("extra argument")]
+        _at: SourceSpan,
+    },
+
+    #[error("Expected a format string")]
+    #[diagnostic(help(
+        "The 'now' tag requires a format string, like \"Y-m-d\" or \"DATE_FORMAT\"."
+    ))]
+    MissingFormat {
+        #[label("missing format")]
+        _at: SourceSpan,
     },
 }

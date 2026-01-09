@@ -1350,20 +1350,9 @@ impl<'t, 'py> Parser<'t, 'py> {
     fn parse_now(&mut self, parts: TagParts) -> Result<Now, PyParseError> {
         let mut lexer = NowLexer::new(self.template, parts.clone());
 
-        let format_at = lexer
-            .lex_format()
-            .map_err(|_| ParseError::MissingArgument {
-                at: parts.at.into(),
-            })?;
-
+        let format_at = lexer.lex_format().map_err(ParseError::from)?;
         let asvar = lexer.lex_variable().map_err(ParseError::from)?;
-
-        if let Some(extra) = lexer.extra_token().map_err(ParseError::from)? {
-            return Err(ParseError::from(NowError::Syntax {
-                at: extra.at.into(),
-            })
-            .into());
-        }
+        lexer.extra_token().map_err(ParseError::from)?;
 
         Ok(Now { format_at, asvar })
     }
