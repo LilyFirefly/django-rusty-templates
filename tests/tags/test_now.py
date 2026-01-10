@@ -417,3 +417,28 @@ def test_now_weird_mixed_quotes(assert_render):
         context={},
         expected=f"'{str(FIXED_TIME.year)}'",
     )
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_format_from_context(assert_render):
+    assert_render(
+        template="{% now format_var %}",
+        context={"format_var": "j n Y"},
+        expected=f"{FIXED_TIME.day} {FIXED_TIME.month} {FIXED_TIME.year}",
+    )
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_invalid_remainder(assert_render):
+    template = '{% now "Y"invalid %}'
+    assert_render(
+        template=template,
+        context={},
+        expected=f"{FIXED_TIME.year}",
+    )
+
+    # assert_parse_error(
+    #     template=template,
+    #     django_message="'now' statement takes one argument",
+    #     rusty_message='r',
+    # )
