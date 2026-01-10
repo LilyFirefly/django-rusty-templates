@@ -19,7 +19,7 @@ pub mod django_rusty_templates {
 
     use crate::error::RenderError;
     use crate::loaders::{AppDirsLoader, CachedLoader, FileSystemLoader, Loader, LocMemLoader};
-    use crate::parse::{Parser, TokenTree};
+    use crate::parse::{Block, Parser, Tag, TokenTree};
     use crate::render::types::{Context, PyContext};
     use crate::render::{Render, RenderResult};
     use crate::utils::PyResultMethods;
@@ -495,7 +495,7 @@ pub mod django_rusty_templates {
     #[pyclass]
     pub struct Template {
         pub filename: Option<PathBuf>,
-        pub template: String,
+        pub template: Arc<String>,
         pub nodes: Vec<TokenTree>,
         pub engine: Arc<Engine>,
     }
@@ -524,7 +524,7 @@ pub mod django_rusty_templates {
                 }
             };
             Ok(Self {
-                template: template.to_string(),
+                template: Arc::new(template.to_string()),
                 filename: Some(filename),
                 nodes,
                 engine,
@@ -545,7 +545,7 @@ pub mod django_rusty_templates {
                 }
             };
             Ok(Self {
-                template,
+                template: Arc::new(template),
                 filename: None,
                 nodes,
                 engine,
@@ -557,6 +557,33 @@ pub mod django_rusty_templates {
             let template = TemplateString(&self.template);
             for node in &self.nodes {
                 let content = node.render(py, template, context)?;
+                rendered.push_str(&content);
+            }
+            Ok(Cow::Owned(rendered))
+        }
+
+        pub fn render_with_blocks(
+            &self,
+            py: Python<'_>,
+            context: &mut Context,
+            blocks: &HashMap<String, Block>,
+            template: TemplateString,
+        ) -> RenderResult<'_> {
+            let mut rendered = String::with_capacity(self.template.len());
+            let parent_template = TemplateString(&self.template);
+            for node in &self.nodes {
+                let content = match node {
+                    TokenTree::Tag(Tag::Block(block)) => match blocks.get(&block.name) {
+                        Some(child_block) => {
+                            context.block = Some((Arc::new(block.clone()), self.template.clone()));
+                            let rendered = child_block.render(py, template, context);
+                            context.block = None;
+                            rendered?
+                        }
+                        None => node.render(py, parent_template, context)?,
+                    },
+                    node => node.render(py, parent_template, context)?,
+                };
                 rendered.push_str(&content);
             }
             Ok(Cow::Owned(rendered))

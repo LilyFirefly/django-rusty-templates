@@ -502,7 +502,7 @@ mod tests {
                 .get_template(py, "index.html", engine)
                 .unwrap()
                 .unwrap();
-            assert_eq!(template.template, "index".to_string());
+            assert_eq!(template.template, "index".to_string().into());
             assert_eq!(template.filename.unwrap(), PathBuf::from("index.html"));
         });
     }
