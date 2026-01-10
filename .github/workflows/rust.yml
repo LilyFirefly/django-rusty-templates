@@ -11,6 +11,11 @@ env:
   CARGO_TERM_COLOR: always
   PYTHONPATH: ${{ github.workspace }}
 
+# Cancel running jobs for the same workflow and branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
 
