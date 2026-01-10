@@ -52,6 +52,7 @@ use dtl_lexer::tag::kwarg::{
 };
 use dtl_lexer::tag::load::{LoadLexer, LoadToken};
 use dtl_lexer::tag::lorem::{LoremError, LoremLexer, LoremMethod, LoremTokenType};
+use dtl_lexer::tag::now::{Now, NowError, NowLexer};
 use dtl_lexer::tag::{TagLexerError, TagParts, lex_tag};
 use dtl_lexer::types::{At, TemplateString};
 use dtl_lexer::variable::{
@@ -646,6 +647,7 @@ pub enum Tag {
     SimpleBlockTag(SimpleBlockTag),
     Url(Url),
     Lorem(Lorem),
+    Now(Now),
 }
 
 #[derive(PartialEq, Eq)]
@@ -973,6 +975,10 @@ pub enum ParseError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     LoremError(#[from] LoremError),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    NowError(#[from] NowError),
 }
 
 #[derive(Error, Debug)]
@@ -1341,6 +1347,16 @@ impl<'t, 'py> Parser<'t, 'py> {
         }
     }
 
+    fn parse_now(&mut self, parts: TagParts) -> Result<Now, PyParseError> {
+        let mut lexer = NowLexer::new(self.template, parts.clone());
+
+        let format_at = lexer.lex_format().map_err(ParseError::from)?;
+        let asvar = lexer.lex_variable().map_err(ParseError::from)?;
+        lexer.extra_token().map_err(ParseError::from)?;
+
+        Ok(Now { format_at, asvar })
+    }
+
     fn parse_tag(
         &mut self,
         tag: &'t str,
@@ -1391,6 +1407,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             }),
             "include" => Either::Left(self.parse_include(at, tag.parts)?),
             "lorem" => Either::Left(TokenTree::Tag(Tag::Lorem(self.parse_lorem(at, tag.parts)?))),
+            "now" => Either::Left(TokenTree::Tag(Tag::Now(self.parse_now(tag.parts)?))),
             tag_name => match self.external_tags.get(tag_name) {
                 Some(TagContext::Simple(context)) => {
                     Either::Left(self.parse_simple_tag(context, at, tag.parts)?)
