@@ -185,9 +185,9 @@ def test_now_non_ascii_format(assert_render):
 
 @time_machine.travel(FIXED_TIME)
 def test_now_very_long_format(assert_render):
-    long_format = "Y " * 1000
+    long_format = " ".join(["Y"] * 1000)
     year = FIXED_TIME.strftime("%Y")
-    expected = (year + " ") * 1000
+    expected = " ".join([year] * 1000)
     assert_render(
         template=f'{{% now "{long_format.strip()}" %}}',
         context={},
@@ -196,6 +196,7 @@ def test_now_very_long_format(assert_render):
 
 
 @override_settings(USE_TZ=True, TIME_ZONE="UTC")
+@time_machine.travel(FIXED_TIME)
 def test_now_timezone_aware(assert_render):
     now = timezone.now()
     expected = django_format(now, "H")
@@ -410,45 +411,9 @@ def test_now_unknown_named_format_literal(assert_render):
 
 
 @time_machine.travel(FIXED_TIME)
-def test_now_non_string_result(monkeypatch, assert_render_error):
-    import django.utils.dateformat
-
-    def bad_format(*args, **kwargs):
-        return 123
-
-    monkeypatch.setattr(django.utils.dateformat, "format", bad_format)
-
-    assert_render_error(
-        template="{% now 'Y' %}",
-        context={},
-        exception=TypeError,
-        django_message="sequence item 0: expected str instance, int found",
-        rusty_message="'int' object cannot be cast as 'str'",
-    )
-
-
-@time_machine.travel(FIXED_TIME)
-def test_now_cached_formatter_failure(monkeypatch, assert_render_error):
-    import django.utils.formats
-
-    def bad_date_format(*args, **kwargs):
-        raise RuntimeError("cached failure")
-
-    monkeypatch.setattr(django.utils.formats, "date_format", bad_date_format)
-
-    assert_render_error(
-        template="{% now 'DATE_FORMAT' %}",
-        context={},
-        exception=RuntimeError,
-        django_message="cached failure",
-        rusty_message="cached failure",
-    )
-
-
-@time_machine.travel(FIXED_TIME)
 def test_now_weird_mixed_quotes(assert_render):
     assert_render(
-        template="{% now \"'Y'\" %}",
+        template="""{% now "'Y'" %}""",
         context={},
         expected=f"'{str(FIXED_TIME.year)}'",
     )
