@@ -1,3 +1,4 @@
+#![expect(unused_assignments)]
 use crate::common::{LexerError, check_variable_attrs};
 use crate::tag::TagParts;
 use crate::tag::common::TagElementTokenType::Variable;
@@ -28,26 +29,19 @@ impl<'t> NowLexer<'t> {
     }
 
     fn next_element(&mut self) -> Result<Option<TagElementToken>, NowError> {
-        match self.lexer.next() {
-            None => Ok(None),
-            Some(Ok(token)) => Ok(Some(token)),
-            Some(Err(err)) => match err {
-                LexerError::IncompleteString { at } => {
-                    let at_tuple = (at.offset(), at.len());
-                    Ok(Some(TagElementToken {
-                        at: at_tuple,
-                        token_type: Variable,
-                    }))
-                }
-                _ => Err(err.into()),
-            },
-        }
+        self.lexer.next().transpose().or_else(|err| match err {
+            LexerError::IncompleteString { at } => Ok(Some(TagElementToken {
+                at: (at.offset(), at.len()),
+                token_type: Variable,
+            })),
+            _ => Err(err.into()),
+        })
     }
 
     pub fn lex_format(&mut self) -> Result<At, NowError> {
         let Some(token) = self.next_element()? else {
             return Err(NowError::MissingFormat {
-                _at: self.parts.at.into(),
+                at: self.parts.at.into(),
             });
         };
         Ok(token.at)
@@ -63,7 +57,7 @@ impl<'t> NowLexer<'t> {
                 let Some(var) = self.next_element()? else {
                     let position_after_as = token.at.0 + token.at.1;
                     return Err(NowError::MissingVariableAfterAs {
-                        _at: SourceSpan::new(position_after_as.into(), 0usize),
+                        at: SourceSpan::new(position_after_as.into(), 0usize),
                     });
                 };
 
@@ -72,7 +66,7 @@ impl<'t> NowLexer<'t> {
                 Ok(Some(var.at))
             }
             _ => Err(NowError::UnexpectedAfterFormat {
-                _at: token.at.into(),
+                at: token.at.into(),
             }),
         }
     }
@@ -81,7 +75,7 @@ impl<'t> NowLexer<'t> {
         match self.next_element()? {
             None => Ok(None),
             Some(token) => Err(NowError::UnexpectedAfterVariable {
-                _at: token.at.into(),
+                at: token.at.into(),
             }),
         }
     }
@@ -97,14 +91,14 @@ pub enum NowError {
     #[diagnostic(help("If you want to store the result in a variable, use the 'as' keyword."))]
     UnexpectedAfterFormat {
         #[label("unexpected argument")]
-        _at: SourceSpan,
+        at: SourceSpan,
     },
 
     #[error("Expected a variable name after 'as'")]
     #[diagnostic(help("Provide a name to store the date string, e.g. 'as my_var'"))]
     MissingVariableAfterAs {
         #[label("expected a variable name here")]
-        _at: SourceSpan,
+        at: SourceSpan,
     },
 
     #[error("Unexpected argument after variable name")]
@@ -113,7 +107,7 @@ pub enum NowError {
     ))]
     UnexpectedAfterVariable {
         #[label("extra argument")]
-        _at: SourceSpan,
+        at: SourceSpan,
     },
 
     #[error("Expected a format string")]
@@ -122,6 +116,6 @@ pub enum NowError {
     ))]
     MissingFormat {
         #[label("missing format")]
-        _at: SourceSpan,
+        at: SourceSpan,
     },
 }
