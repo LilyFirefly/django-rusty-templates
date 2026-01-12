@@ -1348,7 +1348,7 @@ impl<'t, 'py> Parser<'t, 'py> {
     }
 
     fn parse_now(&mut self, parts: TagParts) -> Result<Now, PyParseError> {
-        let mut lexer = NowLexer::new(self.template, parts.clone());
+        let mut lexer = NowLexer::new(self.template, parts);
 
         let format_at = lexer.lex_format().map_err(ParseError::from)?;
         let asvar = lexer.lex_variable().map_err(ParseError::from)?;
