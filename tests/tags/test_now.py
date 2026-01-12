@@ -430,13 +430,9 @@ def test_now_format_from_context(assert_render):
 
 @time_machine.travel(FIXED_TIME)
 def test_now_invalid_remainder(assert_render):
-    """
-    Django outputs = '2026"001vp.m.Thursday00'
-    and Rust raised Template syntax error
-    """
-    # template = '{% now "Y"invalid %}'
-    # assert_render(
-    #     template=template,
-    #     context={},
-    #     expected=f"{FIXED_TIME.year}",
-    # )
+    template = '{% now "Y"invalid %}'
+    assert_render(
+        template=template,
+        context={},
+        expected=r'2026"001vp.m.Thursday00',
+    )

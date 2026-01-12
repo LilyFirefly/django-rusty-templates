@@ -34,6 +34,20 @@ impl<'t> NowLexer<'t> {
                 at: (at.offset(), at.len()),
                 token_type: Variable,
             })),
+            // TODO: Django's tokenizer does not treats {% now "Y"invalid %} as lexical error.
+            //       We match this behavior here for compatibility, but this should be reverted to a strict LexerError
+            //       if Django's parser becomes more strict in the future.
+            LexerError::InvalidRemainder { at, .. } => {
+                let start_of_tag = self.parts.at.0;
+                let end_of_junk = at.offset() + at.len();
+
+                let total_len = end_of_junk - start_of_tag;
+
+                Ok(Some(TagElementToken {
+                    at: (start_of_tag, total_len),
+                    token_type: Variable,
+                }))
+            }
             _ => Err(err.into()),
         })
     }
