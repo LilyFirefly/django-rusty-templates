@@ -52,7 +52,7 @@ use dtl_lexer::tag::kwarg::{
 };
 use dtl_lexer::tag::load::{LoadLexer, LoadToken};
 use dtl_lexer::tag::lorem::{LoremError, LoremLexer, LoremMethod, LoremTokenType};
-use dtl_lexer::tag::now::{Now, NowError, NowLexer};
+use dtl_lexer::tag::now::{NowError, NowLexer};
 use dtl_lexer::tag::{TagLexerError, TagParts, lex_tag};
 use dtl_lexer::types::{At, TemplateString};
 use dtl_lexer::variable::{
@@ -627,6 +627,12 @@ impl PartialEq for SimpleBlockTag {
             && self.nodes == other.nodes
             && Arc::ptr_eq(&self.func, &other.func)
     }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Now {
+    pub format: String,
+    pub asvar: Option<At>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -1353,8 +1359,16 @@ impl<'t, 'py> Parser<'t, 'py> {
         let format_at = lexer.lex_format().map_err(ParseError::from)?;
         let asvar = lexer.lex_variable().map_err(ParseError::from)?;
         lexer.extra_token().map_err(ParseError::from)?;
-
-        Ok(Now { format_at, asvar })
+        let raw = self.template.content(format_at);
+        let format = if raw.len() >= 2 {
+            &raw[1..raw.len() - 1]
+        } else {
+            ""
+        };
+        Ok(Now {
+            format: format.to_string(),
+            asvar,
+        })
     }
 
     fn parse_tag(

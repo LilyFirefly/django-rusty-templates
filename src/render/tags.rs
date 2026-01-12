@@ -12,7 +12,8 @@ use pyo3::types::{PyBool, PyDict, PyList, PyNone, PyString, PyTuple};
 
 use crate::render::lorem::{COMMON_WORDS, paragraphs, words};
 use dtl_lexer::tag::lorem::LoremMethod;
-use dtl_lexer::tag::now::Now;
+// use dtl_lexer::tag::now::Now;
+use crate::parse::Now;
 use dtl_lexer::types::{At, TemplateString};
 
 use super::types::{
@@ -1242,13 +1243,6 @@ impl Render for Now {
         template: TemplateString<'t>,
         context: &mut Context,
     ) -> RenderResult<'t> {
-        let raw = template.content(self.format_at);
-        let format = if raw.len() >= 2 {
-            &raw[1..raw.len() - 1]
-        } else {
-            ""
-        };
-
         let tz_mod = DJANGO_TIMEZONE
             .get_or_try_init(py, || -> Result<Py<PyAny>, PyRenderError> {
                 Ok(py.import("django.utils.timezone")?.into())
@@ -1257,7 +1251,7 @@ impl Render for Now {
         let now_dt = tz_mod.call_method0("now")?;
 
         let is_named_format = matches!(
-            format,
+            self.format.as_str(),
             "DATE_FORMAT"
                 | "DATETIME_FORMAT"
                 | "SHORT_DATE_FORMAT"
@@ -1267,7 +1261,7 @@ impl Render for Now {
                 | "TIME_FORMAT"
         );
 
-        let use_named_logic = format.is_empty() || is_named_format;
+        let use_named_logic = self.format.is_empty() || is_named_format;
 
         let result: Bound<'_, PyAny> = if use_named_logic {
             let fmt_mod = DJANGO_FORMATS
@@ -1275,14 +1269,14 @@ impl Render for Now {
                     Ok(py.import("django.utils.formats")?.into())
                 })?
                 .bind(py);
-            fmt_mod.call_method1("date_format", (now_dt, format))?
+            fmt_mod.call_method1("date_format", (now_dt, &self.format))?
         } else {
             let df_mod = DJANGO_DATEFORMAT
                 .get_or_try_init(py, || -> Result<Py<PyAny>, PyRenderError> {
                     Ok(py.import("django.utils.dateformat")?.into())
                 })?
                 .bind(py);
-            df_mod.call_method1("format", (now_dt, format))?
+            df_mod.call_method1("format", (now_dt, &self.format))?
         };
 
         if let Some(asvar_at) = self.asvar {
