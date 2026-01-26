@@ -448,6 +448,12 @@ def test_lorem_words_with_negative_count(render_output):
     assert output == " ".join(COMMON_WORDS[:-5])
 
 
+def test_lorem_words_with_negative_count_random(render_output):
+    template = "{% lorem -5 w random %}"
+    output = render_output(template=template, context={})
+    assert output == ""
+
+
 def test_lorem_render_error(assert_render_error):
     template = "{% lorem count %}"
     context = {"count": lambda: 1 / 0}

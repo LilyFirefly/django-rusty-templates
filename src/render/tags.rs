@@ -681,10 +681,12 @@ impl Render for Tag {
 
                 let text = match lorem.method {
                     LoremMethod::Words => {
-                        let final_count = if val < 0 {
-                            (COMMON_WORDS.len() as i64 + val).max(0) as usize
-                        } else {
-                            val as usize
+                        let final_count = match (val, lorem.common) {
+                            (val, true) if val < 0 => {
+                                (COMMON_WORDS.len() as i64 + val).max(0) as usize
+                            }
+                            (val, false) if val < 0 => 0,
+                            (val, _) => val as usize,
                         };
                         words(final_count, lorem.common)
                     }
