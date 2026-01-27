@@ -41,7 +41,7 @@ dtl-lexer = { path = "dtl-lexer" }
 
 quickcheck = "1.0.3"
 temp-env = "0.3.6"
-cargo-llvm-cov = "0.7.0"
+cargo-llvm-cov = "0.8.0"
 
 [package.metadata.cargo-shear]
 ignored = ["cargo-llvm-cov"]
