@@ -983,10 +983,8 @@ pub enum ParseError {
     UnclosedTag {
         expected: String,
         #[label("this tag was never closed")]
-        at: SourceSpan, 
+        at: SourceSpan,
     },
-
-
 }
 
 #[derive(Error, Debug)]
@@ -1427,7 +1425,9 @@ impl<'t, 'py> Parser<'t, 'py> {
             }),
             "include" => Either::Left(self.parse_include(at, tag.parts)?),
             "lorem" => Either::Left(TokenTree::Tag(Tag::Lorem(self.parse_lorem(at, tag.parts)?))),
-            "comment" => Either::Left(TokenTree::Tag(Tag::Comment(self.parse_comment(at, tag.parts)?))),
+            "comment" => Either::Left(TokenTree::Tag(Tag::Comment(
+                self.parse_comment(at, tag.parts)?,
+            ))),
             tag_name => match self.external_tags.get(tag_name) {
                 Some(TagContext::Simple(context)) => {
                     Either::Left(self.parse_simple_tag(context, at, tag.parts)?)

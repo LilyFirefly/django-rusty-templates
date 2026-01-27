@@ -1,5 +1,5 @@
-pub mod common;
 pub mod comment;
+pub mod common;
 pub mod filters;
 pub mod lorem;
 pub mod tags;

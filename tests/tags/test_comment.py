@@ -41,7 +41,6 @@ def test_comment_syntax(assert_render, template, expected):
         ("foo{% comment %} {% if %} {% endcomment %}", "foo"),
         ("foo{% comment %} {% endblock %} {% endcomment %}", "foo"),
         ("foo{% comment %} {% somerandomtag %} {% endcomment %}", "foo"),
-
         ("{% comment %} {% comment %} inner {% endcomment %} outer", " outer"),
         ("{% comment %} endcommentary {% endcomment %}", ""),
         ("{% comment %}\n  multiline\n  {% endcomment %}", ""),
