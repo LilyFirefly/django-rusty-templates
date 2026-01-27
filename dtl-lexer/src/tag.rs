@@ -1,4 +1,5 @@
 pub mod autoescape;
+pub mod comment;
 pub mod common;
 pub mod forloop;
 pub mod ifcondition;
