@@ -38,6 +38,7 @@ use crate::filters::YesnoFilter;
 use dtl_lexer::common::{LexerError, text_content_at, translated_text_content_at};
 use dtl_lexer::core::{Lexer, TokenType};
 use dtl_lexer::tag::autoescape::{AutoescapeEnabled, AutoescapeError, lex_autoescape_argument};
+use dtl_lexer::tag::comment::CommentLexer;
 use dtl_lexer::tag::common::{TagElementToken, TagElementTokenType};
 use dtl_lexer::tag::forloop::{ForLexer, ForLexerError, ForLexerInError, ForTokenType};
 use dtl_lexer::tag::ifcondition::{
@@ -79,6 +80,9 @@ pub struct Lorem {
     pub method: LoremMethod,
     pub common: bool,
 }
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct Comment;
 
 impl Parse<Argument> for ArgumentToken {
     fn parse(&self, parser: &Parser) -> Result<Argument, ParseError> {
@@ -646,6 +650,7 @@ pub enum Tag {
     SimpleBlockTag(SimpleBlockTag),
     Url(Url),
     Lorem(Lorem),
+    Comment(Comment),
 }
 
 #[derive(PartialEq, Eq)]
@@ -973,6 +978,15 @@ pub enum ParseError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     LoremError(#[from] LoremError),
+
+    #[error("Unclosed tag, expected {expected}")]
+    UnclosedTag {
+        expected: String,
+        #[label("this tag was never closed")]
+        at: SourceSpan, 
+    },
+
+
 }
 
 #[derive(Error, Debug)]
@@ -1341,6 +1355,28 @@ impl<'t, 'py> Parser<'t, 'py> {
         }
     }
 
+    fn parse_comment(&mut self, at: At, parts: TagParts) -> Result<Comment, PyParseError> {
+        let lexer = CommentLexer::new(self.template, parts);
+        for token in lexer {
+            token.map_err(ParseError::from)?;
+        }
+
+        for token in self.lexer.by_ref() {
+            if let TokenType::Tag = token.token_type {
+                let content = token.content(self.template).trim();
+                if content.split_whitespace().next() == Some("endcomment") {
+                    return Ok(Comment);
+                }
+            }
+        }
+
+        Err(ParseError::UnclosedTag {
+            expected: "endcomment".to_string(),
+            at: at.into(),
+        }
+        .into())
+    }
+
     fn parse_tag(
         &mut self,
         tag: &'t str,
@@ -1391,6 +1427,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             }),
             "include" => Either::Left(self.parse_include(at, tag.parts)?),
             "lorem" => Either::Left(TokenTree::Tag(Tag::Lorem(self.parse_lorem(at, tag.parts)?))),
+            "comment" => Either::Left(TokenTree::Tag(Tag::Comment(self.parse_comment(at, tag.parts)?))),
             tag_name => match self.external_tags.get(tag_name) {
                 Some(TagContext::Simple(context)) => {
                     Either::Left(self.parse_simple_tag(context, at, tag.parts)?)
