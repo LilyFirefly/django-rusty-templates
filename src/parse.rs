@@ -978,6 +978,12 @@ pub enum ParseError {
         at: SourceSpan,
     },
 
+    #[error("Invalid variable name")]
+    InvalidVariableName {
+        #[label("here")]
+        at: SourceSpan,
+    },
+
     #[error(transparent)]
     #[diagnostic(transparent)]
     LoremError(#[from] LoremError),
@@ -1365,6 +1371,14 @@ impl<'t, 'py> Parser<'t, 'py> {
         } else {
             ""
         };
+
+        if let Some(at) = asvar {
+            let content = self.template.content(at);
+            if content.contains('.') {
+                return Err(ParseError::InvalidVariableName { at: at.into() }.into());
+            }
+        }
+
         Ok(Now {
             format: format.to_string(),
             asvar,

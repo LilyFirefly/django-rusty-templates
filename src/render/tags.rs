@@ -10,10 +10,9 @@ use pyo3::prelude::*;
 use pyo3::sync::{MutexExt, PyOnceLock};
 use pyo3::types::{PyBool, PyDict, PyList, PyNone, PyString, PyTuple};
 
+use crate::parse::Now;
 use crate::render::lorem::{COMMON_WORDS, paragraphs, words};
 use dtl_lexer::tag::lorem::LoremMethod;
-// use dtl_lexer::tag::now::Now;
-use crate::parse::Now;
 use dtl_lexer::types::{At, TemplateString};
 
 use super::types::{

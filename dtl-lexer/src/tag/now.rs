@@ -30,7 +30,10 @@ impl<'t> NowLexer<'t> {
 
     fn next_element(&mut self) -> Result<Option<TagElementToken>, NowError> {
         self.lexer.next().transpose().or_else(|err| match err {
-            LexerError::IncompleteString { at } => Ok(Some(TagElementToken {
+            LexerError::IncompleteString { at }
+            | LexerError::IncompleteTranslatedString { at }
+            | LexerError::InvalidVariableName { at }
+            | LexerError::MissingTranslatedString { at } => Ok(Some(TagElementToken {
                 at: (at.offset(), at.len()),
                 token_type: Variable,
             })),
@@ -48,7 +51,6 @@ impl<'t> NowLexer<'t> {
                     token_type: Variable,
                 }))
             }
-            _ => Err(err.into()),
         })
     }
 
@@ -132,4 +134,81 @@ pub enum NowError {
         #[label("missing format")]
         at: SourceSpan,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::IntoTemplateString;
+
+    #[test]
+    fn test_lex_format_success() {
+        let template = r#"{% now "Y-m-d" %}"#;
+        let parts = TagParts { at: (7, 7) };
+        let mut lexer = NowLexer::new(template.into_template_string(), parts);
+        assert_eq!(lexer.lex_format().unwrap(), (7, 7));
+    }
+
+    #[test]
+    fn test_lex_format_incomplete_string() {
+        let template = r#"{% now "Y-m-d %}"#;
+        let parts = TagParts { at: (7, 6) };
+        let mut lexer = NowLexer::new(template.into_template_string(), parts);
+        assert_eq!(lexer.lex_format().unwrap(), (7, 6));
+    }
+
+    #[test]
+    fn test_lex_format_missing() {
+        let template = r#"{% now %}"#;
+        let parts = TagParts { at: (7, 0) };
+        let mut lexer = NowLexer::new(template.into_template_string(), parts);
+        assert!(matches!(
+            lexer.lex_format(),
+            Err(NowError::MissingFormat { .. })
+        ));
+    }
+
+    #[test]
+    fn test_lex_variable_as_success() {
+        let template = r#"{% now "Y" as current_year %}"#;
+        let parts = TagParts { at: (7, 19) };
+        let mut lexer = NowLexer::new(template.into_template_string(), parts);
+        lexer.lex_format().unwrap();
+        assert_eq!(lexer.lex_variable().unwrap(), Some((14, 12)));
+    }
+
+    #[test]
+    fn test_lex_variable_missing_after_as() {
+        let template = r#"{% now "Y" as %}"#;
+        let parts = TagParts { at: (7, 6) };
+        let mut lexer = NowLexer::new(template.into_template_string(), parts);
+        lexer.lex_format().unwrap();
+        assert!(matches!(
+            lexer.lex_variable(),
+            Err(NowError::MissingVariableAfterAs { .. })
+        ));
+    }
+
+    #[test]
+    fn test_lex_extra_token_error() {
+        let template = r#"{% now "Y" as x y %}"#;
+        let parts = TagParts { at: (7, 10) };
+        let mut lexer = NowLexer::new(template.into_template_string(), parts);
+        lexer.lex_format().unwrap();
+        lexer.lex_variable().unwrap();
+        assert!(matches!(
+            lexer.extra_token(),
+            Err(NowError::UnexpectedAfterVariable { .. })
+        ));
+    }
+
+    #[test]
+    fn test_lex_format_invalid_remainder() {
+        let template = r#"{% now "Y"invalid %}"#;
+        let parts = TagParts { at: (7, 10) };
+        let mut lexer = NowLexer::new(template.into_template_string(), parts);
+        // "Y" is (7, 3), invalid starts at 10.
+        // next_element should return everything from start_of_tag (7) to end of junk.
+        assert_eq!(lexer.lex_format().unwrap(), (7, 10));
+    }
 }

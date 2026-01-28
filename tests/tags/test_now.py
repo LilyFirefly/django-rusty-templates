@@ -1,6 +1,8 @@
 import pytest
+from inline_snapshot import snapshot
 import time_machine
 from datetime import datetime
+from django.template import TemplateSyntaxError
 from django.utils import timezone
 from django.utils.formats import date_format
 from django.utils.dateformat import format as django_format
@@ -435,4 +437,46 @@ def test_now_invalid_remainder(assert_render):
         template=template,
         context={},
         expected=r'2026"001vp.m.Thursday00',
+    )
+
+
+def test_now_invalid_variable_name(template_engine, assert_render):
+    template = '{% now "j n Y" as foo.bar %}'
+    if template_engine.name == "django":
+        # Django is lenient and allows dots in the 'as' variable name
+        assert_render(template=template, context={}, expected="")
+    else:
+        # Rusty is stricter and disallows dots in assignment
+        with pytest.raises(TemplateSyntaxError) as exc_info:
+            template_engine.from_string(template)
+
+        assert str(exc_info.value) == snapshot("""\
+  × Invalid variable name
+   ╭────
+ 1 │ {% now "j n Y" as foo.bar %}
+   ·                   ───┬───
+   ·                      ╰── here
+   ╰────
+""")
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_incomplete_translated_string(template_engine, assert_render):
+    template = '{% now _("j n Y %}'
+    if template_engine.name != "django":
+        # Ensure Rusty handles partial junk gracefully without crashing
+        assert_render(
+            template=template,
+            context={},
+            expected="8 1 ",
+        )
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_missing_translated_string(assert_render):
+    template = "{% now _() %}"
+    assert_render(
+        template=template,
+        context={},
+        expected="(",
     )
