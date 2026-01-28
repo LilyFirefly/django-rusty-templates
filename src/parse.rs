@@ -38,7 +38,6 @@ use crate::filters::YesnoFilter;
 use dtl_lexer::common::{LexerError, text_content_at, translated_text_content_at};
 use dtl_lexer::core::{Lexer, TokenType};
 use dtl_lexer::tag::autoescape::{AutoescapeEnabled, AutoescapeError, lex_autoescape_argument};
-use dtl_lexer::tag::comment::CommentLexer;
 use dtl_lexer::tag::common::{TagElementToken, TagElementTokenType};
 use dtl_lexer::tag::forloop::{ForLexer, ForLexerError, ForLexerInError, ForTokenType};
 use dtl_lexer::tag::ifcondition::{
@@ -840,7 +839,7 @@ pub enum ParseError {
     #[error("Unclosed '{start}' tag. Looking for one of: {expected}")]
     MissingEndTag {
         start: Cow<'static, str>,
-        expected: String,
+        expected: Cow<'static, str>,
         #[label("started here")]
         at: SourceSpan,
     },
@@ -978,13 +977,6 @@ pub enum ParseError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     LoremError(#[from] LoremError),
-
-    #[error("Unclosed tag, expected {expected}")]
-    UnclosedTag {
-        expected: String,
-        #[label("this tag was never closed")]
-        at: SourceSpan,
-    },
 }
 
 #[derive(Error, Debug)]
@@ -1190,7 +1182,8 @@ impl<'t, 'py> Parser<'t, 'py> {
                 .iter()
                 .map(EndTagType::as_cow)
                 .collect::<Vec<_>>()
-                .join(", "),
+                .join(", ")
+                .into(),
             at: start_at.into(),
         }
         .into())
@@ -1353,12 +1346,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         }
     }
 
-    fn parse_comment(&mut self, at: At, parts: TagParts) -> Result<Comment, PyParseError> {
-        let lexer = CommentLexer::new(self.template, parts);
-        for token in lexer {
-            token.map_err(ParseError::from)?;
-        }
-
+    fn parse_comment(&mut self, at: At, _parts: TagParts) -> Result<Comment, PyParseError> {
         for token in self.lexer.by_ref() {
             if let TokenType::Tag = token.token_type {
                 let content = token.content(self.template).trim();
@@ -1368,8 +1356,9 @@ impl<'t, 'py> Parser<'t, 'py> {
             }
         }
 
-        Err(ParseError::UnclosedTag {
-            expected: "endcomment".to_string(),
+        Err(ParseError::MissingEndTag {
+            start: "comment".into(),
+            expected: "endcomment".into(),
             at: at.into(),
         }
         .into())

@@ -74,19 +74,50 @@ def test_unclosed_comment_tag(assert_parse_error):
         template=template,
         django_message=django_msg,
         rusty_message=snapshot("""\
-  × Unclosed tag, expected endcomment
+  × Unclosed 'comment' tag. Looking for one of: endcomment
    ╭────
  1 │ {% comment %} hidden stuff...
    · ──────┬──────
-   ·       ╰── this tag was never closed
+   ·       ╰── started here
    ╰────
 """),
     )
 
 
-def test_comment_parsing_errors(assert_parse_error):
+def test_comment_invalid_opening_tag_success(assert_render):
     """
-    Test errors in the opening comment tag arguments.
+    Invalid content in the opening comment tag is ignored if closed.
+    """
+    assert_render(
+        template='{% comment "note"invalid %}content{% endcomment %}',
+        context={},
+        expected="",
+    )
+
+
+def test_comment_invalid_remainder_error(assert_parse_error):
+    """
+    Invalid remainder in opening comment tag reports as unclosed if unclosed.
+    """
+    template = '{% comment "note"invalid %}'
+    django_msg = "Unclosed tag on line 1: 'comment'. Looking for one of: endcomment."
+    assert_parse_error(
+        template=template,
+        django_message=django_msg,
+        rusty_message=snapshot("""\
+  × Unclosed 'comment' tag. Looking for one of: endcomment
+   ╭────
+ 1 │ {% comment "note"invalid %}
+   · ─────────────┬─────────────
+   ·              ╰── started here
+   ╰────
+"""),
+    )
+
+
+def test_comment_unclosed_string_error(assert_parse_error):
+    """
+    Unclosed string in opening comment tag reports as unclosed if unclosed.
     """
     template = '{% comment "unclosed string %}'
     django_msg = "Unclosed tag on line 1: 'comment'. Looking for one of: endcomment."
@@ -94,27 +125,11 @@ def test_comment_parsing_errors(assert_parse_error):
         template=template,
         django_message=django_msg,
         rusty_message=snapshot("""\
-  × Expected a complete string literal
+  × Unclosed 'comment' tag. Looking for one of: endcomment
    ╭────
  1 │ {% comment "unclosed string %}
-   ·            ────────┬───────
-   ·                    ╰── here
-   ╰────
-"""),
-    )
-
-    # Invalid remainder (missing space)
-    template = '{% comment "note"invalid %}'
-    django_msg = "Unclosed tag on line 1: 'comment'. Looking for one of: endcomment."
-    assert_parse_error(
-        template=template,
-        django_message=django_msg,
-        rusty_message=snapshot("""\
-  × Could not parse the remainder
-   ╭────
- 1 │ {% comment "note"invalid %}
-   ·                  ───┬───
-   ·                     ╰── here
+   · ───────────────┬──────────────
+   ·                ╰── started here
    ╰────
 """),
     )
