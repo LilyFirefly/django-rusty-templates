@@ -1,5 +1,5 @@
 #![expect(unused_assignments)]
-use crate::common::{LexerError, check_variable_attrs};
+use crate::common::LexerError;
 use crate::tag::TagParts;
 use crate::tag::common::TagElementTokenType::Variable;
 use crate::tag::common::{TagElementLexer, TagElementToken};
@@ -76,8 +76,6 @@ impl<'t> NowLexer<'t> {
                         at: SourceSpan::new(position_after_as.into(), 0usize),
                     });
                 };
-
-                check_variable_attrs(self.template.content(var.at), var.at.0)?;
 
                 Ok(Some(var.at))
             }

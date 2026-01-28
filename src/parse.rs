@@ -1372,13 +1372,6 @@ impl<'t, 'py> Parser<'t, 'py> {
             ""
         };
 
-        if let Some(at) = asvar {
-            let content = self.template.content(at);
-            if content.contains('.') {
-                return Err(ParseError::InvalidVariableName { at: at.into() }.into());
-            }
-        }
-
         Ok(Now {
             format: format.to_string(),
             asvar,

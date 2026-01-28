@@ -1,8 +1,6 @@
 import pytest
-from inline_snapshot import snapshot
 import time_machine
 from datetime import datetime
-from django.template import TemplateSyntaxError
 from django.utils import timezone
 from django.utils.formats import date_format
 from django.utils.dateformat import format as django_format
@@ -247,6 +245,8 @@ def test_now_numeric_format(assert_render):
         "DATETIME_FORMAT",
         "SHORT_DATE_FORMAT",
         "SHORT_DATETIME_FORMAT",
+        "YEAR_MONTH_FORMAT",
+        "MONTH_DAY_FORMAT",
     ],
 )
 @time_machine.travel(FIXED_TIME)
@@ -265,6 +265,29 @@ def test_now_as_different_name(assert_render):
         context={},
         expected=f"Year: {FIXED_TIME.year}",
     )
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_as_leading_underscore(assert_render):
+    assert_render(
+        template='{% now "Y" as _now %}',
+        context={},
+        expected="",
+    )
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_as_single_underscore(assert_render):
+    assert_render(
+        template='{% now "Y" as _ %}',
+        context={},
+        expected="",
+    )
+
+
+def test_now_as_invalid_double_dot(assert_render):
+    template = '{% now "j n Y" as foo..bar %}'
+    assert_render(template=template, context={}, expected="")
 
 
 @time_machine.travel(FIXED_TIME)
@@ -440,24 +463,9 @@ def test_now_invalid_remainder(assert_render):
     )
 
 
-def test_now_invalid_variable_name(template_engine, assert_render):
+def test_now_invalid_variable_name(assert_render):
     template = '{% now "j n Y" as foo.bar %}'
-    if template_engine.name == "django":
-        # Django is lenient and allows dots in the 'as' variable name
-        assert_render(template=template, context={}, expected="")
-    else:
-        # Rusty is stricter and disallows dots in assignment
-        with pytest.raises(TemplateSyntaxError) as exc_info:
-            template_engine.from_string(template)
-
-        assert str(exc_info.value) == snapshot("""\
-  × Invalid variable name
-   ╭────
- 1 │ {% now "j n Y" as foo.bar %}
-   ·                   ───┬───
-   ·                      ╰── here
-   ╰────
-""")
+    assert_render(template=template, context={}, expected="")
 
 
 @time_machine.travel(FIXED_TIME)
