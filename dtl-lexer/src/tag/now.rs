@@ -209,4 +209,51 @@ mod tests {
         // next_element should return everything from start_of_tag (7) to end of junk.
         assert_eq!(lexer.lex_format().unwrap(), (7, 10));
     }
+
+    #[test]
+    fn test_lex_format_incomplete_translated_string() {
+        let template = r#"{% now _("Y") %}"#;
+        let parts = TagParts { at: (7, 5) }; // _("Y"
+        let mut lexer = NowLexer::new(template.into_template_string(), parts);
+        assert_eq!(lexer.lex_format().unwrap(), (7, 5));
+    }
+
+    #[test]
+    fn test_lex_format_missing_translated_string() {
+        let template = r#"{% now _() %}"#;
+        let parts = TagParts { at: (7, 3) }; // _()
+        let mut lexer = NowLexer::new(template.into_template_string(), parts);
+        assert_eq!(lexer.lex_format().unwrap(), (7, 3));
+    }
+
+    #[test]
+    fn test_lex_variable_none() {
+        let template = r#"{% now "Y" %}"#;
+        let parts = TagParts { at: (7, 3) };
+        let mut lexer = NowLexer::new(template.into_template_string(), parts);
+        lexer.lex_format().unwrap();
+        assert_eq!(lexer.lex_variable().unwrap(), None);
+    }
+
+    #[test]
+    fn test_lex_variable_unexpected_after_format() {
+        let template = r#"{% now "Y" "junk" %}"#;
+        let parts = TagParts { at: (7, 10) };
+        let mut lexer = NowLexer::new(template.into_template_string(), parts);
+        lexer.lex_format().unwrap();
+        assert!(matches!(
+            lexer.lex_variable(),
+            Err(NowError::UnexpectedAfterFormat { .. })
+        ));
+    }
+
+    #[test]
+    fn test_extra_token_none() {
+        let template = r#"{% now "Y" as var %}"#;
+        let parts = TagParts { at: (7, 10) };
+        let mut lexer = NowLexer::new(template.into_template_string(), parts);
+        lexer.lex_format().unwrap();
+        lexer.lex_variable().unwrap();
+        assert_eq!(lexer.extra_token().unwrap(), None);
+    }
 }

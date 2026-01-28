@@ -488,3 +488,40 @@ def test_now_missing_translated_string(assert_render):
         context={},
         expected="(",
     )
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_all_named_formats_exhaustive(assert_render):
+    formats = [
+        "DATE_FORMAT",
+        "DATETIME_FORMAT",
+        "SHORT_DATE_FORMAT",
+        "SHORT_DATETIME_FORMAT",
+        "YEAR_MONTH_FORMAT",
+        "MONTH_DAY_FORMAT",
+        "TIME_FORMAT",
+    ]
+    for fmt in formats:
+        assert_render(
+            template=f'{{% now "{fmt}" %}}',
+            context={},
+            expected=date_format(FIXED_TIME, fmt),
+        )
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_as_var_empty_string(assert_render):
+    assert_render(
+        template='{% now "Y" as x %}{{ x }}',
+        context={},
+        expected=str(FIXED_TIME.year),
+    )
+
+
+@time_machine.travel(FIXED_TIME)
+def test_now_with_pre_initialized_context(assert_render):
+    assert_render(
+        template='{% now "Y" %}',
+        context={"some_var": "some_val"},
+        expected=str(FIXED_TIME.year),
+    )
