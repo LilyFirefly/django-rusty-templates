@@ -711,6 +711,7 @@ impl Render for Tag {
 
                 Cow::Owned(text)
             }
+            Self::Comment(_) => Cow::Borrowed(""),
         })
     }
 }

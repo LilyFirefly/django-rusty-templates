@@ -80,6 +80,9 @@ pub struct Lorem {
     pub common: bool,
 }
 
+#[derive(Debug, PartialEq, Clone)]
+pub struct Comment;
+
 impl Parse<Argument> for ArgumentToken {
     fn parse(&self, parser: &Parser) -> Result<Argument, ParseError> {
         Ok(match *self {
@@ -646,6 +649,7 @@ pub enum Tag {
     SimpleBlockTag(SimpleBlockTag),
     Url(Url),
     Lorem(Lorem),
+    Comment(Comment),
 }
 
 #[derive(PartialEq, Eq)]
@@ -835,7 +839,7 @@ pub enum ParseError {
     #[error("Unclosed '{start}' tag. Looking for one of: {expected}")]
     MissingEndTag {
         start: Cow<'static, str>,
-        expected: String,
+        expected: Cow<'static, str>,
         #[label("started here")]
         at: SourceSpan,
     },
@@ -1178,7 +1182,8 @@ impl<'t, 'py> Parser<'t, 'py> {
                 .iter()
                 .map(EndTagType::as_cow)
                 .collect::<Vec<_>>()
-                .join(", "),
+                .join(", ")
+                .into(),
             at: start_at.into(),
         }
         .into())
@@ -1341,6 +1346,24 @@ impl<'t, 'py> Parser<'t, 'py> {
         }
     }
 
+    fn parse_comment(&mut self, at: At, _parts: TagParts) -> Result<Comment, PyParseError> {
+        for token in self.lexer.by_ref() {
+            if let TokenType::Tag = token.token_type {
+                let content = token.content(self.template).trim();
+                if content.split_whitespace().next() == Some("endcomment") {
+                    return Ok(Comment);
+                }
+            }
+        }
+
+        Err(ParseError::MissingEndTag {
+            start: "comment".into(),
+            expected: "endcomment".into(),
+            at: at.into(),
+        }
+        .into())
+    }
+
     fn parse_tag(
         &mut self,
         tag: &'t str,
@@ -1391,6 +1414,9 @@ impl<'t, 'py> Parser<'t, 'py> {
             }),
             "include" => Either::Left(self.parse_include(at, tag.parts)?),
             "lorem" => Either::Left(TokenTree::Tag(Tag::Lorem(self.parse_lorem(at, tag.parts)?))),
+            "comment" => Either::Left(TokenTree::Tag(Tag::Comment(
+                self.parse_comment(at, tag.parts)?,
+            ))),
             tag_name => match self.external_tags.get(tag_name) {
                 Some(TagContext::Simple(context)) => {
                     Either::Left(self.parse_simple_tag(context, at, tag.parts)?)
