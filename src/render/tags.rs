@@ -715,6 +715,7 @@ impl Render for Tag {
 
                 Cow::Owned(text)
             }
+            Self::Comment(_) => Cow::Borrowed(""),
             Self::Now(now) => now.render(py, template, context)?,
         })
     }
