@@ -268,20 +268,34 @@ def test_now_as_different_name(assert_render):
 
 
 @time_machine.travel(FIXED_TIME)
-def test_now_as_leading_underscore(assert_render):
-    assert_render(
-        template='{% now "Y" as _now %}',
-        context={},
-        expected="",
+def test_now_as_leading_underscore(assert_parse_error):
+    assert_parse_error(
+        template='{% now "Y" as _now %}{{ _now }}',
+        django_message="Variables and attributes may not begin with underscores: '_now'",
+        rusty_message="""\
+  × Expected a valid variable name
+   ╭────
+ 1 │ {% now "Y" as _now %}{{ _now }}
+   ·                         ──┬─
+   ·                           ╰── here
+   ╰────
+""",
     )
 
 
 @time_machine.travel(FIXED_TIME)
-def test_now_as_single_underscore(assert_render):
-    assert_render(
-        template='{% now "Y" as _ %}',
-        context={},
-        expected="",
+def test_now_as_single_underscore(assert_parse_error):
+    assert_parse_error(
+        template='{% now "Y" as _ %}{{ _ }}',
+        django_message="Variables and attributes may not begin with underscores: '_'",
+        rusty_message="""\
+  × Expected a valid variable name
+   ╭────
+ 1 │ {% now "Y" as _ %}{{ _ }}
+   ·                      ┬
+   ·                      ╰── here
+   ╰────
+""",
     )
 
 
@@ -464,7 +478,7 @@ def test_now_invalid_remainder(assert_render):
 
 
 def test_now_invalid_variable_name(assert_render):
-    template = '{% now "j n Y" as foo.bar %}'
+    template = '{% now "j n Y" as foo.bar %}{{ foo.bar }}'
     assert_render(template=template, context={}, expected="")
 
 
