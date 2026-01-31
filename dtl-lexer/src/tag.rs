@@ -6,6 +6,7 @@ pub mod include;
 pub mod kwarg;
 pub mod load;
 pub mod lorem;
+pub mod now;
 
 use crate::common::NextChar;
 use crate::types::{At, TemplateString};

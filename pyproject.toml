@@ -32,6 +32,7 @@ dev = [
     "ruff",
     "pre-commit",
     "inline-snapshot",
+    "time-machine",
 ]
 
 [tool.ruff]
