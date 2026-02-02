@@ -391,9 +391,9 @@ def test_render_to_string_success():
 @pytest.mark.parametrize(
     "template_name,message",
     [
-        ({"nonexistent.html", "basic.txt"}, "'set' object cannot be cast as 'str'"),
-        ([1, 2], "'int' object cannot be cast as 'str'"),
-        (None, "'NoneType' object cannot be cast as 'str'"),
+        ({"nonexistent.html", "basic.txt"}, "'set' object is not an instance of 'str'"),
+        ([1, 2], "'int' object is not an instance of 'str'"),
+        (None, "'None' is not an instance of 'str'"),
     ],
 )
 def test_render_to_string_invalid_template_name(template_name, message):

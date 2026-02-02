@@ -296,7 +296,7 @@ impl Context {
     }
 }
 
-#[pyclass(mapping)]
+#[pyclass(mapping, from_py_object)]
 #[derive(Clone)]
 pub struct PyContext {
     pub context: Arc<Mutex<Context>>,

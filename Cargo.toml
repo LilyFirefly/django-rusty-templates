@@ -30,7 +30,7 @@ encoding_rs = "0.8.35"
 html-escape = "0.2.13"
 miette.workspace = true
 num-bigint.workspace = true
-pyo3 = { version = "0.27.0", features = ["num-bigint"] }
+pyo3 = { version = "0.28.0", features = ["num-bigint"] }
 sugar_path = "1.2.0"
 thiserror.workspace = true
 unicode-normalization = "0.1.24"
