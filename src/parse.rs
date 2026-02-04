@@ -52,6 +52,7 @@ use dtl_lexer::tag::kwarg::{
 };
 use dtl_lexer::tag::load::{LoadLexer, LoadToken};
 use dtl_lexer::tag::lorem::{LoremError, LoremLexer, LoremMethod, LoremTokenType};
+use dtl_lexer::tag::now::{NowError, NowLexer};
 use dtl_lexer::tag::{TagLexerError, TagParts, lex_tag};
 use dtl_lexer::types::{At, TemplateString};
 use dtl_lexer::variable::{
@@ -632,6 +633,12 @@ impl PartialEq for SimpleBlockTag {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct Now {
+    pub format: String,
+    pub asvar: Option<At>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum Tag {
     Autoescape {
         enabled: AutoescapeEnabled,
@@ -650,6 +657,7 @@ pub enum Tag {
     Url(Url),
     Lorem(Lorem),
     Comment(Comment),
+    Now(Now),
 }
 
 #[derive(PartialEq, Eq)]
@@ -974,9 +982,19 @@ pub enum ParseError {
         at: SourceSpan,
     },
 
+    #[error("Invalid variable name")]
+    InvalidVariableName {
+        #[label("here")]
+        at: SourceSpan,
+    },
+
     #[error(transparent)]
     #[diagnostic(transparent)]
     LoremError(#[from] LoremError),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    NowError(#[from] NowError),
 }
 
 #[derive(Error, Debug)]
@@ -1364,6 +1382,29 @@ impl<'t, 'py> Parser<'t, 'py> {
         .into())
     }
 
+    fn parse_now(&mut self, parts: TagParts) -> Result<Now, PyParseError> {
+        let mut lexer = NowLexer::new(self.template, parts);
+
+        let format_at = lexer.lex_format().map_err(ParseError::from)?;
+        let asvar = lexer.lex_variable().map_err(ParseError::from)?;
+        lexer.extra_token().map_err(ParseError::from)?;
+        let raw = self.template.content(format_at);
+        // Django always trims the first and last character without further
+        // validation, so so do we. This will become unnecessary if Django
+        // starts supporting variables in the now tag.
+        // https://github.com/django/new-features/issues/115
+        let format = if raw.len() >= 2 {
+            &raw[1..raw.len() - 1]
+        } else {
+            ""
+        };
+
+        Ok(Now {
+            format: format.to_string(),
+            asvar,
+        })
+    }
+
     fn parse_tag(
         &mut self,
         tag: &'t str,
@@ -1417,6 +1458,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             "comment" => Either::Left(TokenTree::Tag(Tag::Comment(
                 self.parse_comment(at, tag.parts)?,
             ))),
+            "now" => Either::Left(TokenTree::Tag(Tag::Now(self.parse_now(tag.parts)?))),
             tag_name => match self.external_tags.get(tag_name) {
                 Some(TagContext::Simple(context)) => {
                     Either::Left(self.parse_simple_tag(context, at, tag.parts)?)
