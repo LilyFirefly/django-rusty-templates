@@ -1389,6 +1389,10 @@ impl<'t, 'py> Parser<'t, 'py> {
         let asvar = lexer.lex_variable().map_err(ParseError::from)?;
         lexer.extra_token().map_err(ParseError::from)?;
         let raw = self.template.content(format_at);
+        // Django always trims the first and last character without further
+        // validation, so so do we. This will become unnecessary if Django
+        // starts supporting variables in the now tag.
+        // https://github.com/django/new-features/issues/115
         let format = if raw.len() >= 2 {
             &raw[1..raw.len() - 1]
         } else {

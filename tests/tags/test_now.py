@@ -483,6 +483,16 @@ def test_now_invalid_variable_name(assert_render):
 
 
 @time_machine.travel(FIXED_TIME)
+def test_now_invalid_variable_name_error(assert_render):
+    template = "{% now invalid-name %}"
+    assert_render(
+        template=template,
+        context={},
+        expected=r"1vp.m.Thursday0008-1p.m.01",
+    )
+
+
+@time_machine.travel(FIXED_TIME)
 def test_now_incomplete_translated_string(template_engine, assert_render):
     template = '{% now _("j n Y %}'
     if template_engine.name != "django":
