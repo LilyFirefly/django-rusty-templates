@@ -39,7 +39,7 @@ dtl-lexer = { path = "dtl-lexer" }
 
 [dev-dependencies]
 
-quickcheck = "1.0.3"
+proptest = "1.10.0"
 temp-env = "0.3.6"
 cargo-llvm-cov = "0.8.0"
 
