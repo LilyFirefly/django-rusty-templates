@@ -51,7 +51,7 @@ jobs:
         run: uv sync --dev
 
       - name: Run the benchmarks
-        uses: CodSpeedHQ/action@fa0c9b1770f933c1bc025c83a9b42946b102f4e6 # v4.10.4
+        uses: CodSpeedHQ/action@9a74b6ba663684052277e8f342b5eb99c7442a03 # v4.10.5
         with:
           mode: simulation
           run: |
