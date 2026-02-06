@@ -262,7 +262,7 @@ mod tests {
     use super::*;
     use pyo3::{BoundObject, IntoPyObjectExt};
 
-    use quickcheck::quickcheck;
+    use proptest::prelude::*;
 
     fn setup_django(py: Python<'_>) {
         // Import the os module and set the DJANGO_SETTINGS_MODULE environment variable
@@ -814,20 +814,19 @@ mod tests {
         ignore = "Skipping on Windows due to path character restrictions"
     )]
     fn test_safe_join_matches_django_safe_join() {
-        fn matches(path: PathBuf, template_name: String) -> bool {
+        Python::initialize();
+        proptest!(|(path: PathBuf, template_name: String)| {
             Python::attach(|py| {
                 let utils_os = PyModule::import(py, "django.utils._os").unwrap();
                 let django_safe_join = utils_os.getattr("safe_join").unwrap();
 
                 let joined = django_safe_join
                     .call1((&path, &template_name))
-                    .map(|joined| joined.extract().unwrap_or_default())
+                    .map(|joined| joined.extract::<PathBuf>().unwrap_or_default())
                     .ok();
-                joined == safe_join(&path, &template_name)
-            })
-        }
-        Python::initialize();
-
-        quickcheck(matches as fn(PathBuf, String) -> bool);
+                prop_assert_eq!(joined, safe_join(&path, &template_name));
+                Ok(())
+            })?;
+        });
     }
 }
