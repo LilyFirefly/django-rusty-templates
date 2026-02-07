@@ -217,7 +217,6 @@ pub static COMMON_WORDS: [&str; 19] = [
 
 pub fn sentence() -> String {
     use rand::Rng;
-    // use rand::seq::SliceRandom;
 
     let mut rng = rand::rng();
     let num_sections = rng.random_range(1..=5);
