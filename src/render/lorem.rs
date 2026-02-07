@@ -1,5 +1,5 @@
 use rand::Rng;
-use rand::seq::SliceRandom;
+use rand::prelude::IndexedRandom;
 use std::borrow::Cow;
 
 static COMMON_P: &str = "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod \
@@ -217,14 +217,14 @@ pub static COMMON_WORDS: [&str; 19] = [
 
 pub fn sentence() -> String {
     use rand::Rng;
-    use rand::seq::SliceRandom;
+    // use rand::seq::SliceRandom;
 
-    let mut rng = rand::thread_rng();
-    let num_sections = rng.gen_range(1..=5);
+    let mut rng = rand::rng();
+    let num_sections = rng.random_range(1..=5);
     let mut sections = Vec::with_capacity(num_sections);
 
     for _ in 0..num_sections {
-        let num_words = rng.gen_range(3..=12);
+        let num_words = rng.random_range(3..=12);
         let selected_words: Vec<&str> = WORDS
             .choose_multiple(&mut rng, num_words)
             .copied()
@@ -243,14 +243,14 @@ pub fn sentence() -> String {
     let rest = &sentence[first.len_utf8()..];
     sentence = format!("{upper}{rest}");
 
-    let punctuation = if rng.gen_bool(0.5) { "?" } else { "." };
+    let punctuation = if rng.random_bool(0.5) { "?" } else { "." };
     sentence.push_str(punctuation);
 
     sentence
 }
 
 pub fn paragraph() -> String {
-    let num_sentences = rand::thread_rng().gen_range(1..=4);
+    let num_sentences = rand::rng().random_range(1..=4);
     (0..num_sentences)
         .map(|_| sentence())
         .collect::<Vec<String>>()
@@ -274,7 +274,7 @@ pub fn words(mut count: usize, common: bool) -> String {
     if common && count <= COMMON_WORDS.len() {
         return COMMON_WORDS[..count].join(" ");
     }
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let mut word_list: Vec<&str> = Vec::with_capacity(count);
     if common {
         word_list.extend(&COMMON_WORDS);
