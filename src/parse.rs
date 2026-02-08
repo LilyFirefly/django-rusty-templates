@@ -4,6 +4,7 @@
 #![expect(unused_assignments)]
 use dtl_lexer::DelimitedToken;
 use std::borrow::Cow;
+use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::iter::Peekable;
 use std::sync::Arc;
@@ -1151,6 +1152,7 @@ pub struct Parser<'t, 'py> {
     external_filters: HashMap<String, Bound<'py, PyAny>>,
     forloop_depth: usize,
     first_tag: Option<At>,
+    seen_blocks: HashMap<String, At>,
 }
 
 impl<'t, 'py> Parser<'t, 'py> {
@@ -1170,6 +1172,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             external_filters: HashMap::new(),
             forloop_depth: 0,
             first_tag: None,
+            seen_blocks: HashMap::new(),
         }
     }
 
@@ -1189,6 +1192,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             external_filters,
             forloop_depth: 0,
             first_tag: None,
+            seen_blocks: HashMap::new(),
         }
     }
 
@@ -2060,6 +2064,16 @@ impl<'t, 'py> Parser<'t, 'py> {
             None => std::todo!(),
         };
         let name = self.template.content(token.at).to_string();
+        match self.seen_blocks.entry(name.clone()) {
+            Entry::Occupied(entry) => {
+                return Err(ParseError::DuplicateBlock {
+                    old_block_at: (*entry.get()).into(),
+                    new_block_at: at.into(),
+                }
+                .into());
+            }
+            Entry::Vacant(entry) => entry.insert(at),
+        };
         let until = vec![
             EndTagType::EndBlock(None),
             EndTagType::EndBlock(Some(name.clone())),
