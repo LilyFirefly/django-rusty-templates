@@ -291,12 +291,63 @@ def test_extends_duplicate_block(assert_parse_error):
     template = "{% extends 'base.txt' %}{% block foo %}{% endblock foo %}{% block foo %}{% endblock foo %}"
     django_message = snapshot("'block' tag with name 'foo' appears more than once")
     rusty_message = snapshot("""\
-  × \n\
+  × 'block' tag with name 'foo' appears more than once
    ╭────
  1 │ {% extends 'base.txt' %}{% block foo %}{% endblock foo %}{% block foo %}{% endblock foo %}
    ·                         ───────┬───────                  ───────┬───────
    ·                                │                                ╰── duplicate here
    ·                                ╰── first here
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_duplicate_block(assert_parse_error):
+    template = "{% block foo %}{% endblock foo %}{% block foo %}{% endblock foo %}"
+    django_message = snapshot("'block' tag with name 'foo' appears more than once")
+    rusty_message = snapshot("""\
+  × 'block' tag with name 'foo' appears more than once
+   ╭────
+ 1 │ {% block foo %}{% endblock foo %}{% block foo %}{% endblock foo %}
+   · ───────┬───────                  ───────┬───────
+   ·        │                                ╰── duplicate here
+   ·        ╰── first here
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_extends_nested_duplicate_block(assert_parse_error):
+    template = "{% extends 'base.txt' %}{% block foo %} {% block foo %}{% endblock foo %}{% endblock foo %}"
+    django_message = snapshot("'block' tag with name 'foo' appears more than once")
+    rusty_message = snapshot("""\
+  × 'block' tag with name 'foo' appears more than once
+   ╭────
+ 1 │ {% extends 'base.txt' %}{% block foo %} {% block foo %}{% endblock foo %}{% endblock foo %}
+   ·                         ───────┬─────── ───────┬───────
+   ·                                │               ╰── duplicate here
+   ·                                ╰── first here
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_nested_duplicate_block(assert_parse_error):
+    template = "{% block foo %} {% block foo %}{% endblock foo %}{% endblock foo %}"
+    django_message = snapshot("'block' tag with name 'foo' appears more than once")
+    rusty_message = snapshot("""\
+  × 'block' tag with name 'foo' appears more than once
+   ╭────
+ 1 │ {% block foo %} {% block foo %}{% endblock foo %}{% endblock foo %}
+   · ───────┬─────── ───────┬───────
+   ·        │               ╰── duplicate here
+   ·        ╰── first here
    ╰────
 """)
     assert_parse_error(
