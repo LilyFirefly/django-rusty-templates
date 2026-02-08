@@ -334,7 +334,11 @@ fn parse_extends_template_token(
         TagElementTokenType::Variable => IncludeTemplateName::Variable(
             parser.parse_variable_or_filter(content, content_at, start)?,
         ),
-        TagElementTokenType::Numeric => std::todo!(),
+        TagElementTokenType::Numeric => {
+            return Err(ParseError::InvalidTemplateName {
+                at: content_at.into(),
+            });
+        }
         TagElementTokenType::TranslatedText => std::todo!(),
     })
 }
@@ -1063,8 +1067,8 @@ pub enum ParseError {
         at: SourceSpan,
     },
 
-    #[error("Invalid variable name")]
-    InvalidVariableName {
+    #[error("Template name must be a string or a variable")]
+    InvalidTemplateName {
         #[label("here")]
         at: SourceSpan,
     },
