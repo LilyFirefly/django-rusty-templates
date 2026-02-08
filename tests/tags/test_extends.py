@@ -222,6 +222,23 @@ def test_extends_duplicate_block(assert_parse_error):
     )
 
 
+def test_duplicate_block(assert_parse_error):
+    template = "{% block foo %}{% endblock foo %}{% block foo %}{% endblock foo %}"
+    django_message = snapshot("'block' tag with name 'foo' appears more than once")
+    rusty_message = snapshot("""\
+  × \n\
+   ╭────
+ 1 │ {% block foo %}{% endblock foo %}{% block foo %}{% endblock foo %}
+   · ───────┬───────                  ───────┬───────
+   ·        │                                ╰── duplicate here
+   ·        ╰── first here
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
 def test_extends_unexpected_endblock(assert_parse_error):
     template = "{% extends 'base.txt' %}{% endblock foo %}"
     django_message = snapshot(
