@@ -1182,38 +1182,7 @@ impl Extends {
                     ));
                 }
             }
-            Content::Int(content) => {
-                return Err(invalid_template_name(
-                    py,
-                    &self.template_name,
-                    &format!("{content}"),
-                    template,
-                ));
-            }
-            Content::Float(content) => {
-                return Err(invalid_template_name(
-                    py,
-                    &self.template_name,
-                    &format!("{content}"),
-                    template,
-                ));
-            }
-            Content::Bool(true) => {
-                return Err(invalid_template_name(
-                    py,
-                    &self.template_name,
-                    "True",
-                    template,
-                ));
-            }
-            Content::Bool(false) => {
-                return Err(invalid_template_name(
-                    py,
-                    &self.template_name,
-                    "False",
-                    template,
-                ));
-            }
+            _ => unreachable!(),
         }
         .map_err(|error| {
             error
