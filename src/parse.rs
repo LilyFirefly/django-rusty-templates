@@ -1,6 +1,7 @@
 use dtl_lexer::DelimitedToken;
 use num_traits::Zero;
 use std::borrow::Cow;
+use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::iter::Peekable;
 use std::sync::Arc;
@@ -1010,12 +1011,13 @@ pub enum ParseError {
         #[label("here")]
         at: SourceSpan,
     },
-    #[error("")]
+    #[error("'block' tag with name '{block_name}' appears more than once")]
     DuplicateBlock {
         #[label("first here")]
         old_block_at: SourceSpan,
         #[label("duplicate here")]
         new_block_at: SourceSpan,
+        block_name: String,
     },
     #[error("block tag must have a name")]
     MissingBlockName {
@@ -1330,6 +1332,7 @@ pub struct Parser<'t, 'py> {
     forloop_depth: usize,
     named_cycles: HashMap<String, Cycle>,
     first_tag: Option<At>,
+    seen_blocks: HashMap<String, At>,
     seen_extends: bool,
     in_block: bool,
 }
@@ -1352,6 +1355,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             forloop_depth: 0,
             named_cycles: HashMap::new(),
             first_tag: None,
+            seen_blocks: HashMap::new(),
             seen_extends: false,
             in_block: false,
         }
@@ -1374,6 +1378,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             forloop_depth: 0,
             named_cycles: HashMap::new(),
             first_tag: None,
+            seen_blocks: HashMap::new(),
             seen_extends: false,
             in_block: false,
         }
@@ -2296,14 +2301,7 @@ impl<'t, 'py> Parser<'t, 'py> {
 
         let mut blocks = HashMap::new();
         while let Some(block) = self.next_block()? {
-            let new_at = block.at;
-            if let Some(old_block) = blocks.insert(block.name.clone(), block) {
-                return Err(ParseError::DuplicateBlock {
-                    old_block_at: old_block.at.into(),
-                    new_block_at: new_at.into(),
-                }
-                .into());
-            }
+            blocks.insert(block.name.clone(), block);
         }
 
         let extends = Extends {
@@ -2344,6 +2342,17 @@ impl<'t, 'py> Parser<'t, 'py> {
             None => std::todo!(),
         };
         let name = self.template.content(token.at).to_string();
+        match self.seen_blocks.entry(name.clone()) {
+            Entry::Occupied(entry) => {
+                return Err(ParseError::DuplicateBlock {
+                    old_block_at: (*entry.get()).into(),
+                    new_block_at: at.into(),
+                    block_name: name,
+                }
+                .into());
+            }
+            Entry::Vacant(entry) => entry.insert(at),
+        };
         let until = vec![
             EndTagType::EndBlock(None),
             EndTagType::EndBlock(Some(name.clone())),
