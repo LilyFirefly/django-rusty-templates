@@ -171,3 +171,70 @@ def test_endblock_wrong_name(assert_parse_error):
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
+
+
+def test_extends_no_name(assert_parse_error):
+    template = "{% extends %}"
+    django_message = snapshot("'extends' takes one argument")
+    rusty_message = snapshot("""\
+  × Expected an argument
+   ╭────
+ 1 │ {% extends %}
+   · ──────┬──────
+   ·       ╰── here
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_extends_extra_argument(assert_parse_error):
+    template = "{% extends 'base.txt' extra %}"
+    django_message = snapshot("'extends' takes one argument")
+    rusty_message = snapshot("""\
+  × Unexpected positional argument
+   ╭────
+ 1 │ {% extends 'base.txt' extra %}
+   ·                       ──┬──
+   ·                         ╰── here
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_extends_duplicate_block(assert_parse_error):
+    template = "{% extends 'base.txt' %}{% block foo %}{% endblock foo %}{% block foo %}{% endblock foo %}"
+    django_message = snapshot("'block' tag with name 'foo' appears more than once")
+    rusty_message = snapshot("""\
+  × \n\
+   ╭────
+ 1 │ {% extends 'base.txt' %}{% block foo %}{% endblock foo %}{% block foo %}{% endblock foo %}
+   ·                         ───────┬───────                  ───────┬───────
+   ·                                │                                ╰── duplicate here
+   ·                                ╰── first here
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_extends_unexpected_endblock(assert_parse_error):
+    template = "{% extends 'base.txt' %}{% endblock foo %}"
+    django_message = snapshot(
+        "Invalid block tag on line 1: 'endblock'. Did you forget to register or load this tag?"
+    )
+    rusty_message = snapshot("""\
+  × Unexpected tag 'endblock foo'
+   ╭────
+ 1 │ {% extends 'base.txt' %}{% endblock foo %}
+   ·                         ─────────┬────────
+   ·                                  ╰── unexpected tag
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
