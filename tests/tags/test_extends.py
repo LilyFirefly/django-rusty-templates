@@ -25,6 +25,17 @@ def test_extends(assert_render):
     assert_render(template=template, context={}, expected="# Header\nSome content\n")
 
 
+def test_extends_variable(assert_render):
+    template = (
+        "{% extends template_name %}{% block body %}Some content{% endblock body %}"
+    )
+    assert_render(
+        template=template,
+        context={"template_name": "base.txt"},
+        expected="# Header\nSome content\n",
+    )
+
+
 def test_extends_endblock_no_name(assert_render):
     template = "{% extends 'base.txt' %}{% block body %}Some content{% endblock %}"
     assert_render(template=template, context={}, expected="# Header\nSome content\n")
