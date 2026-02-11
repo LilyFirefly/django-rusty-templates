@@ -337,22 +337,13 @@ pub mod django_rusty_templates {
                     }
                     let loaded = names
                         .iter()
-                        .map(|name| {
-                            import_string
-                                .call1((name,))
-                                .map(pyo3::Bound::unbind)
-                        })
+                        .map(|name| import_string.call1((name,)).map(pyo3::Bound::unbind))
                         .collect::<PyResult<Vec<Py<PyAny>>>>()?;
                     (names, loaded)
                 }
                 None => {
-                    let loaded_builtin = import_string
-                        .call1((builtin_processor,))?
-                        .unbind();
-                    (
-                        vec![builtin_processor.to_string()],
-                        vec![loaded_builtin],
-                    )
+                    let loaded_builtin = import_string.call1((builtin_processor,))?.unbind();
+                    (vec![builtin_processor.to_string()], vec![loaded_builtin])
                 }
             };
             let Some(encoding) = Encoding::for_label(file_charset.as_bytes()) else {
