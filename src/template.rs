@@ -326,19 +326,34 @@ pub mod django_rusty_templates {
                 Some(dirs) => dirs.extract()?,
                 None => Vec::new(),
             };
+            let builtin_processor = "django.template.context_processors.csrf";
+            let import_string =
+                IMPORT_STRING.import(py, "django.utils.module_loading", "import_string")?;
             let (context_processors, loaded_context_processors) = match context_processors {
                 Some(context_processors) => {
-                    let import_string =
-                        IMPORT_STRING.import(py, "django.utils.module_loading", "import_string")?;
-                    let loaded = context_processors
-                        .try_iter()?
-                        .map(|processor| {
-                            import_string.call1((processor?,)).map(pyo3::Bound::unbind)
+                    let mut names: Vec<String> = context_processors.extract()?;
+                    if !names.iter().any(|n| n == builtin_processor) {
+                        names.insert(0, builtin_processor.to_string());
+                    }
+                    let loaded = names
+                        .iter()
+                        .map(|name| {
+                            import_string
+                                .call1((name,))
+                                .map(pyo3::Bound::unbind)
                         })
                         .collect::<PyResult<Vec<Py<PyAny>>>>()?;
-                    (context_processors.extract()?, loaded)
+                    (names, loaded)
                 }
-                None => (Vec::new(), Vec::new()),
+                None => {
+                    let loaded_builtin = import_string
+                        .call1((builtin_processor,))?
+                        .unbind();
+                    (
+                        vec![builtin_processor.to_string()],
+                        vec![loaded_builtin],
+                    )
+                }
             };
             let Some(encoding) = Encoding::for_label(file_charset.as_bytes()) else {
                 return Err(PyValueError::new_err(format!(
