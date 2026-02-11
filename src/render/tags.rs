@@ -29,6 +29,8 @@ use crate::utils::PyResultMethods;
 
 static PROMISE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static REVERSE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+static DJANGO_SETTINGS: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+static WARNINGS_WARN: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static DJANGO_TIMEZONE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static DJANGO_DATEFORMAT: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static DJANGO_FORMATS: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
@@ -695,16 +697,13 @@ impl Render for Tag {
                     }
                 }
                 None => {
-                    let debug = py
-                        .import("django.conf")?
-                        .getattr("settings")?
-                        .getattr("DEBUG")?
-                        .is_truthy()?;
+                    let settings = DJANGO_SETTINGS.import(py, "django.conf", "settings")?;
+                    let debug = settings.getattr("DEBUG")?.is_truthy()?;
 
                     if debug {
-                        py.import("warnings")?.call_method1(
-                            "warn",
-                            ("A {% csrf_token %} was used in a template, but the context did not provide the value.  This is usually caused by not using RequestContext.",)
+                        let warn = WARNINGS_WARN.import(py, "warnings", "warn")?;
+                        warn.call1(
+                            ("A {% csrf_token %} was used in a template, but the context did not provide the value.  This is usually caused by not using RequestContext.",),
                         )?;
                     }
 
