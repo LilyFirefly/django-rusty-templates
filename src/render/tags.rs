@@ -674,15 +674,22 @@ impl Render for Tag {
             Self::CsrfToken => match context.get("csrf_token") {
                 Some(token) => {
                     let bound_token = token.bind(py);
-                    if bound_token.is_truthy().unwrap_or(false) {
-                        if bound_token.eq("NOTPROVIDED")? {
+                    if let Ok(token_str) = bound_token.extract::<String>() {
+                        if token_str.is_empty() || token_str == "NOTPROVIDED" {
                             Cow::Borrowed("")
                         } else {
                             Cow::Owned(format!(
                                 r#"<input type="hidden" name="csrfmiddlewaretoken" value="{}">"#,
-                                html_escape::encode_quoted_attribute(bound_token.str()?.to_str()?)
+                                html_escape::encode_quoted_attribute(&token_str)
                             ))
                         }
+                    } else if bound_token.is_truthy()? {
+                        let token_py_str = bound_token.str()?;
+                        let token_str = token_py_str.to_str()?;
+                        Cow::Owned(format!(
+                            r#"<input type="hidden" name="csrfmiddlewaretoken" value="{}">"#,
+                            html_escape::encode_quoted_attribute(token_str)
+                        ))
                     } else {
                         Cow::Borrowed("")
                     }
