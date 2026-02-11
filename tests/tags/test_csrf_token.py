@@ -1,6 +1,41 @@
+import re
 import warnings
+
+import pytest
 from django.template import engines
-from django.test import override_settings
+from django.template.backends.django import DjangoTemplates
+from django.test import RequestFactory, override_settings
+
+from django_rusty_templates import RustyTemplates
+
+
+factory = RequestFactory()
+
+
+@pytest.mark.parametrize("engine_class", (RustyTemplates, DjangoTemplates))
+def test_csrf_token_context_processor(engine_class):
+    template = "{% csrf_token %}"
+    request = factory.get("/")
+
+    params = {
+        "APP_DIRS": False,
+        "DIRS": [],
+        "NAME": "test",
+        "OPTIONS": {
+            "context_processors": ["django.template.context_processors.csrf"],
+        },
+    }
+
+    engine = engine_class(params)
+    rendered = engine.from_string(template).render({}, request)
+
+    assert (
+        re.fullmatch(
+            r'^<input type="hidden" name="csrfmiddlewaretoken" value="([a-zA-Z0-9]{64})">$',
+            rendered,
+        )
+        is not None
+    )
 
 
 def test_csrf_token_basic():
