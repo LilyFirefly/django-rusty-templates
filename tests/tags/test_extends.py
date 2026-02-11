@@ -342,3 +342,25 @@ def test_extends_float(template_engine):
         assert str(exc_info.value) == snapshot(
             "join() argument must be str, bytes, or os.PathLike object, not 'float'"
         )
+
+
+def test_extends_invalid_variable(assert_render_error):
+    template = "{% extends template_name %}"
+    django_message = snapshot(
+        "join() argument must be str, bytes, or os.PathLike object, not 'int'"
+    )
+    rusty_message = snapshot("""\
+  × Included template name must be a string or iterable of strings.
+   ╭────
+ 1 │ {% extends template_name %}
+   ·            ──────┬──────
+   ·                  ╰── invalid template name: 123
+   ╰────
+""")
+    assert_render_error(
+        template=template,
+        context={"template_name": 123},
+        exception=TypeError,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
