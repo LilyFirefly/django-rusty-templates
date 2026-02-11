@@ -1,5 +1,6 @@
 import pytest
 from django.template import TemplateSyntaxError
+from django.utils.translation import gettext_lazy
 from inline_snapshot import snapshot
 
 
@@ -32,6 +33,17 @@ def test_extends_variable(assert_render):
     assert_render(
         template=template,
         context={"template_name": "base.txt"},
+        expected="# Header\nSome content\n",
+    )
+
+
+def test_extends_variable_lazy_translation(assert_render):
+    template = (
+        "{% extends template_name %}{% block body %}Some content{% endblock body %}"
+    )
+    assert_render(
+        template=template,
+        context={"template_name": gettext_lazy("base.txt")},
         expected="# Header\nSome content\n",
     )
 

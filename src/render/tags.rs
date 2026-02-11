@@ -1123,6 +1123,31 @@ impl Render for Include {
 }
 
 impl Extends {
+    fn get_template_from_string<'py>(
+        &self,
+        content: &Bound<'py, PyString>,
+        context: &mut Context,
+    ) -> Result<Result<IncludeTemplate<'py>, PyErr>, RenderError> {
+        let py = content.py();
+        let template_path = content
+            .extract()
+            .expect("PyString should be compatible with Cow<str>");
+        let template_path = match construct_relative_path(
+            template_path,
+            self.origin.as_deref(),
+            template_at(&self.template_name),
+        )
+        .map_err(RenderError::from)?
+        {
+            Some(path) => path.to_string(),
+            None => template_path.to_string(),
+        };
+        let key = IncludeTemplateKey::String(template_path);
+        Ok(context
+            .get_or_insert_include(py, &self.engine, &key)
+            .map(IncludeTemplate::Template))
+    }
+
     fn get_template<'t, 'py>(
         &self,
         template_name: Content<'t, 'py>,
@@ -1142,44 +1167,21 @@ impl Extends {
                     && render.is_callable()
                 {
                     Ok(IncludeTemplate::Callable(render))
-                } else if content.is_instance_of::<PyString>() {
-                    let template_path = content
-                        .extract()
-                        .expect("PyString should be compatible with Cow<str>");
-                    let template_path = match construct_relative_path(
-                        template_path,
-                        self.origin.as_deref(),
-                        template_at(&self.template_name),
-                    )
-                    .map_err(RenderError::from)?
-                    {
-                        Some(path) => path.to_string(),
-                        None => template_path.to_string(),
-                    };
-                    let key = IncludeTemplateKey::String(template_path);
-                    context
-                        .get_or_insert_include(py, &self.engine, &key)
-                        .map(IncludeTemplate::Template)
+                } else if let Ok(content) = content.cast::<PyString>() {
+                    self.get_template_from_string(content, context)?
                 } else {
                     let promise = PROMISE.import(py, "django.utils.functional", "Promise")?;
                     if content.is_instance(promise)? {
-                        return Err(PyTypeError::new_err(
-                            "Included template name cannot be a translatable string.",
-                        )
-                        .annotate(
+                        let content = content.str()?;
+                        self.get_template_from_string(&content, context)?
+                    } else {
+                        return Err(invalid_template_name(
                             py,
-                            template_at(&self.template_name),
-                            &format!("invalid template name: {content:?}"),
+                            &self.template_name,
+                            &format!("{content}"),
                             template,
-                        )
-                        .into());
+                        ));
                     }
-                    return Err(invalid_template_name(
-                        py,
-                        &self.template_name,
-                        &format!("{content}"),
-                        template,
-                    ));
                 }
             }
             _ => unreachable!(),
