@@ -29,11 +29,11 @@ use crate::utils::PyResultMethods;
 
 static PROMISE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static REVERSE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
-static DJANGO_SETTINGS: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static WARNINGS_WARN: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
-static DJANGO_TIMEZONE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static DJANGO_DATEFORMAT: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static DJANGO_FORMATS: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+static DJANGO_SETTINGS: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+static DJANGO_TIMEZONE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 
 fn current_app(py: Python, request: Option<&Py<PyAny>>) -> PyResult<Py<PyAny>> {
     let Some(request) = request else {
