@@ -48,6 +48,20 @@ def test_extends_variable_lazy_translation(assert_render):
     )
 
 
+def test_extends_translation(assert_render, template_engine):
+    if template_engine.name == "rusty":
+        pytest.xfail("Support for translation is not implemented yet")
+
+    template = (
+        "{% extends _('base.txt') %}{% block body %}Some content{% endblock body %}"
+    )
+    assert_render(
+        template=template,
+        context={"template_name": gettext_lazy("base.txt")},
+        expected="# Header\nSome content\n",
+    )
+
+
 def test_extends_endblock_no_name(assert_render):
     template = "{% extends 'base.txt' %}{% block body %}Some content{% endblock %}"
     assert_render(template=template, context={}, expected="# Header\nSome content\n")
