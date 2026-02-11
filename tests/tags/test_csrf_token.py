@@ -2,7 +2,6 @@ import re
 import warnings
 
 import pytest
-from django.template import engines
 from django.template.backends.django import DjangoTemplates
 from django.test import RequestFactory, override_settings
 
@@ -111,21 +110,16 @@ def test_csrf_token_false_value(assert_render):
 
 
 @override_settings(DEBUG=True)
-def test_csrf_token_missing_debug_warning():
-    template = "{% csrf_token %}"
+def test_csrf_token_missing_debug_warning(template_engine):
+    template = template_engine.from_string("{% csrf_token %}")
 
-    django_template = engines["django"].from_string(template)
-    rust_template = engines["rusty"].from_string(template)
-
-    django_expected = "A {% csrf_token %} was used in a template, but the context did not provide the value.  This is usually caused by not using RequestContext."
-    rusty_expected = "A {% csrf_token %} was used in a template, but the context did not provide the value.  This is usually caused by not providing a request."
-
-    with warnings.catch_warnings(record=True) as w:
-        warnings.simplefilter("always")
-        assert django_template.render({}) == ""
-        assert str(w[0].message) == django_expected
+    if isinstance(template_engine, RustyTemplates):
+        expected = "A {% csrf_token %} was used in a template, but the context did not provide the value.  This is usually caused by not providing a request."
+    else:
+        expected = "A {% csrf_token %} was used in a template, but the context did not provide the value.  This is usually caused by not using RequestContext."
 
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
-        assert rust_template.render({}) == ""
-        assert str(w[0].message) == rusty_expected
+        assert template.render({}) == ""
+        assert len(w) == 1
+        assert str(w[0].message) == expected
