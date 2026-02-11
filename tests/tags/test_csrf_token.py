@@ -155,14 +155,15 @@ def test_csrf_token_missing_debug_warning():
     django_template = engines["django"].from_string(template)
     rust_template = engines["rusty"].from_string(template)
 
-    expected = "A {% csrf_token %} was used in a template, but the context did not provide the value.  This is usually caused by not using RequestContext."
+    django_expected = "A {% csrf_token %} was used in a template, but the context did not provide the value.  This is usually caused by not using RequestContext."
+    rusty_expected = "A {% csrf_token %} was used in a template, but the context did not provide the value.  This is usually caused by not providing a request."
 
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
         assert django_template.render({}) == ""
-        assert str(w[0].message) == expected
+        assert str(w[0].message) == django_expected
 
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
         assert rust_template.render({}) == ""
-        assert str(w[0].message) == expected
+        assert str(w[0].message) == rusty_expected

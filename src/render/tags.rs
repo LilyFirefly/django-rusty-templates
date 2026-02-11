@@ -703,7 +703,7 @@ impl Render for Tag {
                     if debug {
                         let warn = WARNINGS_WARN.import(py, "warnings", "warn")?;
                         warn.call1(
-                            ("A {% csrf_token %} was used in a template, but the context did not provide the value.  This is usually caused by not using RequestContext.",),
+                            ("A {% csrf_token %} was used in a template, but the context did not provide the value.  This is usually caused by not providing a request.",),
                         )?;
                     }
 
