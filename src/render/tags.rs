@@ -1113,7 +1113,11 @@ impl Extends {
             self.origin.as_deref(),
             template_at(&self.template_name),
         )? {
-            Some(path) => path.to_string(),
+            Some(_) => {
+                return Ok(Err(TemplateDoesNotExist::new_err((
+                    template_path.to_string(),
+                ))));
+            }
             None => template_path.to_string(),
         };
         let key = IncludeTemplateKey::String(template_path);
