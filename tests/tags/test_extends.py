@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from django.template import TemplateSyntaxError
 from django.utils.translation import gettext_lazy
@@ -33,6 +35,17 @@ def test_extends_variable(assert_render):
     assert_render(
         template=template,
         context={"template_name": "base.txt"},
+        expected="# Header\nSome content\n",
+    )
+
+
+def test_extends_variable_path(assert_render):
+    template = (
+        "{% extends template_name %}{% block body %}Some content{% endblock body %}"
+    )
+    assert_render(
+        template=template,
+        context={"template_name": Path("base.txt")},
         expected="# Header\nSome content\n",
     )
 
@@ -360,6 +373,26 @@ def test_extends_invalid_variable(assert_render_error):
     assert_render_error(
         template=template,
         context={"template_name": 123},
+        exception=TypeError,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
+def test_extends_variable_bytes(assert_render_error):
+    template = "{% extends template_name %}"
+    django_message = snapshot("Can't mix strings and bytes in path components")
+    rusty_message = snapshot("""\
+  × Included template name must be a string or iterable of strings.
+   ╭────
+ 1 │ {% extends template_name %}
+   ·            ──────┬──────
+   ·                  ╰── invalid template name: b'base.txt'
+   ╰────
+""")
+    assert_render_error(
+        template=template,
+        context={"template_name": b"base.txt"},
         exception=TypeError,
         django_message=django_message,
         rusty_message=rusty_message,
