@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 from django.template import TemplateSyntaxError
+from django.template.exceptions import TemplateDoesNotExist
 from django.utils.translation import gettext_lazy
 from inline_snapshot import snapshot
 
@@ -389,6 +390,46 @@ def test_extends_float(template_engine):
         assert str(exc_info.value) == snapshot(
             "join() argument must be str, bytes, or os.PathLike object, not 'float'"
         )
+
+
+def test_extends_missing_template_string(assert_render_error):
+    template = "{% extends 'missing.txt' %}"
+    django_message = snapshot("missing.txt")
+    rusty_message = snapshot("""\
+  × missing.txt
+   ╭────
+ 1 │ {% extends 'missing.txt' %}
+   ·             ─────┬─────
+   ·                  ╰── here
+   ╰────
+""")
+    assert_render_error(
+        template=template,
+        context={},
+        exception=TemplateDoesNotExist,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
+def test_extends_missing_template_variable(assert_render_error):
+    template = "{% extends template_name %}"
+    django_message = snapshot("missing.txt")
+    rusty_message = snapshot("""\
+  × missing.txt
+   ╭────
+ 1 │ {% extends template_name %}
+   ·            ──────┬──────
+   ·                  ╰── here
+   ╰────
+""")
+    assert_render_error(
+        template=template,
+        context={"template_name": "missing.txt"},
+        exception=TemplateDoesNotExist,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
 
 
 def test_extends_invalid_variable(assert_render_error):
