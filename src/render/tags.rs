@@ -1139,8 +1139,7 @@ impl Extends {
             template_path,
             self.origin.as_deref(),
             template_at(&self.template_name),
-        )
-        .map_err(RenderError::from)?
+        )?
         {
             Some(path) => path.to_string(),
             None => template_path.to_string(),
