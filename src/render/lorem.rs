@@ -1,4 +1,4 @@
-use rand::Rng;
+use rand::RngExt;
 use rand::prelude::IndexedRandom;
 use std::borrow::Cow;
 
@@ -216,18 +216,13 @@ pub static COMMON_WORDS: [&str; 19] = [
 ];
 
 pub fn sentence() -> String {
-    use rand::Rng;
-
     let mut rng = rand::rng();
     let num_sections = rng.random_range(1..=5);
     let mut sections = Vec::with_capacity(num_sections);
 
     for _ in 0..num_sections {
         let num_words = rng.random_range(3..=12);
-        let selected_words: Vec<&str> = WORDS
-            .choose_multiple(&mut rng, num_words)
-            .copied()
-            .collect();
+        let selected_words: Vec<&str> = WORDS.sample(&mut rng, num_words).copied().collect();
 
         sections.push(selected_words.join(" "));
     }
@@ -281,7 +276,7 @@ pub fn words(mut count: usize, common: bool) -> String {
     }
     while count > 0 {
         let take = count.min(WORDS.len());
-        let sampled = WORDS.choose_multiple(&mut rng, take);
+        let sampled = WORDS.sample(&mut rng, take);
         word_list.extend(sampled.copied());
         count -= take;
     }
