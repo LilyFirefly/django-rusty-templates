@@ -2020,14 +2020,7 @@ impl<'t, 'py> Parser<'t, 'py> {
 
         let mut blocks = HashMap::new();
         while let Some(block) = self.next_block()? {
-            let new_at = block.at;
-            if let Some(old_block) = blocks.insert(block.name.clone(), block) {
-                return Err(ParseError::DuplicateBlock {
-                    old_block_at: old_block.at.into(),
-                    new_block_at: new_at.into(),
-                }
-                .into());
-            }
+            blocks.insert(block.name.clone(), block);
         }
 
         let extends = Extends {
