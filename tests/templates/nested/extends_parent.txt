@@ -1,0 +1,4 @@
+{% extends "../base.txt" %}
+
+{% block header %}# Extends{% endblock header %}
+{% block body %}Using a relative path.{% endblock body %}
