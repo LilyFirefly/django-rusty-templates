@@ -16,9 +16,16 @@ impl<'t> From<&'t str> for TemplateString<'t> {
     }
 }
 
+impl<'t> std::fmt::Display for TemplateString<'t> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        write!(f, "{}", self.0)
+    }
+}
+
 pub trait IntoTemplateString<'t> {
     fn into_template_string(self) -> TemplateString<'t>;
 }
+
 impl<'t> IntoTemplateString<'t> for &'t str {
     fn into_template_string(self) -> TemplateString<'t> {
         TemplateString(self)
