@@ -537,3 +537,26 @@ def test_extends_variable_relative_path(assert_render_error):
         django_message=django_message,
         rusty_message=rusty_message,
     )
+
+
+def test_extends_variable_relative_path_deep(assert_render_error):
+    template = "{% extends 'nested/extends_variable.txt' %}"
+    django_message = snapshot("../../missing.txt")
+    rusty_message = snapshot("""\
+  × The relative path '../../missing.txt' points outside the file hierarchy
+  │ that template 'nested/extends_variable.txt' is in.
+   ╭─[1:12]
+ 1 │ {% extends parent %}
+   ·            ───┬──
+   ·               ╰── relative path
+ 2 │ \n\
+   ╰────
+""")
+    assert_render_error(
+        template=template,
+        context={"parent": "../../missing.txt"},
+        exception=TemplateDoesNotExist,
+        rusty_exception=TemplateSyntaxError,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
