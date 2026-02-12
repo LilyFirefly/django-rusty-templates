@@ -90,7 +90,7 @@ jobs:
       run: |
         cargo llvm-cov show-env --sh > llvm-cov-env.sh
         source llvm-cov-env.sh
-        cargo llvm-cov report --codecov --output-path codecov.json
+        cargo llvm-cov report -p dtl-lexer -p django-rusty-templates --codecov --output-path codecov.json
 
     - name: Upload to codecov
       uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
