@@ -29,6 +29,13 @@ def test_extends(assert_render):
     assert_render(template=template, context={}, expected="# Header\nSome content\n")
 
 
+def test_extends_relative_path(assert_render):
+    template = "{% extends 'nested/extends_parent.txt' %}"
+    assert_render(
+        template=template, context={}, expected="# Extends\nUsing a relative path.\n"
+    )
+
+
 def test_extends_variable(assert_render):
     template = (
         "{% extends template_name %}{% block body %}Some content{% endblock body %}"
@@ -264,6 +271,34 @@ def test_extends_extra_argument(assert_parse_error):
 """)
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_extends_invalid_relative_path(assert_render_error):
+    absolute_template = Path("tests/templates/extends_invalid.txt").absolute()
+    template = "{% extends 'extends_invalid.txt' %}"
+
+    django_message = snapshot(
+        "The relative path ''../outside.txt'' points outside the file hierarchy that template 'extends_invalid.txt' is in."
+    )
+    rusty_message = snapshot(
+        """\
+  × The relative path '../outside.txt' points outside the file hierarchy that
+  │ template 'extends_invalid.txt' is in.
+   ╭─[%s:1:13]
+ 1 │ {%% extends '../outside.txt' %%}
+   ·             ───────┬──────
+   ·                    ╰── relative path
+   ╰────
+"""
+        % absolute_template
+    )
+    assert_render_error(
+        template=template,
+        context={},
+        exception=TemplateSyntaxError,
+        django_message=django_message,
+        rusty_message=rusty_message,
     )
 
 

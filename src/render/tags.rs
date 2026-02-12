@@ -25,7 +25,9 @@ use crate::parse::{
     SimpleTag, Tag, TagElement, Url,
 };
 use crate::path::construct_relative_path;
-use crate::template::django_rusty_templates::{NoReverseMatch, Template, TemplateDoesNotExist};
+use crate::template::django_rusty_templates::{
+    NoReverseMatch, Template, TemplateDoesNotExist, TemplateSyntaxError,
+};
 use crate::types::Variable;
 use crate::utils::PyResultMethods;
 
@@ -1189,9 +1191,13 @@ impl Extends {
             _ => unreachable!(),
         }
         .map_err(|error| {
-            error
-                .annotate(py, template_at(&self.template_name), "here", template)
-                .into()
+            if error.is_instance_of::<TemplateSyntaxError>(py) {
+                error.into()
+            } else {
+                error
+                    .annotate(py, template_at(&self.template_name), "here", template)
+                    .into()
+            }
         })
     }
 }
