@@ -5,7 +5,7 @@ python-coverage:
 rust-coverage:
     #!/usr/bin/bash
     cargo llvm-cov clean --workspace
-    source <(cargo llvm-cov show-env --export-prefix)
+    source <(cargo llvm-cov show-env --sh)
     cargo llvm-cov --no-report
     maturin develop
     pytest
@@ -14,7 +14,7 @@ rust-coverage:
 rust-coverage-browser:
     #!/usr/bin/bash
     cargo llvm-cov clean --workspace
-    source <(cargo llvm-cov show-env --export-prefix)
+    source <(cargo llvm-cov show-env --sh)
     cargo llvm-cov --no-report
     maturin develop
     pytest

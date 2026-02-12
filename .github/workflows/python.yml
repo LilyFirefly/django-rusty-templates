@@ -72,7 +72,7 @@ jobs:
 
     - name: Install Django Rusty Templates
       run: |
-        cargo llvm-cov show-env --export-prefix > llvm-cov-env.sh
+        cargo llvm-cov show-env --sh > llvm-cov-env.sh
         source llvm-cov-env.sh
         uv run maturin develop
 
@@ -82,13 +82,13 @@ jobs:
 
     - name: Test with pytest
       run: |
-        cargo llvm-cov show-env --export-prefix > llvm-cov-env.sh
+        cargo llvm-cov show-env --sh > llvm-cov-env.sh
         source llvm-cov-env.sh
         uv run pytest --cov --cov-report=xml
 
     - name: Get rust coverage report
       run: |
-        cargo llvm-cov show-env --export-prefix > llvm-cov-env.sh
+        cargo llvm-cov show-env --sh > llvm-cov-env.sh
         source llvm-cov-env.sh
         cargo llvm-cov report --codecov --output-path codecov.json
 
