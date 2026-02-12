@@ -26,7 +26,7 @@ use crate::parse::{
 };
 use crate::path::construct_relative_path;
 use crate::template::django_rusty_templates::{
-    NoReverseMatch, Template, TemplateDoesNotExist, TemplateSyntaxError,
+    NoReverseMatch, Template, TemplateDoesNotExist, TemplateSyntaxError, WithSourceCode,
 };
 use crate::types::Variable;
 use crate::utils::PyResultMethods;
@@ -1126,31 +1126,37 @@ impl Render for Include {
 }
 
 impl Extends {
-    fn get_template_from_string<'py>(
+    fn get_template_from_string<'t, 'py>(
         &self,
         content: &Bound<'py, PyString>,
         context: &mut Context,
-    ) -> Result<Result<IncludeTemplate<'py>, PyErr>, RenderError> {
+        template: TemplateString<'t>,
+    ) -> Result<IncludeTemplate<'py>, PyErr> {
         let py = content.py();
         let template_path = content
             .extract()
             .expect("PyString should be compatible with Cow<str>");
-        let template_path = match construct_relative_path(
+        let relative_path = construct_relative_path(
             template_path,
             self.origin.as_deref(),
             template_at(&self.template_name),
-        )? {
-            Some(_) => {
-                return Ok(Err(TemplateDoesNotExist::new_err((
-                    template_path.to_string(),
-                ))));
+        );
+        let template_path = match relative_path {
+            Err(error) => {
+                return Err(TemplateSyntaxError::with_source_code(
+                    error.into(),
+                    template.to_string(),
+                ));
             }
-            None => template_path.to_string(),
+            Ok(Some(_)) => {
+                return Err(TemplateDoesNotExist::new_err((template_path.to_string(),)));
+            }
+            Ok(None) => template_path.to_string(),
         };
         let key = IncludeTemplateKey::String(template_path);
-        Ok(context
+        context
             .get_or_insert_include(py, &self.engine, &key)
-            .map(IncludeTemplate::Template))
+            .map(IncludeTemplate::Template)
     }
 
     fn get_template<'t, 'py>(
@@ -1173,13 +1179,13 @@ impl Extends {
                 {
                     Ok(IncludeTemplate::Callable(render))
                 } else if let Ok(content) = content.cast::<PyString>() {
-                    self.get_template_from_string(content, context)?
+                    self.get_template_from_string(content, context, template)
                 } else {
                     let promise = PROMISE.import(py, "django.utils.functional", "Promise")?;
                     let path_like = PATH_LIKE.import(py, "os", "PathLike")?;
                     if content.is_instance(promise)? || content.is_instance(path_like)? {
                         let content = content.str()?;
-                        self.get_template_from_string(&content, context)?
+                        self.get_template_from_string(&content, context, template)
                     } else {
                         return Err(invalid_template_name(
                             py,
