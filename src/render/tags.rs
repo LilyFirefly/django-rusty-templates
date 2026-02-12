@@ -29,6 +29,7 @@ use crate::template::django_rusty_templates::{NoReverseMatch, Template, Template
 use crate::types::Variable;
 use crate::utils::PyResultMethods;
 
+static PATH_LIKE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static PROMISE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static REVERSE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static WARNINGS_WARN: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
@@ -1171,7 +1172,8 @@ impl Extends {
                     self.get_template_from_string(content, context)?
                 } else {
                     let promise = PROMISE.import(py, "django.utils.functional", "Promise")?;
-                    if content.is_instance(promise)? {
+                    let path_like = PATH_LIKE.import(py, "os", "PathLike")?;
+                    if content.is_instance(promise)? || content.is_instance(path_like)? {
                         let content = content.str()?;
                         self.get_template_from_string(&content, context)?
                     } else {
