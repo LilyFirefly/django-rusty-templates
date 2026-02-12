@@ -111,6 +111,15 @@ def test_extends_after_comment(assert_render):
     assert_render(template=template, context={}, expected="# Header\nSome content\n")
 
 
+def test_extends_content_outside_blocks(assert_render):
+    template = "{% extends 'base.txt' %}Not included{% block body %}Some content{% endblock body %}{{ variable }}{% include 'basic.txt' %}"
+    assert_render(
+        template=template,
+        context={"variable": "also not included"},
+        expected="# Header\nSome content\n",
+    )
+
+
 def test_extends_after_variable(assert_parse_error):
     template = "{{ variable }} {% extends 'base.txt' %}{% block body %}Some content{% endblock body %}"
     django_message = snapshot(
