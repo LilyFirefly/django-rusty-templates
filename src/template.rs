@@ -34,7 +34,7 @@ pub mod django_rusty_templates {
 
     static IMPORT_STRING: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 
-    trait WithSourceCode {
+    pub trait WithSourceCode {
         fn with_source_code(
             err: miette::Report,
             source: impl miette::SourceCode + 'static,
