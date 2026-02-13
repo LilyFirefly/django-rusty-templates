@@ -345,7 +345,7 @@ fn parse_if_binding_power(
     let Some(token) = lexer.next().transpose()? else {
         return Err(ParseError::UnexpectedEndExpression { at: at.into() });
     };
-    let content = parser.template.content(token.at);
+    let content = token.content(parser.template);
     let token_at = token.content_at();
     let mut lhs = match token.token_type {
         IfConditionTokenType::Atom(IfConditionAtom::Numeric) => {
