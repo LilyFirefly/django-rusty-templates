@@ -1,8 +1,6 @@
 import re
 import warnings
 
-import pytest
-from django.template.backends.django import DjangoTemplates
 from django.test import RequestFactory, override_settings
 
 from django_rusty_templates import RustyTemplates
@@ -11,22 +9,13 @@ from django_rusty_templates import RustyTemplates
 factory = RequestFactory()
 
 
-@pytest.mark.parametrize("engine_class", (RustyTemplates, DjangoTemplates))
-def test_csrf_token_context_processor(engine_class):
-    template = "{% csrf_token %}"
+def test_csrf_token_context_processor(render_output):
     request = factory.get("/")
-
-    params = {
-        "APP_DIRS": False,
-        "DIRS": [],
-        "NAME": "test",
-        "OPTIONS": {
-            "context_processors": ["django.template.context_processors.csrf"],
-        },
-    }
-
-    engine = engine_class(params)
-    rendered = engine.from_string(template).render({}, request)
+    rendered = render_output(
+        template="{% csrf_token %}",
+        context={},
+        request=request,
+    )
 
     assert (
         re.fullmatch(
@@ -61,12 +50,12 @@ def test_csrf_token_missing(assert_render):
     )
 
 
-def test_csrf_token_escaping(render_output):
-    result = render_output(
+def test_csrf_token_escaping(assert_render):
+    assert_render(
         template="{% csrf_token %}",
         context={"csrf_token": 'test"with<quotes>&amp;'},
+        expected='<input type="hidden" name="csrfmiddlewaretoken" value="test&quot;with&lt;quotes&gt;&amp;amp;">',
     )
-    assert 'value="test&quot;with&lt;quotes&gt;&amp;amp;"' in result
 
 
 def test_csrf_token_empty_string(assert_render):

@@ -84,6 +84,9 @@ pub struct Lorem {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Comment;
 
+#[derive(Debug, PartialEq, Clone)]
+pub struct CsrfToken;
+
 impl Parse<Argument> for ArgumentToken {
     fn parse(&self, parser: &Parser) -> Result<Argument, ParseError> {
         Ok(match *self {
@@ -655,7 +658,7 @@ pub enum Tag {
     SimpleTag(SimpleTag),
     SimpleBlockTag(SimpleBlockTag),
     Url(Url),
-    CsrfToken,
+    CsrfToken(CsrfToken),
     Lorem(Lorem),
     Comment(Comment),
     Now(Now),
@@ -1415,7 +1418,7 @@ impl<'t, 'py> Parser<'t, 'py> {
 
         Ok(match tag.content(self.template) {
             "url" => Either::Left(self.parse_url(at, tag.parts)?),
-            "csrf_token" => Either::Left(TokenTree::Tag(Tag::CsrfToken)),
+            "csrf_token" => Either::Left(TokenTree::Tag(Tag::CsrfToken(CsrfToken))),
             "load" => Either::Left(self.parse_load(at, tag.parts)?),
             "autoescape" => Either::Left(self.parse_autoescape(at, tag.parts)?),
             "endautoescape" => Either::Right(EndTag {

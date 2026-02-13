@@ -21,7 +21,8 @@ use super::types::{
 use super::{Evaluate, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
 use crate::parse::{
-    For, IfCondition, Include, IncludeTemplateName, SimpleBlockTag, SimpleTag, Tag, TagElement, Url,
+    CsrfToken, For, IfCondition, Include, IncludeTemplateName, SimpleBlockTag, SimpleTag, Tag,
+    TagElement, Url,
 };
 use crate::path::construct_relative_path;
 use crate::template::django_rusty_templates::{NoReverseMatch, Template, TemplateDoesNotExist};
@@ -673,43 +674,7 @@ impl Render for Tag {
             Self::SimpleTag(simple_tag) => simple_tag.render(py, template, context)?,
             Self::SimpleBlockTag(simple_tag) => simple_tag.render(py, template, context)?,
             Self::Url(url) => url.render(py, template, context)?,
-            Self::CsrfToken => match context.get("csrf_token") {
-                Some(token) => {
-                    let bound_token = token.bind(py);
-                    if let Ok(token_str) = bound_token.extract::<String>() {
-                        if token_str.is_empty() || token_str == "NOTPROVIDED" {
-                            Cow::Borrowed("")
-                        } else {
-                            Cow::Owned(format!(
-                                r#"<input type="hidden" name="csrfmiddlewaretoken" value="{}">"#,
-                                html_escape::encode_quoted_attribute(&token_str)
-                            ))
-                        }
-                    } else if bound_token.is_truthy()? {
-                        let token_py_str = bound_token.str()?;
-                        let token_str = token_py_str.to_str()?;
-                        Cow::Owned(format!(
-                            r#"<input type="hidden" name="csrfmiddlewaretoken" value="{}">"#,
-                            html_escape::encode_quoted_attribute(token_str)
-                        ))
-                    } else {
-                        Cow::Borrowed("")
-                    }
-                }
-                None => {
-                    let settings = DJANGO_SETTINGS.import(py, "django.conf", "settings")?;
-                    let debug = settings.getattr("DEBUG")?.is_truthy()?;
-
-                    if debug {
-                        let warn = WARNINGS_WARN.import(py, "warnings", "warn")?;
-                        warn.call1(
-                            ("A {% csrf_token %} was used in a template, but the context did not provide the value.  This is usually caused by not providing a request.",),
-                        )?;
-                    }
-
-                    Cow::Borrowed("")
-                }
-            },
+            Self::CsrfToken(csrf_token) => csrf_token.render(py, template, context)?,
             Self::Lorem(lorem) => {
                 let count_content = lorem.count.resolve(
                     py,
@@ -1325,6 +1290,56 @@ impl Render for Now {
         } else {
             let rendered = result.cast_into::<PyString>().map_err(PyErr::from)?;
             Ok(Cow::Owned(rendered.to_str()?.to_owned()))
+        }
+    }
+}
+
+impl CsrfToken {
+    const MISSING_WARNING: &str = "A {% csrf_token %} was used in a template, but the context did not provide the value.  This is usually caused by not providing a request.";
+
+    fn input_html(token_str: &str) -> String {
+        format!(
+            r#"<input type="hidden" name="csrfmiddlewaretoken" value="{}">"#,
+            html_escape::encode_quoted_attribute(token_str)
+        )
+    }
+}
+
+impl Render for CsrfToken {
+    fn render<'t>(
+        &self,
+        py: Python<'_>,
+        _template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> RenderResult<'t> {
+        match context.get("csrf_token") {
+            Some(token) => {
+                let bound_token = token.bind(py);
+                if let Ok(token_str) = bound_token.extract::<String>() {
+                    if token_str.is_empty() || token_str == "NOTPROVIDED" {
+                        Ok(Cow::Borrowed(""))
+                    } else {
+                        Ok(Cow::Owned(Self::input_html(&token_str)))
+                    }
+                } else if bound_token.is_truthy()? {
+                    let token_py_str = bound_token.str()?;
+                    let token_str = token_py_str.to_str()?;
+                    Ok(Cow::Owned(Self::input_html(token_str)))
+                } else {
+                    Ok(Cow::Borrowed(""))
+                }
+            }
+            None => {
+                let settings = DJANGO_SETTINGS.import(py, "django.conf", "settings")?;
+                let debug = settings.getattr("DEBUG")?.is_truthy()?;
+
+                if debug {
+                    let warn = WARNINGS_WARN.import(py, "warnings", "warn")?;
+                    warn.call1((Self::MISSING_WARNING,))?;
+                }
+
+                Ok(Cow::Borrowed(""))
+            }
         }
     }
 }
