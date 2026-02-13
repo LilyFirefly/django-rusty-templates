@@ -41,6 +41,16 @@ pub mod django_rusty_templates {
         ) -> PyErr;
     }
 
+    impl WithSourceCode for TemplateDoesNotExist {
+        fn with_source_code(
+            err: miette::Report,
+            source: impl miette::SourceCode + 'static,
+        ) -> PyErr {
+            let miette_err = err.with_source_code(source);
+            Self::new_err(format!("{miette_err:?}"))
+        }
+    }
+
     impl WithSourceCode for TemplateSyntaxError {
         fn with_source_code(
             err: miette::Report,
