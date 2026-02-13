@@ -556,7 +556,6 @@ def test_extends_variable_relative_path_deep(assert_render_error):
         template=template,
         context={"parent": "../../missing.txt"},
         exception=TemplateDoesNotExist,
-        rusty_exception=TemplateSyntaxError,
         django_message=django_message,
         rusty_message=rusty_message,
     )

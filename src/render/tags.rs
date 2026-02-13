@@ -1126,6 +1126,23 @@ impl Render for Include {
 }
 
 impl Extends {
+    fn get_or_insert_template<'t, 'py>(
+        &self,
+        py: Python<'py>,
+        template_path: String,
+        context: &mut Context,
+        template: TemplateString<'t>,
+    ) -> Result<IncludeTemplate<'py>, PyErr> {
+        let key = IncludeTemplateKey::String(template_path);
+        match context.get_or_insert_include(py, &self.engine, &key) {
+            Ok(template) => Ok(IncludeTemplate::Template(template)),
+            Err(error) if error.is_instance_of::<TemplateSyntaxError>(py) => Err(error),
+            Err(error) => {
+                Err(error.annotate(py, template_at(&self.template_name), "here", template))
+            }
+        }
+    }
+
     fn get_template_from_string<'t, 'py>(
         &self,
         content: &Bound<'py, PyString>,
@@ -1141,22 +1158,21 @@ impl Extends {
             self.origin.as_deref(),
             template_at(&self.template_name),
         );
-        let template_path = match relative_path {
-            Err(error) => {
-                return Err(TemplateSyntaxError::with_source_code(
-                    error.into(),
-                    template.to_string(),
-                ));
-            }
-            Ok(Some(_)) => {
-                return Err(TemplateDoesNotExist::new_err((template_path.to_string(),)));
-            }
-            Ok(None) => template_path.to_string(),
-        };
-        let key = IncludeTemplateKey::String(template_path);
-        context
-            .get_or_insert_include(py, &self.engine, &key)
-            .map(IncludeTemplate::Template)
+        let template_path =
+            match relative_path {
+                Err(error) => {
+                    return Err(TemplateDoesNotExist::with_source_code(
+                        error.into(),
+                        template.to_string(),
+                    ));
+                }
+                Ok(Some(_)) => {
+                    return Err(TemplateDoesNotExist::new_err((template_path.to_string(),))
+                        .annotate(py, template_at(&self.template_name), "here", template));
+                }
+                Ok(None) => template_path.to_string(),
+            };
+        self.get_or_insert_template(py, template_path, context, template)
     }
 
     fn get_template<'t, 'py>(
@@ -1166,12 +1182,9 @@ impl Extends {
         template: TemplateString<'t>,
         context: &'t mut Context,
     ) -> Result<IncludeTemplate<'py>, PyRenderError> {
-        match template_name {
+        Ok(match template_name {
             Content::String(content) => {
-                let key = IncludeTemplateKey::String(content.content().to_string());
-                context
-                    .get_or_insert_include(py, &self.engine, &key)
-                    .map(IncludeTemplate::Template)
+                self.get_or_insert_template(py, content.content().to_string(), context, template)
             }
             Content::Py(content) => {
                 if let Some(render) = content.getattr_opt(intern!(py, "render"))?
@@ -1197,16 +1210,7 @@ impl Extends {
                 }
             }
             _ => unreachable!(),
-        }
-        .map_err(|error| {
-            if error.is_instance_of::<TemplateSyntaxError>(py) {
-                error.into()
-            } else {
-                error
-                    .annotate(py, template_at(&self.template_name), "here", template)
-                    .into()
-            }
-        })
+        }?)
     }
 }
 
