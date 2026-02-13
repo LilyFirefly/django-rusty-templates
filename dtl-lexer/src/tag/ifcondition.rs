@@ -1,3 +1,4 @@
+use crate::TemplateContent;
 use crate::common::{
     LexerError, NextChar, lex_numeric, lex_text, lex_translated, lex_variable, text_content_at,
     translated_text_content_at,
@@ -51,6 +52,12 @@ impl IfConditionToken {
             }
             _ => self.at,
         }
+    }
+}
+
+impl<'t> TemplateContent<'t> for IfConditionToken {
+    fn content(&self, template: TemplateString<'t>) -> &'t str {
+        template.content(self.content_at())
     }
 }
 
