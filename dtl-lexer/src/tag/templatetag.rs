@@ -67,7 +67,7 @@ pub fn lex_templatetag(
             return Err(TemplateTagError::InvalidArgument {
                 argument: content.to_string(),
                 at: token.at.into(),
-            })
+            });
         }
     };
 
