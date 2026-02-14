@@ -69,6 +69,18 @@ def test_extends_variable_lazy_translation(assert_render):
     )
 
 
+def test_extends_variable_template_object(template_engine, assert_render):
+    parent = "{% block header %}# Header{% endblock header %}\n{% block body %}Parent content{% endblock body %}\n"
+    template = (
+        "{% extends template_object %}{% block body %}Some content{% endblock body %}"
+    )
+    assert_render(
+        template=template,
+        context={"template_object": template_engine.from_string(parent)},
+        expected="# Header\nSome content\n",
+    )
+
+
 def test_extends_translation(assert_render, template_engine):
     if template_engine.name == "rusty":
         pytest.xfail("Support for translation is not implemented yet")
