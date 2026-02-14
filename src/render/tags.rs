@@ -863,30 +863,6 @@ impl<'t, 'py> IncludeTemplate<'py> {
             }
         }
     }
-
-    fn render_with_blocks(
-        &'t self,
-        py: Python<'py>,
-        context: &mut Context,
-        at: At,
-        template: TemplateString<'t>,
-        blocks: &HashMap<String, Block>,
-    ) -> RenderResult<'t> {
-        match self {
-            Self::Template(parent_template) => {
-                parent_template.render_with_blocks(py, context, blocks, template)
-            }
-            Self::Callable(callable) => {
-                let py_context = build_pycontext(py, context)?;
-                let result = callable.call1((py_context.clone(),));
-                retrieve_context(py, py_context, context);
-                match result {
-                    Ok(content) => Ok(Cow::Owned(content.to_string())),
-                    Err(error) => Err(error.annotate(py, at, "here", template).into()),
-                }
-            }
-        }
-    }
 }
 
 fn template_at(template_name: &IncludeTemplateName) -> At {
@@ -1132,10 +1108,10 @@ impl Extends {
         template_path: String,
         context: &mut Context,
         template: TemplateString<'t>,
-    ) -> Result<IncludeTemplate<'py>, PyErr> {
+    ) -> Result<Arc<Template>, PyErr> {
         let key = IncludeTemplateKey::String(template_path);
         match context.get_or_insert_include(py, &self.engine, &key) {
-            Ok(template) => Ok(IncludeTemplate::Template(template)),
+            Ok(template) => Ok(template),
             Err(error) if error.is_instance_of::<TemplateSyntaxError>(py) => Err(error),
             Err(error) => {
                 Err(error.annotate(py, template_at(&self.template_name), "here", template))
@@ -1148,7 +1124,7 @@ impl Extends {
         content: &Bound<'py, PyString>,
         context: &mut Context,
         template: TemplateString<'t>,
-    ) -> Result<IncludeTemplate<'py>, PyErr> {
+    ) -> Result<Arc<Template>, PyErr> {
         let py = content.py();
         let template_path = content
             .extract()
@@ -1181,16 +1157,14 @@ impl Extends {
         py: Python<'py>,
         template: TemplateString<'t>,
         context: &'t mut Context,
-    ) -> Result<IncludeTemplate<'py>, PyRenderError> {
+    ) -> Result<Arc<Template>, PyRenderError> {
         Ok(match template_name {
             Content::String(content) => {
                 self.get_or_insert_template(py, content.content().to_string(), context, template)
             }
             Content::Py(content) => {
-                if let Some(render) = content.getattr_opt(intern!(py, "render"))?
-                    && render.is_callable()
-                {
-                    Ok(IncludeTemplate::Callable(render))
+                if let Ok(parent) = content.extract::<Template>() {
+                    Ok(Arc::new(parent))
                 } else if let Ok(content) = content.cast::<PyString>() {
                     self.get_template_from_string(content, context, template)
                 } else {
@@ -1224,13 +1198,7 @@ impl Render for Extends {
         let template_name = resolve_template_name(py, &self.template_name, template, context)?;
         let parent = self.get_template(template_name, py, template, context)?;
         parent
-            .render_with_blocks(
-                py,
-                context,
-                template_at(&self.template_name),
-                template,
-                &self.blocks,
-            )
+            .render_with_blocks(py, context, &self.blocks, template)
             .map(|content| Cow::Owned(content.into_owned()))
     }
 }
