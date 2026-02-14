@@ -326,21 +326,19 @@ pub mod django_rusty_templates {
                 Some(dirs) => dirs.extract()?,
                 None => Vec::new(),
             };
-            let builtin_processor = "django.template.context_processors.csrf";
+
+            let mut processors = vec!["django.template.context_processors.csrf".to_string()];
+            if let Some(context_processors) = context_processors {
+                processors.append(&mut context_processors.extract()?);
+            }
+
             let import_string =
                 IMPORT_STRING.import(py, "django.utils.module_loading", "import_string")?;
-            let (context_processors, loaded_context_processors) = {
-                let mut names: Vec<String> = match context_processors {
-                    Some(context_processors) => context_processors.extract()?,
-                    None => Vec::new(),
-                };
-                names.insert(0, builtin_processor.to_string());
-                let loaded = names
-                    .iter()
-                    .map(|name| import_string.call1((name,)).map(pyo3::Bound::unbind))
-                    .collect::<PyResult<Vec<Py<PyAny>>>>()?;
-                (names, loaded)
-            };
+            let loaded_context_processors = processors
+                .iter()
+                .map(|name| import_string.call1((name,)).map(pyo3::Bound::unbind))
+                .collect::<PyResult<Vec<_>>>()?;
+
             let Some(encoding) = Encoding::for_label(file_charset.as_bytes()) else {
                 return Err(PyValueError::new_err(format!(
                     "Unknown encoding: '{file_charset}'"
@@ -375,7 +373,7 @@ pub mod django_rusty_templates {
             let engine = Engine {
                 dirs,
                 app_dirs,
-                context_processors,
+                context_processors: processors,
                 debug,
                 template_loaders: template_loaders.into(),
                 string_if_invalid,
