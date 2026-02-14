@@ -721,6 +721,7 @@ impl Render for Tag {
             }
             Self::Comment(_) => Cow::Borrowed(""),
             Self::Now(now) => now.render(py, template, context)?,
+            Self::TemplateTag(template_tag) => Cow::Borrowed(template_tag.output()),
         })
     }
 }

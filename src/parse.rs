@@ -53,6 +53,7 @@ use dtl_lexer::tag::kwarg::{
 use dtl_lexer::tag::load::{LoadLexer, LoadToken};
 use dtl_lexer::tag::lorem::{LoremError, LoremLexer, LoremMethod, LoremTokenType};
 use dtl_lexer::tag::now::{NowError, NowLexer};
+use dtl_lexer::tag::templatetag::{TemplateTag, TemplateTagError, lex_templatetag};
 use dtl_lexer::tag::{TagLexerError, TagParts, lex_tag};
 use dtl_lexer::types::{At, TemplateString};
 use dtl_lexer::variable::{
@@ -662,6 +663,7 @@ pub enum Tag {
     Lorem(Lorem),
     Comment(Comment),
     Now(Now),
+    TemplateTag(TemplateTag),
 }
 
 #[derive(PartialEq, Eq)]
@@ -999,6 +1001,10 @@ pub enum ParseError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     NowError(#[from] NowError),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    TemplateTagError(#[from] TemplateTagError),
 }
 
 #[derive(Error, Debug)]
@@ -1464,6 +1470,9 @@ impl<'t, 'py> Parser<'t, 'py> {
                 self.parse_comment(at, tag.parts)?,
             ))),
             "now" => Either::Left(TokenTree::Tag(Tag::Now(self.parse_now(tag.parts)?))),
+            "templatetag" => Either::Left(TokenTree::Tag(Tag::TemplateTag(
+                lex_templatetag(self.template, tag.parts).map_err(ParseError::from)?,
+            ))),
             tag_name => match self.external_tags.get(tag_name) {
                 Some(TagContext::Simple(context)) => {
                     Either::Left(self.parse_simple_tag(context, at, tag.parts)?)

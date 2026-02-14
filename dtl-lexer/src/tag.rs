@@ -7,6 +7,7 @@ pub mod kwarg;
 pub mod load;
 pub mod lorem;
 pub mod now;
+pub mod templatetag;
 
 use crate::common::NextChar;
 use crate::types::{At, TemplateString};
