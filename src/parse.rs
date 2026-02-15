@@ -1049,11 +1049,10 @@ pub enum ParseError {
         at: SourceSpan,
     },
 
-    #[error("Unexpected tokens after 'as my_var'")]
-    #[diagnostic(help(
-        "The 'as my_var' must be at the end of the tag. Remove extra tokens after it."
-    ))]
+    #[error("Unexpected tokens after 'as {var_name}'")]
+    #[diagnostic(help("Remove the extra tokens."))]
     UnexpectedTokensAfterAsVariable {
+        var_name: Cow<'static, str>,
         #[label("unexpected tokens here")]
         at: SourceSpan,
     },

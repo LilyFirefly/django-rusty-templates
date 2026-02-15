@@ -295,13 +295,14 @@ def test_simple_tag_keyword_as_multiple_variables(assert_parse_error):
         "'double' received some positional argument(s) after some keyword argument(s)"
     )
     rusty_message = snapshot("""\
-  × Unexpected positional argument after keyword argument
+  × Unexpected tokens after 'as my_var'
    ╭────
  1 │ {% load double from custom_tags %}{% double value=1 as foo bar %}
-   ·                                             ───┬─── ─┬
-   ·                                                │     ╰── this positional argument
-   ·                                                ╰── after this keyword argument
+   ·                                                            ─┬─
+   ·                                                             ╰── unexpected tokens here
    ╰────
+  help: The 'as my_var' must be at the end of the tag. Remove extra tokens
+        after it.
 """)
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
@@ -312,12 +313,14 @@ def test_simple_tag_positional_as_multiple_variables(assert_parse_error):
     template = "{% load double from custom_tags %}{% double value as foo bar %}"
     django_message = snapshot("'double' received too many positional arguments")
     rusty_message = snapshot("""\
-  × Unexpected positional argument
+  × Unexpected tokens after 'as my_var'
    ╭────
  1 │ {% load double from custom_tags %}{% double value as foo bar %}
-   ·                                                   ─┬
-   ·                                                    ╰── here
+   ·                                                          ─┬─
+   ·                                                           ╰── unexpected tokens here
    ╰────
+  help: The 'as my_var' must be at the end of the tag. Remove extra tokens
+        after it.
 """)
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
@@ -328,12 +331,14 @@ def test_simple_tag_positional_as_multiple_variables_with_default(assert_parse_e
     template = "{% load invert from custom_tags %}{% invert as foo bar %}"
     django_message = snapshot("'invert' received too many positional arguments")
     rusty_message = snapshot("""\
-  × Unexpected positional argument
+  × Unexpected tokens after 'as my_var'
    ╭────
  1 │ {% load invert from custom_tags %}{% invert as foo bar %}
-   ·                                                ─┬─
-   ·                                                 ╰── here
+   ·                                                    ─┬─
+   ·                                                     ╰── unexpected tokens here
    ╰────
+  help: The 'as my_var' must be at the end of the tag. Remove extra tokens
+        after it.
 """)
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
@@ -346,13 +351,13 @@ def test_simple_tag_keyword_missing_target_variable(assert_parse_error):
         "'double' received some positional argument(s) after some keyword argument(s)"
     )
     rusty_message = snapshot("""\
-  × Unexpected positional argument after keyword argument
+  × Expected a variable name after 'as'
    ╭────
  1 │ {% load double from custom_tags %}{% double value=1 as %}
-   ·                                             ───┬─── ─┬
-   ·                                                │     ╰── this positional argument
-   ·                                                ╰── after this keyword argument
+   ·                                                     ─┬
+   ·                                                      ╰── expected a variable name here
    ╰────
+  help: Provide a name to store the date string, e.g. 'as my_var'
 """)
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
@@ -363,12 +368,13 @@ def test_simple_tag_positional_missing_target_variable(assert_parse_error):
     template = "{% load double from custom_tags %}{% double value as %}"
     django_message = snapshot("'double' received too many positional arguments")
     rusty_message = snapshot("""\
-  × Unexpected positional argument
+  × Expected a variable name after 'as'
    ╭────
  1 │ {% load double from custom_tags %}{% double value as %}
    ·                                                   ─┬
-   ·                                                    ╰── here
+   ·                                                    ╰── expected a variable name here
    ╰────
+  help: Provide a name to store the date string, e.g. 'as my_var'
 """)
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
