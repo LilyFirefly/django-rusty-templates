@@ -1556,16 +1556,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         let params_count = context.params.len();
         let mut tokens =
             TagElementKwargLexer::new(self.template, parts).collect::<Result<Vec<_>, _>>()?;
-        let tokens_count = tokens.len();
-        let target_var =
-            if tokens_count >= 2 && self.template.content(tokens[tokens_count - 2].at) == "as" {
-                let last = tokens.pop().expect("tokens should be length 2 or more");
-                tokens.pop();
-                Some(self.template.content(last.at).to_string())
-            } else {
-                None
-            };
-
+        let asvar = extract_as_variable(&mut tokens, &self.template)?;
         for (index, token) in tokens.iter().enumerate() {
             match token.kwarg {
                 None => {
@@ -1868,36 +1859,9 @@ impl<'t, 'py> Parser<'t, 'py> {
         };
         let view_name = view_token?.parse(self)?;
 
-        let mut tokens = vec![];
-        for token in lexer {
-            tokens.push(token?);
-        }
-        let mut rev = tokens.iter().rev();
-        let variable = match (rev.next(), rev.next()) {
-            (
-                Some(TagElementKwargToken {
-                    at: last,
-                    token_type: TagElementTokenType::Variable,
-                    ..
-                }),
-                Some(TagElementKwargToken {
-                    at: prev,
-                    token_type: TagElementTokenType::Variable,
-                    ..
-                }),
-            ) => {
-                let prev = self.template.content(*prev);
-                if prev == "as" {
-                    Some(self.template.content(*last).to_string())
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        };
-        if variable.is_some() {
-            tokens.truncate(tokens.len() - 2);
-        }
+        let mut tokens = lexer.collect::<Result<Vec<_>, _>>()?;
+        let asvar = extract_as_variable(&mut tokens, &self.template)?;
+
         let mut args = vec![];
         let mut kwargs = vec![];
         for token in tokens {
