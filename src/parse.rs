@@ -36,7 +36,7 @@ use crate::filters::UpperFilter;
 use crate::filters::WordcountFilter;
 use crate::filters::WordwrapFilter;
 use crate::filters::YesnoFilter;
-use dtl_lexer::common::{LexerError, text_content_at, translated_text_content_at};
+use dtl_lexer::common::{LexerError, get_all_at, text_content_at, translated_text_content_at};
 use dtl_lexer::core::{Lexer, TokenType};
 use dtl_lexer::tag::autoescape::{AutoescapeEnabled, AutoescapeError, lex_autoescape_argument};
 use dtl_lexer::tag::common::{TagElementToken, TagElementTokenType};
@@ -286,6 +286,41 @@ impl Parse<TagElement> for TagElementKwargToken {
             TagElementTokenType::Variable => parser.parse_variable(content, content_at, start),
         }
     }
+}
+
+/// Extracts "as variable" from the end of the tokens list (and truncates it).
+///
+/// This will return:
+/// - Ok(Some(variable_name)) if found and valid
+/// - Ok(None) if "as" not found
+/// - ParseError if as is not at the end or missing a variable
+fn extract_as_variable(
+    tokens: &mut Vec<TagElementKwargToken>,
+    template: &TemplateString<'_>,
+) -> Result<Option<String>, ParseError> {
+    let len = tokens.len();
+    if len < 2 {
+        return Ok(None);
+    }
+    for (idx, token) in tokens.iter().rev().enumerate() {
+        if template.content(token.at) == "as" {
+            println!("{:?}", token.at);
+            return match idx {
+                0 => Err(ParseError::MissingVariableAfterAs {
+                    at: token.at.into(),
+                }),
+                1 => {
+                    let variable = template.content(tokens[len - 1].at).to_string();
+                    tokens.truncate(len - 2);
+                    Ok(Some(variable))
+                }
+                _ => Err(ParseError::UnexpectedTokensAfterAsVariable {
+                    at: get_all_at(tokens[len - idx + 1].at, tokens[len - 1].at).into(),
+                }),
+            };
+        }
+    }
+    Ok(None)
 }
 
 fn parse_include_template_token(
@@ -1006,6 +1041,22 @@ pub enum ParseError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     TemplateTagError(#[from] TemplateTagError),
+
+    #[error("Expected a variable name after 'as'")]
+    #[diagnostic(help("Provide a name to store the date string, e.g. 'as my_var'"))]
+    MissingVariableAfterAs {
+        #[label("expected a variable name here")]
+        at: SourceSpan,
+    },
+
+    #[error("Unexpected tokens after 'as my_var'")]
+    #[diagnostic(help(
+        "The 'as my_var' must be at the end of the tag. Remove extra tokens after it."
+    ))]
+    UnexpectedTokensAfterAsVariable {
+        #[label("unexpected tokens here")]
+        at: SourceSpan,
+    },
 }
 
 #[derive(Error, Debug)]
