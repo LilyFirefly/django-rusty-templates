@@ -316,6 +316,7 @@ fn extract_as_variable(
                 }
                 _ => Err(ParseError::UnexpectedTokensAfterAsVariable {
                     at: get_all_at(tokens[len - idx + 1].at, tokens[len - 1].at).into(),
+                    var_name: template.content(tokens[len - 1].at).to_string(),
                 }),
             };
         }
@@ -1052,7 +1053,7 @@ pub enum ParseError {
     #[error("Unexpected tokens after 'as {var_name}'")]
     #[diagnostic(help("Remove the extra tokens."))]
     UnexpectedTokensAfterAsVariable {
-        var_name: Cow<'static, str>,
+        var_name: String,
         #[label("unexpected tokens here")]
         at: SourceSpan,
     },
