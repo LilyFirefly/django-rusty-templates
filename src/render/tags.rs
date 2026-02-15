@@ -91,7 +91,7 @@ impl Resolve for Url {
             }
             reverse.call1((view_name, py.None(), py.None(), kwargs, current_app))
         };
-        match &self.variable {
+        match &self.asvar {
             None => Ok(Some(Content::Py(url?))),
             Some(variable) => {
                 if let Ok(url) = url.ok_or_isinstance_of::<NoReverseMatch>(py)? {
