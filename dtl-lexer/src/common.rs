@@ -209,6 +209,10 @@ pub fn translated_text_content_at(at: At) -> At {
     (start, len)
 }
 
+pub fn get_all_at(start: At, end: At) -> At {
+    (start.0, end.0 - start.0 + end.1)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
