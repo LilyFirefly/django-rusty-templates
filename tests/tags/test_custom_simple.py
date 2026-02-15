@@ -295,14 +295,13 @@ def test_simple_tag_keyword_as_multiple_variables(assert_parse_error):
         "'double' received some positional argument(s) after some keyword argument(s)"
     )
     rusty_message = snapshot("""\
-  × Unexpected tokens after 'as my_var'
+  × Unexpected tokens after 'as bar'
    ╭────
  1 │ {% load double from custom_tags %}{% double value=1 as foo bar %}
    ·                                                            ─┬─
    ·                                                             ╰── unexpected tokens here
    ╰────
-  help: The 'as my_var' must be at the end of the tag. Remove extra tokens
-        after it.
+  help: Remove the extra tokens.
 """)
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
@@ -313,14 +312,13 @@ def test_simple_tag_positional_as_multiple_variables(assert_parse_error):
     template = "{% load double from custom_tags %}{% double value as foo bar %}"
     django_message = snapshot("'double' received too many positional arguments")
     rusty_message = snapshot("""\
-  × Unexpected tokens after 'as my_var'
+  × Unexpected tokens after 'as bar'
    ╭────
  1 │ {% load double from custom_tags %}{% double value as foo bar %}
    ·                                                          ─┬─
    ·                                                           ╰── unexpected tokens here
    ╰────
-  help: The 'as my_var' must be at the end of the tag. Remove extra tokens
-        after it.
+  help: Remove the extra tokens.
 """)
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
@@ -331,14 +329,13 @@ def test_simple_tag_positional_as_multiple_variables_with_default(assert_parse_e
     template = "{% load invert from custom_tags %}{% invert as foo bar %}"
     django_message = snapshot("'invert' received too many positional arguments")
     rusty_message = snapshot("""\
-  × Unexpected tokens after 'as my_var'
+  × Unexpected tokens after 'as bar'
    ╭────
  1 │ {% load invert from custom_tags %}{% invert as foo bar %}
    ·                                                    ─┬─
    ·                                                     ╰── unexpected tokens here
    ╰────
-  help: The 'as my_var' must be at the end of the tag. Remove extra tokens
-        after it.
+  help: Remove the extra tokens.
 """)
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message

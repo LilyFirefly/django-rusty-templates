@@ -221,14 +221,13 @@ def test_render_url_var_after_as(assert_render_error):
         "Reverse for 'user' with arguments '('', '', '', '')' not found. 1 pattern(s) tried: ['users/(?P<username>[^/]+)/\\\\Z']"
     )
     rusty_message = snapshot("""\
-  × Unexpected tokens after 'as my_var'
+  × Unexpected tokens after 'as my_url'
    ╭────
  1 │ {% url 'users:user' as my_url my_url my_url %}
    ·                               ──────┬──────
    ·                                     ╰── unexpected tokens here
    ╰────
-  help: The 'as my_var' must be at the end of the tag. Remove extra tokens
-        after it.
+  help: Remove the extra tokens.
 """)
     assert_render_error(
         template=template,
