@@ -1,6 +1,7 @@
 from inline_snapshot import snapshot
 import pytest
 from django.template import engines
+from django.template.exceptions import TemplateSyntaxError
 from django.template.base import VariableDoesNotExist
 from django.test import RequestFactory
 from django.urls import resolve, NoReverseMatch
@@ -67,6 +68,31 @@ def test_render_url_current_app_unset(assert_render):
 
     expected = "/users/lily/"
     assert_render(template=template, context={}, request=request, expected=expected)
+
+
+def test_render_url_as_variable(assert_render):
+    template = "{% url 'users:user' as %}"
+
+    request = factory.get("/")
+
+    expected = "/users/lily/"
+    assert_render(
+        template=template, context={"as": "lily"}, request=request, expected=expected
+    )
+
+
+def test_render_url_as_variable_and_binding(assert_render):
+    template = "{% url as 'lily' as user_url %}{{ user_url }}"
+
+    request = factory.get("/")
+
+    expected = "/users/lily/"
+    assert_render(
+        template=template,
+        context={"as": "users:user"},
+        request=request,
+        expected=expected,
+    )
 
 
 def test_render_url_current_app(assert_render):
@@ -185,3 +211,31 @@ def test_render_url_dotted_lookup_filter_with_equal_char(template_engine):
 
     msg = "Reverse for '=' not found. '=' is not a valid view function or pattern name."
     assert str(exc_info.value) == msg
+
+
+def test_render_url_var_after_as(assert_render_error):
+    template = "{% url 'users:user' as my_url my_url my_url %}"
+    request = factory.get("/")
+
+    django_message = snapshot(
+        "Reverse for 'user' with arguments '('', '', '', '')' not found. 1 pattern(s) tried: ['users/(?P<username>[^/]+)/\\\\Z']"
+    )
+    rusty_message = snapshot("""\
+  × Unexpected tokens after 'as my_var'
+   ╭────
+ 1 │ {% url 'users:user' as my_url my_url my_url %}
+   ·                               ──────┬──────
+   ·                                     ╰── unexpected tokens here
+   ╰────
+  help: The 'as my_var' must be at the end of the tag. Remove extra tokens
+        after it.
+""")
+    assert_render_error(
+        template=template,
+        context={},
+        exception=NoReverseMatch,
+        django_message=django_message,
+        rusty_exception=TemplateSyntaxError,
+        rusty_message=rusty_message,
+        request_factory=request,
+    )
