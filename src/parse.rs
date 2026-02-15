@@ -358,7 +358,7 @@ pub struct Url {
     pub view_name: TagElement,
     pub args: Vec<TagElement>,
     pub kwargs: Vec<(String, TagElement)>,
-    pub variable: Option<String>,
+    pub asvar: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -1649,7 +1649,7 @@ impl<'t, 'py> Parser<'t, 'py> {
                 missing,
             });
         }
-        Ok((args, kwargs, target_var))
+        Ok((args, kwargs, asvar))
     }
 
     fn parse_simple_tag(
@@ -1901,7 +1901,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             view_name,
             args,
             kwargs,
-            variable,
+            asvar,
         };
         Ok(TokenTree::Tag(Tag::Url(url)))
     }
@@ -2634,7 +2634,7 @@ mod tests {
                 view_name: TagElement::Text(Text { at: (8, 13) }),
                 args: vec![],
                 kwargs: vec![],
-                variable: None,
+                asvar: None,
             }));
 
             assert_eq!(nodes, vec![url]);
@@ -2654,7 +2654,7 @@ mod tests {
                 view_name: TagElement::TranslatedText(Text { at: (10, 13) }),
                 args: vec![],
                 kwargs: vec![],
-                variable: None,
+                asvar: None,
             }));
 
             assert_eq!(nodes, vec![url]);
@@ -2674,7 +2674,7 @@ mod tests {
                 view_name: TagElement::Variable(Variable { at: (7, 14) }),
                 args: vec![],
                 kwargs: vec![],
-                variable: None,
+                asvar: None,
             }));
 
             assert_eq!(nodes, vec![url]);
@@ -2708,7 +2708,7 @@ mod tests {
                 view_name: TagElement::Filter(default),
                 args: vec![],
                 kwargs: vec![],
-                variable: None,
+                asvar: None,
             }));
 
             assert_eq!(nodes, vec![url]);
@@ -2740,7 +2740,7 @@ mod tests {
                 view_name: TagElement::Int(64.into()),
                 args: vec![],
                 kwargs: vec![],
-                variable: None,
+                asvar: None,
             }));
 
             assert_eq!(nodes, vec![url]);
@@ -2777,7 +2777,7 @@ mod tests {
                     TagElement::TranslatedText(Text { at: (57, 4) }),
                 ],
                 kwargs: vec![],
-                variable: None,
+                asvar: None,
             }));
 
             assert_eq!(nodes, vec![url]);
@@ -2800,7 +2800,7 @@ mod tests {
                     ("foo".to_string(), TagElement::Text(Text { at: (27, 3) })),
                     ("extra".to_string(), TagElement::Int((-64).into())),
                 ],
-                variable: None,
+                asvar: None,
             }));
 
             assert_eq!(nodes, vec![url]);
@@ -2820,7 +2820,7 @@ mod tests {
                 view_name: TagElement::Variable(Variable { at: (7, 14) }),
                 args: vec![TagElement::Text(Text { at: (23, 3) })],
                 kwargs: vec![],
-                variable: Some("some_url".to_string()),
+                asvar: Some("some_url".to_string()),
             }));
 
             assert_eq!(nodes, vec![url]);
@@ -2840,7 +2840,7 @@ mod tests {
                 view_name: TagElement::Variable(Variable { at: (7, 14) }),
                 args: vec![],
                 kwargs: vec![("foo".to_string(), TagElement::Text(Text { at: (27, 3) }))],
-                variable: Some("some_url".to_string()),
+                asvar: Some("some_url".to_string()),
             }));
 
             assert_eq!(nodes, vec![url]);
@@ -2864,7 +2864,7 @@ mod tests {
                     TagElement::Variable(Variable { at: (32, 4) }),
                 ],
                 kwargs: vec![],
-                variable: None,
+                asvar: None,
             }));
 
             assert_eq!(nodes, vec![url]);
