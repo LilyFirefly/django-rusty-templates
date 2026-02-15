@@ -2,6 +2,7 @@
 // https://github.com/zkat/miette/issues/458
 // https://github.com/rust-lang/rust/issues/147648
 #![expect(unused_assignments)]
+use dtl_lexer::DelimitedToken;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::iter::Peekable;
@@ -1142,11 +1143,7 @@ impl<'t, 'py> Parser<'t, 'py> {
                 TokenType::Text => TokenTree::Text(Text::new(token.at)),
                 TokenType::Comment => continue,
                 TokenType::Variable => self
-                    .parse_variable(
-                        token.content(self.template),
-                        token.at,
-                        token.at.0 + START_TAG_LEN,
-                    )?
+                    .parse_variable(token.content(self.template), token.at, token.trimmed_at().0)?
                     .into(),
                 TokenType::Tag => match self.parse_tag(token.content(self.template), token.at)? {
                     Either::Left(token_tree) => token_tree,
@@ -1176,11 +1173,7 @@ impl<'t, 'py> Parser<'t, 'py> {
                 TokenType::Text => TokenTree::Text(Text::new(token.at)),
                 TokenType::Comment => continue,
                 TokenType::Variable => self
-                    .parse_variable(
-                        token.content(self.template),
-                        token.at,
-                        token.at.0 + START_TAG_LEN,
-                    )?
+                    .parse_variable(token.content(self.template), token.at, token.trimmed_at().0)?
                     .into(),
                 TokenType::Tag => match self.parse_tag(token.content(self.template), token.at)? {
                     Either::Left(token_tree) => token_tree,

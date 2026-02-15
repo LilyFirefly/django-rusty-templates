@@ -1,5 +1,5 @@
 use crate::types::{At, TemplateString};
-use crate::{END_TAG_LEN, START_TAG_LEN};
+use crate::{DelimitedToken, END_TAG_LEN, START_TAG_LEN};
 
 enum EndTag {
     Variable,
@@ -51,18 +51,23 @@ impl Token {
     }
 }
 
-impl<'t> Token {
-    pub fn content(&self, template: TemplateString<'t>) -> &'t str {
+impl DelimitedToken for Token {
+    fn trimmed_at(&self) -> At {
         let (start, len) = self.at;
         let start = start + START_TAG_LEN;
         let len = len - START_TAG_LEN - END_TAG_LEN;
-        let at = match self.token_type {
+        match self.token_type {
             TokenType::Text => self.at,
             TokenType::Variable => (start, len),
             TokenType::Tag => (start, len),
             TokenType::Comment => (start, len),
-        };
-        template.content(at)
+        }
+    }
+}
+
+impl<'t> Token {
+    pub fn content(&self, template: TemplateString<'t>) -> &'t str {
+        template.content(self.trimmed_at())
     }
 }
 
