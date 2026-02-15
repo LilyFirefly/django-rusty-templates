@@ -1,4 +1,4 @@
-use crate::types::TemplateString;
+use crate::types::{At, TemplateString};
 
 pub mod common;
 pub mod core;
@@ -15,4 +15,8 @@ const QUOTE_LEN: usize = 1;
 
 pub trait TemplateContent<'t> {
     fn content(&self, template: TemplateString<'t>) -> &'t str;
+}
+
+pub trait DelimitedToken {
+    fn trimmed_at(&self) -> At;
 }
