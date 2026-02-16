@@ -23,6 +23,7 @@ use crate::filters::CutFilter;
 use crate::filters::DateFilter;
 use crate::filters::DefaultFilter;
 use crate::filters::DefaultIfNoneFilter;
+use crate::filters::DivisibleByFilter;
 use crate::filters::EscapeFilter;
 use crate::filters::EscapejsFilter;
 use crate::filters::ExternalFilter;
@@ -180,6 +181,10 @@ impl Filter {
             },
             "default_if_none" => match right {
                 Some(right) => FilterType::DefaultIfNone(DefaultIfNoneFilter::new(right)),
+                None => return Err(ParseError::MissingArgument { at: at.into() }),
+            },
+            "divisibleby" => match right {
+                Some(right) => FilterType::DivisibleBy(DivisibleByFilter::new(at, right)),
                 None => return Err(ParseError::MissingArgument { at: at.into() }),
             },
             "date" => FilterType::Date(DateFilter::new(right, at)),
