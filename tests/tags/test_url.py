@@ -1,7 +1,6 @@
 from inline_snapshot import snapshot
 import pytest
 from django.template import engines
-from django.template.exceptions import TemplateSyntaxError
 from django.template.base import VariableDoesNotExist
 from django.test import RequestFactory
 from django.urls import resolve, NoReverseMatch
@@ -220,21 +219,14 @@ def test_render_url_var_after_as(assert_render_error):
     django_message = snapshot(
         "Reverse for 'user' with arguments '('', '', '', '')' not found. 1 pattern(s) tried: ['users/(?P<username>[^/]+)/\\\\Z']"
     )
-    rusty_message = snapshot("""\
-  × Unexpected tokens after 'as my_url'
-   ╭────
- 1 │ {% url 'users:user' as my_url my_url my_url %}
-   ·                               ──────┬──────
-   ·                                     ╰── unexpected tokens here
-   ╰────
-  help: Remove the extra tokens.
-""")
+    rusty_message = snapshot(
+        "Reverse for 'user' with arguments '('', '', '', '')' not found. 1 pattern(s) tried: ['users/(?P<username>[^/]+)/\\\\Z']"
+    )
     assert_render_error(
         template=template,
         context={},
         exception=NoReverseMatch,
         django_message=django_message,
-        rusty_exception=TemplateSyntaxError,
         rusty_message=rusty_message,
         request_factory=request,
     )
