@@ -313,10 +313,15 @@ fn extract_as_variable(
                     tokens.truncate(len - 2);
                     Ok(Some(variable))
                 }
-                _ => Err(ParseError::UnexpectedTokensAfterAsVariable {
-                    at: get_all_at(tokens[len - idx + 1].at, tokens[len - 1].at).into(),
-                    var_name: template.content(tokens[len - 1].at).to_string(),
-                }),
+                _ => {
+                    let asvar = tokens[len - idx].at;
+                    let next = tokens[len - idx + 1].at;
+                    let last = tokens[len - 1].at;
+                    Err(ParseError::UnexpectedTokensAfterAsVariable {
+                        at: get_all_at(next, last).into(),
+                        var_name: template.content(asvar).to_string(),
+                    })
+                }
             };
         }
     }
