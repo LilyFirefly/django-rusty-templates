@@ -1864,7 +1864,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         let view_name = view_token?.parse(self)?;
 
         let mut tokens = lexer.collect::<Result<Vec<_>, _>>()?;
-        let asvar = extract_as_variable(&mut tokens, &self.template)?;
+        let asvar = extract_as_variable(&mut tokens, &self.template).unwrap_or_default();
 
         let mut args = vec![];
         let mut kwargs = vec![];

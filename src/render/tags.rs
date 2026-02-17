@@ -75,7 +75,10 @@ impl Resolve for Url {
         let url = if self.kwargs.is_empty() {
             let py_args = PyList::empty(py);
             for arg in &self.args {
-                py_args.append(arg.resolve(py, template, context, failures)?)?;
+                py_args.append(
+                    arg.resolve(py, template, context, failures)?
+                        .unwrap_or(Content::String(ContentString::String(Cow::Borrowed("")))),
+                )?;
             }
             reverse.call1((
                 view_name,
