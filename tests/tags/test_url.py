@@ -201,15 +201,23 @@ def test_render_url_dotted_lookup_keyword(assert_parse_error):
     )
 
 
-def test_render_url_dotted_lookup_filter_with_equal_char(template_engine):
+def test_render_url_dotted_lookup_filter_with_equal_char(assert_render_error):
     template = "{% url foo.bar|default:'=' %}"
-    template_obj = template_engine.from_string(template)
 
-    with pytest.raises(NoReverseMatch) as exc_info:
-        template_obj.render({})
+    django_message = snapshot(
+        "Reverse for '=' not found. '=' is not a valid view function or pattern name."
+    )
+    rusty_message = snapshot(
+        "Reverse for '=' not found. '=' is not a valid view function or pattern name."
+    )
 
-    msg = "Reverse for '=' not found. '=' is not a valid view function or pattern name."
-    assert str(exc_info.value) == msg
+    assert_render_error(
+        template=template,
+        context={},
+        exception=NoReverseMatch,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
 
 
 def test_render_url_var_after_as(assert_render_error):
