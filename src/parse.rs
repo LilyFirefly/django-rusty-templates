@@ -304,7 +304,6 @@ fn extract_as_variable(
     }
     for (idx, token) in tokens.iter().rev().enumerate() {
         if template.content(token.at) == "as" {
-            println!("{:?}", token.at);
             return match idx {
                 0 => Err(ParseError::MissingVariableAfterAs {
                     at: token.at.into(),
