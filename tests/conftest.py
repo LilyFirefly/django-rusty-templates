@@ -115,8 +115,8 @@ def assert_render_error(request):
             if request.param != "django" and rusty_exception
             else exception
         )
+        template = engines[request.param].from_string(template)
         with pytest.raises(exception) as exc_info:
-            template = engines[request.param].from_string(template)
             template.render(context, request_factory)
         assert str(exc_info.value) == message
 
