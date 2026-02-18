@@ -195,14 +195,23 @@ def test_divisibleby_error_invalid_arg_type(assert_render_error):
 
 def test_divisibleby_right_zero_negative(assert_render_error):
     template = "{{ 10|divisibleby:-0 }}"
+    if sys.version_info >= (3, 13) and sys.version_info < (3, 14):
+        error_message = "integer modulo by zero"
+    elif sys.version_info >= (3, 14):
+        error_message = "division by zero"
+    elif sys.version_info >= (3, 10) and sys.version_info < (3, 11):
+        error_message = "integer division or modulo by zero"
+    else:
+        error_message = "integer modulo by zero"
+
     context = {}
     assert_render_error(
         template=template,
         context=context,
         exception=ZeroDivisionError,
-        django_message="integer modulo by zero",
+        django_message=error_message,
         rusty_message="""\
-  × integer modulo by zero
+  × {error_message}
    ╭────
  1 │ {{ 10|divisibleby:-0 }}
    ·                   ─┬
