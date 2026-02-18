@@ -209,6 +209,16 @@ pub fn translated_text_content_at(at: At) -> At {
     (start, len)
 }
 
+/// Returns a new `At` representing the span from the beginning of `start`
+/// to the end of `end`.
+pub fn get_all_at(start: At, end: At) -> At {
+    assert!(
+        end.0 >= start.0,
+        "End position must be greater than or equal to start position"
+    );
+    (start.0, end.0 - start.0 + end.1)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -231,5 +241,20 @@ mod tests {
         assert_eq!(at, (0, 32));
         assert_eq!(byte, 32);
         assert_eq!(rest, "");
+    }
+
+    #[test]
+    fn test_get_all_at_valid() {
+        let start = (10, 5);
+        let end = (20, 3);
+        assert_eq!(get_all_at(start, end), (10, 13));
+    }
+
+    #[test]
+    #[should_panic(expected = "End position must be greater than or equal to start position")]
+    fn test_get_all_at_invalid_range() {
+        let start = (20, 5);
+        let end = (10, 3);
+        get_all_at(start, end);
     }
 }
