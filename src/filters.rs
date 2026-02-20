@@ -18,6 +18,7 @@ pub enum FilterType {
     Escape(EscapeFilter),
     Escapejs(EscapejsFilter),
     External(ExternalFilter),
+    Last(LastFilter),
     Lower(LowerFilter),
     Length(LengthFilter),
     Safe(SafeFilter),
@@ -131,6 +132,17 @@ impl PartialEq for ExternalFilter {
         //
         // We only use `eq` in tests, so this concession is acceptable here.
         self.argument.eq(&other.argument) && Arc::ptr_eq(&self.filter, &other.filter)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LastFilter {
+    pub at: (usize, usize),
+}
+
+impl LastFilter {
+    pub fn new(at: (usize, usize)) -> Self {
+        Self { at }
     }
 }
 
