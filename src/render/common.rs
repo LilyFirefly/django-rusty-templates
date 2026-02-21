@@ -5,7 +5,7 @@ use pyo3::prelude::*;
 use pyo3::sync::PyOnceLock;
 use pyo3::types::PyString;
 
-use dtl_lexer::types::TemplateString;
+use dtl_lexer::types::{PartsIterator, TemplateString};
 
 use super::types::{AsBorrowedContent, Content, ContentString, Context};
 use super::{Evaluate, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
@@ -13,11 +13,10 @@ use crate::error::{AnnotatePyErr, RenderError};
 use crate::parse::{TagElement, TokenTree};
 use crate::types::Argument;
 use crate::types::ArgumentType;
-use crate::types::ForVariable;
 use crate::types::ForVariableName;
 use crate::types::Text;
 use crate::types::TranslatedText;
-use dtl_lexer::types::Variable;
+use crate::types::Variable;
 
 static GETTEXT: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 
@@ -56,81 +55,91 @@ impl Resolve for Variable {
         context: &mut Context,
         failures: ResolveFailures,
     ) -> ResolveResult<'t, 'py> {
-        let mut parts = self.parts(template);
-        let (first, mut object_at) = parts.next().expect("Variable names cannot be empty");
-        let Some(variable) = context.get(first) else {
-            return Ok(None);
-        };
-        let Some(mut variable) = resolve_callable(variable.bind(py).clone())
-            .map_err(|err| err.annotate(py, self.at, "here", template))?
-        else {
-            return Ok(None);
-        };
-
-        for (part, key_at) in parts {
-            variable = match variable.get_item(part) {
-                Ok(variable) => variable,
-                Err(_) => match variable.getattr(part) {
-                    Ok(variable) => variable,
-                    Err(_) => {
-                        let Ok(int) = part.parse::<usize>() else {
-                            return match failures {
-                                ResolveFailures::Raise => Err(RenderError::VariableDoesNotExist {
-                                    key: part.to_string(),
-                                    object: variable.str()?.to_string(),
-                                    key_at: key_at.into(),
-                                    object_at: Some(object_at.into()),
-                                }
-                                .into()),
-                                ResolveFailures::IgnoreVariableDoesNotExist => Ok(None),
-                            };
-                        };
-                        match variable.get_item(int) {
-                            Ok(variable) => variable,
-                            Err(_) => todo!(),
-                        }
-                    }
-                },
-            };
-            variable = match resolve_callable(variable)
-                .map_err(|err| err.annotate(py, self.at, "here", template))?
-            {
-                Some(variable) => variable,
-                None => return Ok(None),
-            };
-            object_at.1 += key_at.1 + 1;
-        }
-        Ok(Some(Content::Py(variable)))
-    }
-}
-
-impl Resolve for ForVariable {
-    fn resolve<'t, 'py>(
-        &self,
-        py: Python<'py>,
-        _template: TemplateString<'t>,
-        context: &mut Context,
-        _failures: ResolveFailures,
-    ) -> ResolveResult<'t, 'py> {
-        let Some(for_loop) = context.get_for_loop(self.parent_count) else {
-            return Ok(Some("{}".as_content()));
-        };
-        Ok(Some(match self.variant {
-            ForVariableName::Counter => Content::Int(for_loop.counter().into()),
-            ForVariableName::Counter0 => Content::Int(for_loop.counter0().into()),
-            ForVariableName::RevCounter => Content::Int(for_loop.rev_counter().into()),
-            ForVariableName::RevCounter0 => Content::Int(for_loop.rev_counter0().into()),
-            ForVariableName::First => Content::Bool(for_loop.first()),
-            ForVariableName::Last => Content::Bool(for_loop.last()),
-            ForVariableName::Object => {
-                let content = Cow::Owned(context.render_for_loop(py, self.parent_count));
-                let content = match context.autoescape {
-                    false => ContentString::String(content),
-                    true => ContentString::HtmlUnsafe(content),
+        match self {
+            Self::Variable(at) => {
+                let mut parts = PartsIterator::new(template, *at);
+                let (first, mut object_at) = parts.next().expect("Variable names cannot be empty");
+                let Some(variable) = context.get(first) else {
+                    return Ok(None);
                 };
-                Content::String(content)
+                let Some(mut variable) = resolve_callable(variable.bind(py).clone())
+                    .map_err(|err| err.annotate(py, *at, "here", template))?
+                else {
+                    return Ok(None);
+                };
+
+                for (part, key_at) in parts {
+                    variable = match variable.get_item(part) {
+                        Ok(variable) => variable,
+                        Err(_) => match variable.getattr(part) {
+                            Ok(variable) => variable,
+                            Err(_) => {
+                                let Ok(int) = part.parse::<usize>() else {
+                                    return match failures {
+                                        ResolveFailures::Raise => {
+                                            Err(RenderError::VariableDoesNotExist {
+                                                key: part.to_string(),
+                                                object: variable.str()?.to_string(),
+                                                key_at: key_at.into(),
+                                                object_at: Some(object_at.into()),
+                                            }
+                                            .into())
+                                        }
+                                        ResolveFailures::IgnoreVariableDoesNotExist => Ok(None),
+                                    };
+                                };
+                                match variable.get_item(int) {
+                                    Ok(variable) => variable,
+                                    Err(_) => todo!(),
+                                }
+                            }
+                        },
+                    };
+                    variable = match resolve_callable(variable)
+                        .map_err(|err| err.annotate(py, *at, "here", template))?
+                    {
+                        Some(variable) => variable,
+                        None => return Ok(None),
+                    };
+                    object_at.1 += key_at.1 + 1;
+                }
+                Ok(Some(Content::Py(variable)))
             }
-        }))
+            Self::ForVariable(for_variable) => {
+                let Some(for_loop) = context.get_for_loop(for_variable.parent_count) else {
+                    return Ok(Some("{}".as_content()));
+                };
+                Ok(Some(match for_variable.variant {
+                    ForVariableName::Counter => Content::Int(for_loop.counter().into()),
+                    ForVariableName::Counter0 => Content::Int(for_loop.counter0().into()),
+                    ForVariableName::RevCounter => Content::Int(for_loop.rev_counter().into()),
+                    ForVariableName::RevCounter0 => Content::Int(for_loop.rev_counter0().into()),
+                    ForVariableName::First => Content::Bool(for_loop.first()),
+                    ForVariableName::Last => Content::Bool(for_loop.last()),
+                    ForVariableName::Object => {
+                        let content =
+                            Cow::Owned(context.render_for_loop(py, for_variable.parent_count));
+                        let content = match context.autoescape {
+                            false => ContentString::String(content),
+                            true => ContentString::HtmlUnsafe(content),
+                        };
+                        Content::String(content)
+                    }
+                }))
+            }
+            Self::BlockSuper(_) => match &context.block {
+                Some((block, template)) => {
+                    let template = template.clone();
+                    let rendered = block
+                        .clone()
+                        .render(py, TemplateString(&template), context)?;
+                    Ok(Some(Content::String(ContentString::String(Cow::Owned(
+                        rendered.to_string(),
+                    )))))
+                }
+                None => std::todo!(),
+            },
+        }
     }
 }
 
@@ -184,20 +193,22 @@ impl Resolve for Argument {
                 match variable.resolve(py, template, context, failures)? {
                     Some(content) => content,
                     None => {
-                        let key = template.content(variable.at).to_string();
+                        let at = match variable {
+                            Variable::Variable(at) => *at,
+                            Variable::BlockSuper(at) => *at,
+                            Variable::ForVariable(for_variable) => for_variable.at,
+                        };
+                        let key = template.content(at).to_string();
                         let object = context.display(py);
                         return Err(RenderError::ArgumentDoesNotExist {
                             key,
                             object,
-                            key_at: variable.at.into(),
+                            key_at: at.into(),
                             object_at: None,
                         }
                         .into());
                     }
                 }
-            }
-            ArgumentType::ForVariable(variable) => {
-                return variable.resolve(py, template, context, failures);
             }
             ArgumentType::Float(number) => Content::Float(*number),
             ArgumentType::Int(number) => Content::Int(number.clone()),
@@ -218,7 +229,6 @@ impl Resolve for TagElement {
                 text.resolve(py, template, context, failures)
             }
             Self::Variable(variable) => variable.resolve(py, template, context, failures),
-            Self::ForVariable(variable) => variable.resolve(py, template, context, failures),
             Self::Filter(filter) => filter.resolve(py, template, context, failures),
             Self::Int(int) => Ok(Some(Content::Int(int.clone()))),
             Self::Float(float) => Ok(Some(Content::Float(*float))),
@@ -258,7 +268,6 @@ impl Render for TokenTree {
             Self::Float(f) => Ok(f.to_string().into()),
             Self::Tag(tag) => tag.render(py, template, context),
             Self::Variable(variable) => variable.render(py, template, context),
-            Self::ForVariable(variable) => variable.render(py, template, context),
             Self::Filter(filter) => filter.render(py, template, context),
         }
     }
@@ -281,7 +290,7 @@ mod tests {
             let context = HashMap::from([("name".to_string(), name.unbind())]);
             let mut context = Context::new(context, None, false);
             let template = TemplateString("{{ name }}");
-            let variable = Variable::new((3, 4));
+            let variable = Variable::Variable((3, 4));
 
             let rendered = variable.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "Lily");
@@ -299,7 +308,7 @@ mod tests {
             let context = HashMap::from([("data".to_string(), data.into_any().unbind())]);
             let mut context = Context::new(context, None, false);
             let template = TemplateString("{{ data.name }}");
-            let variable = Variable::new((3, 9));
+            let variable = Variable::Variable((3, 9));
 
             let rendered = variable.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "Lily");
@@ -316,7 +325,7 @@ mod tests {
             let context = HashMap::from([("names".to_string(), names.into_any().unbind())]);
             let mut context = Context::new(context, None, false);
             let template = TemplateString("{{ names.0 }}");
-            let variable = Variable::new((3, 7));
+            let variable = Variable::Variable((3, 7));
 
             let rendered = variable.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "Lily");
@@ -345,7 +354,7 @@ user = User('Lily')
             let context = locals.extract().unwrap();
             let mut context = Context::new(context, None, false);
             let template = TemplateString("{{ user.name }}");
-            let variable = Variable::new((3, 9));
+            let variable = Variable::Variable((3, 9));
 
             let rendered = variable.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "Lily");
@@ -361,7 +370,7 @@ user = User('Lily')
             let context = HashMap::from([("html".to_string(), html)]);
             let mut context = Context::new(context, None, true);
             let template = TemplateString("{{ html }}");
-            let html = Variable::new((3, 4));
+            let html = Variable::Variable((3, 4));
 
             let rendered = html.render(py, template, &mut context).unwrap();
             assert_eq!(rendered, "&lt;p&gt;Hello World!&lt;/p&gt;");
