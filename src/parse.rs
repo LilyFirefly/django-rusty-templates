@@ -40,6 +40,7 @@ use dtl_lexer::common::{LexerError, text_content_at, translated_text_content_at}
 use dtl_lexer::core::{Lexer, TokenType};
 use dtl_lexer::tag::autoescape::{AutoescapeEnabled, AutoescapeError, lex_autoescape_argument};
 use dtl_lexer::tag::common::{TagElementToken, TagElementTokenType};
+use dtl_lexer::tag::firstof::{FirstOfLexer, FirstOfToken};
 use dtl_lexer::tag::forloop::{ForLexer, ForLexerError, ForLexerInError, ForTokenType};
 use dtl_lexer::tag::ifcondition::{
     IfConditionAtom, IfConditionLexer, IfConditionOperator, IfConditionTokenType,
@@ -644,6 +645,12 @@ pub struct Now {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct FirstOf {
+    pub vars: Vec<TagElement>,
+    pub asvar: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum Tag {
     Autoescape {
         enabled: AutoescapeEnabled,
@@ -664,6 +671,7 @@ pub enum Tag {
     Lorem(Lorem),
     Comment(Comment),
     Now(Now),
+    FirstOf(FirstOf),
     TemplateTag(TemplateTag),
 }
 
@@ -1408,6 +1416,38 @@ impl<'t, 'py> Parser<'t, 'py> {
         })
     }
 
+    fn parse_firstof(&mut self, parts: TagParts) -> Result<TokenTree, PyParseError> {
+        let mut lexer = FirstOfLexer::new(self.template, parts.clone());
+        let mut vars = Vec::new();
+        let mut asvar = None;
+
+        while let Some(token) = lexer.next() {
+            let token: FirstOfToken = token.map_err(ParseError::from)?;
+            match token {
+                FirstOfToken::Element(element_token) => {
+                    vars.push(element_token.parse(self)?);
+                }
+                FirstOfToken::AsVar(at) => {
+                    let next_token = lexer.next();
+                    if let Some(Ok(FirstOfToken::Element(as_element))) = next_token {
+                        if as_element.token_type != TagElementTokenType::Variable {
+                            return Err(ParseError::InvalidVariableName { at: as_element.at.into() }.into());
+                        }
+                        asvar = Some(self.template.content(as_element.content_at()).to_string());
+                    } else {
+                        return Err(ParseError::InvalidVariableName { at: at.into() }.into());
+                    }
+                }
+            }
+        }
+
+        if vars.is_empty() {
+            return Err(ParseError::MissingArgument { at: parts.at.into() }.into());
+        }
+
+        Ok(TokenTree::Tag(Tag::FirstOf(FirstOf { vars, asvar })))
+    }
+
     fn parse_tag(
         &mut self,
         tag: &'t str,
@@ -1417,6 +1457,7 @@ impl<'t, 'py> Parser<'t, 'py> {
 
         Ok(match tag.content(self.template) {
             "url" => Either::Left(self.parse_url(at, tag.parts)?),
+            "firstof" => Either::Left(self.parse_firstof(tag.parts)?),
             "csrf_token" => Either::Left(TokenTree::Tag(Tag::CsrfToken(CsrfToken))),
             "load" => Either::Left(self.parse_load(at, tag.parts)?),
             "autoescape" => Either::Left(self.parse_autoescape(at, tag.parts)?),
