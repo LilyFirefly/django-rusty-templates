@@ -11,7 +11,7 @@ use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
 use crate::filters::{
     AddFilter, AddSlashesFilter, CapfirstFilter, CenterFilter, CutFilter, DateFilter,
     DefaultFilter, DefaultIfNoneFilter, EscapeFilter, EscapejsFilter, ExternalFilter, FilterType,
-    LengthFilter, LowerFilter, SafeFilter, SlugifyFilter, TitleFilter, UpperFilter,
+    LastFilter, LengthFilter, LowerFilter, SafeFilter, SlugifyFilter, TitleFilter, UpperFilter,
     WordcountFilter, WordwrapFilter, YesnoFilter,
 };
 use crate::parse::Filter;
@@ -46,6 +46,7 @@ impl Resolve for Filter {
             FilterType::Escape(filter) => filter.resolve(left, py, template, context),
             FilterType::Escapejs(filter) => filter.resolve(left, py, template, context),
             FilterType::External(filter) => filter.resolve(left, py, template, context),
+            FilterType::Last(filter) => filter.resolve(left, py, template, context),
             FilterType::Lower(filter) => filter.resolve(left, py, template, context),
             FilterType::Length(filter) => filter.resolve(left, py, template, context),
             FilterType::Safe(filter) => filter.resolve(left, py, template, context),
@@ -419,6 +420,35 @@ impl ResolveFilter for ExternalFilter {
             None => filter.call1((variable,))?,
         };
         Ok(Some(Content::Py(value)))
+    }
+}
+
+impl ResolveFilter for LastFilter {
+    fn resolve<'t, 'py>(
+        &self,
+        variable: Option<Content<'t, 'py>>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
+        _context: &mut Context,
+    ) -> ResolveResult<'t, 'py> {
+        let content = match variable {
+            Some(content) => content,
+            None => return Ok(Some("".as_content())),
+        };
+
+        let obj = content.to_py(py);
+
+        match obj.get_item(-1) {
+            Ok(last) => Ok(Some(Content::Py(last))),
+            Err(err) => {
+                if err.is_instance_of::<pyo3::exceptions::PyIndexError>(py) {
+                    Ok(Some("".as_content()))
+                } else {
+                    let error = err.annotate(py, self.at, "here", template);
+                    Err(error.into())
+                }
+            }
+        }
     }
 }
 
