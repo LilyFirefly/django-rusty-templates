@@ -113,29 +113,31 @@ def test_divisibleby_none(assert_render_error):
 
 
 def test_divisibleby_zero_division(assert_render_error):
-    if sys.version_info >= (3, 13) and sys.version_info < (3, 14):
-        error_message = "integer modulo by zero"
-    elif sys.version_info >= (3, 14):
+    if sys.version_info >= (3, 14):
         error_message = "division by zero"
-    elif sys.version_info >= (3, 10) and sys.version_info < (3, 11):
-        error_message = "integer division or modulo by zero"
-    else:
+    elif sys.version_info >= (3, 11):
         error_message = "integer modulo by zero"
+    else:
+        error_message = "integer division or modulo by zero"
+
     template = "{{ 10|divisibleby:0 }}"
     context = {}
-    assert_render_error(
-        template=template,
-        context=context,
-        exception=ZeroDivisionError,
-        django_message=snapshot(error_message),
-        rusty_message=snapshot("""\
-  × {error_message}
+
+    rusty_template = """\
+  × %(error_message)s
    ╭────
  1 │ {{ 10|divisibleby:0 }}
    ·                   ┬
    ·                   ╰── here
    ╰────
-"""),
+"""
+
+    assert_render_error(
+        template=template,
+        context=context,
+        exception=ZeroDivisionError,
+        django_message=snapshot(error_message),
+        rusty_message=snapshot(rusty_template % {"error_message": error_message}),
     )
 
 
@@ -204,29 +206,31 @@ def test_divisibleby_error_invalid_arg_type(assert_render_error):
 
 def test_divisibleby_right_zero_negative(assert_render_error):
     template = "{{ 10|divisibleby:-0 }}"
-    if sys.version_info >= (3, 13) and sys.version_info < (3, 14):
-        error_message = "integer modulo by zero"
-    elif sys.version_info >= (3, 14):
+
+    if sys.version_info >= (3, 14):
         error_message = "division by zero"
-    elif sys.version_info >= (3, 10) and sys.version_info < (3, 11):
-        error_message = "integer division or modulo by zero"
-    else:
+    elif sys.version_info >= (3, 11):
         error_message = "integer modulo by zero"
+    else:
+        error_message = "integer division or modulo by zero"
 
     context = {}
-    assert_render_error(
-        template=template,
-        context=context,
-        exception=ZeroDivisionError,
-        django_message=error_message,
-        rusty_message="""\
-  × {error_message}
+
+    rusty_template = """\
+  × %(error_message)s
    ╭────
  1 │ {{ 10|divisibleby:-0 }}
    ·                   ─┬
    ·                    ╰── here
    ╰────
-""",
+"""
+
+    assert_render_error(
+        template=template,
+        context=context,
+        exception=ZeroDivisionError,
+        django_message=error_message,
+        rusty_message=rusty_template % {"error_message": error_message},
     )
 
 
