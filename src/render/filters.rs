@@ -371,7 +371,11 @@ impl ResolveFilter for DivisibleByFilter {
         }
 
         let Some(left_val) = variable.to_bigint() else {
-            return Ok(Some("".as_content()));
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "invalid literal for int() with base 10: ''",
+            )
+            .annotate(py, self.at, "here", template)
+            .into());
         };
 
         Ok(Some(Content::Bool((left_val % right_val).is_zero())))

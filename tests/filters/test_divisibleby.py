@@ -154,7 +154,9 @@ def test_divisibleby_zero_division_literal(template_engine):
     if template_engine.name.startswith("rusty"):
         with pytest.raises(TemplateSyntaxError) as exc_info:
             template_engine.from_string(template)
-        assert "divisibleby: division by zero" in str(exc_info.value)
+        assert "Invalid divisibility check: cannot divide by zero" in str(
+            exc_info.value
+        )
     else:
         # Django succeeds at parse time, fails at render time
         t = template_engine.from_string(template)
@@ -239,7 +241,9 @@ def test_divisibleby_right_zero_negative_literal(template_engine):
     if template_engine.name.startswith("rusty"):
         with pytest.raises(TemplateSyntaxError) as exc_info:
             template_engine.from_string(template)
-        assert "divisibleby: division by zero" in str(exc_info.value)
+        assert "Invalid divisibility check: cannot divide by zero" in str(
+            exc_info.value
+        )
     else:
         # Django succeeds at parse time, fails at render time
         t = template_engine.from_string(template)
@@ -267,3 +271,30 @@ def test_divisibleby_right_argument_via_add(assert_render):
     context = {"value": 10, "arg": 5}
     expected = "1"
     assert_render(template, context, expected)
+
+
+def test_divisibleby_bytes_object(assert_render):
+    template = "{{ value|divisibleby:2 }}"
+    context = {"value": b"6"}
+    expected = "True"
+    assert_render(template, context, expected)
+
+
+def test_divisibleby_invalid_variable_literal_for_int(assert_render_error):
+    template = "{{value|divisibleby:2}}"
+    context = {"value": "non_int"}
+    assert_render_error(
+        template=template,
+        context=context,
+        exception=ValueError,
+        rusty_exception=ValueError,
+        django_message=snapshot("invalid literal for int() with base 10: 'non_int'"),
+        rusty_message=snapshot("""\
+  × invalid literal for int() with base 10: ''
+   ╭────
+ 1 │ {{value|divisibleby:2}}
+   ·         ─────┬─────
+   ·              ╰── here
+   ╰────
+"""),
+    )

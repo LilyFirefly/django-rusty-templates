@@ -856,7 +856,7 @@ pub enum ParseError {
         #[label("here")]
         at: SourceSpan,
     },
-    #[error("divisibleby: division by zero")]
+    #[error("Invalid divisibility check: cannot divide by zero")]
     DivisibleByZero {
         #[label("here")]
         at: SourceSpan,
