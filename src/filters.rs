@@ -14,6 +14,7 @@ pub enum FilterType {
     Cut(CutFilter),
     Default(DefaultFilter),
     DefaultIfNone(DefaultIfNoneFilter),
+    DivisibleBy(DivisibleByFilter),
     Date(DateFilter),
     Escape(EscapeFilter),
     Escapejs(EscapejsFilter),
@@ -174,6 +175,18 @@ pub struct YesnoFilter {
 
 impl YesnoFilter {
     pub fn new(at: At, argument: Option<Argument>) -> Self {
+        Self { at, argument }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct DivisibleByFilter {
+    pub at: At,
+    pub argument: Argument,
+}
+
+impl DivisibleByFilter {
+    pub fn new(at: At, argument: Argument) -> Self {
         Self { at, argument }
     }
 }
