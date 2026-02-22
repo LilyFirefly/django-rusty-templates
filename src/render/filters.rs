@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use html_escape::encode_quoted_attribute_to_string;
-use num_traits::ToPrimitive;
+use num_traits::{ToPrimitive, Zero};
 use pyo3::prelude::*;
 use pyo3::sync::PyOnceLock;
 use pyo3::types::PyType;
@@ -10,9 +10,9 @@ use pyo3::types::{PyDate, PyDateTime, PyTime};
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
 use crate::filters::{
     AddFilter, AddSlashesFilter, CapfirstFilter, CenterFilter, CutFilter, DateFilter,
-    DefaultFilter, DefaultIfNoneFilter, EscapeFilter, EscapejsFilter, ExternalFilter, FilterType,
-    LengthFilter, LowerFilter, SafeFilter, SlugifyFilter, TitleFilter, UpperFilter,
-    WordcountFilter, WordwrapFilter, YesnoFilter,
+    DefaultFilter, DefaultIfNoneFilter, DivisibleByFilter, EscapeFilter, EscapejsFilter,
+    ExternalFilter, FilterType, LengthFilter, LowerFilter, SafeFilter, SlugifyFilter, TitleFilter,
+    UpperFilter, WordcountFilter, WordwrapFilter, YesnoFilter,
 };
 use crate::parse::Filter;
 use crate::render::common::gettext;
@@ -42,6 +42,7 @@ impl Resolve for Filter {
             FilterType::Cut(filter) => filter.resolve(left, py, template, context),
             FilterType::Default(filter) => filter.resolve(left, py, template, context),
             FilterType::DefaultIfNone(filter) => filter.resolve(left, py, template, context),
+            FilterType::DivisibleBy(filter) => filter.resolve(left, py, template, context),
             FilterType::Date(filter) => filter.resolve(left, py, template, context),
             FilterType::Escape(filter) => filter.resolve(left, py, template, context),
             FilterType::Escapejs(filter) => filter.resolve(left, py, template, context),
@@ -316,6 +317,69 @@ impl ResolveFilter for DateFilter {
         };
 
         Ok(Some(Content::Py(formatted)))
+    }
+}
+
+impl ResolveFilter for DivisibleByFilter {
+    fn resolve<'t, 'py>(
+        &self,
+        variable: Option<Content<'t, 'py>>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> ResolveResult<'t, 'py> {
+        let variable = match variable {
+            Some(v) => v,
+            None => {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "invalid literal for int() with base 10: 'None'",
+                )
+                .annotate(py, self.at, "here", template)
+                .into());
+            }
+        };
+
+        if let Content::Py(ref obj) = variable
+            && obj.is_none()
+        {
+            return Err(pyo3::exceptions::PyTypeError::new_err(
+                    "int() argument must be a string, a bytes-like object or a real number, not 'NoneType'",
+                )
+                .annotate(py, self.at, "here", template)
+                .into());
+        }
+
+        let right = self
+            .argument
+            .resolve(py, template, context, ResolveFailures::Raise)?
+            .expect("missing argument in context should already have raised");
+
+        let Some(right_val) = right.to_bigint() else {
+            return Err(
+                pyo3::exceptions::PyTypeError::new_err("Integer argument expected")
+                    .annotate(py, self.argument.at, "here", template)
+                    .into(),
+            );
+        };
+
+        if right_val.is_zero() {
+            return Err(pyo3::exceptions::PyZeroDivisionError::new_err(
+                "Invalid divisibility check: cannot divide by zero",
+            )
+            .annotate(py, self.argument.at, "here", template)
+            .into());
+        }
+
+        let Some(left_val) = variable.to_bigint() else {
+            let value_str = variable.render(context)?;
+            let msg = format!("invalid literal for int() with base 10: '{}'", value_str);
+
+            return Err(pyo3::exceptions::PyValueError::new_err(msg)
+                .annotate(py, self.at, "here", template)
+                .into());
+        };
+
+        Ok(Some(Content::Bool((left_val % right_val).is_zero())))
     }
 }
 

@@ -78,3 +78,6 @@ scripts/.django
 
 # Codspeed benchmarking
 .codspeed/*
+
+#codecov
+llvm-cov-env.sh

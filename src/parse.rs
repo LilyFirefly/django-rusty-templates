@@ -3,6 +3,7 @@
 // https://github.com/rust-lang/rust/issues/147648
 #![expect(unused_assignments)]
 use dtl_lexer::DelimitedToken;
+use num_traits::Zero;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::iter::Peekable;
@@ -23,6 +24,7 @@ use crate::filters::CutFilter;
 use crate::filters::DateFilter;
 use crate::filters::DefaultFilter;
 use crate::filters::DefaultIfNoneFilter;
+use crate::filters::DivisibleByFilter;
 use crate::filters::EscapeFilter;
 use crate::filters::EscapejsFilter;
 use crate::filters::ExternalFilter;
@@ -180,6 +182,19 @@ impl Filter {
             },
             "default_if_none" => match right {
                 Some(right) => FilterType::DefaultIfNone(DefaultIfNoneFilter::new(right)),
+                None => return Err(ParseError::MissingArgument { at: at.into() }),
+            },
+            "divisibleby" => match right {
+                Some(right) => {
+                    if let ArgumentType::Int(ref n) = right.argument_type
+                        && n.is_zero()
+                    {
+                        return Err(ParseError::DivisibleByZero {
+                            at: right.at.into(),
+                        });
+                    }
+                    FilterType::DivisibleBy(DivisibleByFilter::new(at, right))
+                }
                 None => return Err(ParseError::MissingArgument { at: at.into() }),
             },
             "date" => FilterType::Date(DateFilter::new(right, at)),
@@ -838,6 +853,11 @@ pub enum ParseError {
     #[error("Not expecting '{token}' in this position")]
     InvalidIfPosition {
         token: String,
+        #[label("here")]
+        at: SourceSpan,
+    },
+    #[error("Invalid divisibility check: cannot divide by zero")]
+    DivisibleByZero {
         #[label("here")]
         at: SourceSpan,
     },
