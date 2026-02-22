@@ -80,7 +80,7 @@ def test_divisibleby_missing_variable(assert_render_error):
         exception=ValueError,
         django_message=snapshot("invalid literal for int() with base 10: ''"),
         rusty_message=snapshot("""\
-  × invalid literal for int() with base 10: ''
+  × invalid literal for int() with base 10: 'None'
    ╭────
  1 │ {{ missing|divisibleby:2 }}
    ·            ─────┬─────
@@ -290,7 +290,7 @@ def test_divisibleby_invalid_variable_literal_for_int(assert_render_error):
         rusty_exception=ValueError,
         django_message=snapshot("invalid literal for int() with base 10: 'non_int'"),
         rusty_message=snapshot("""\
-  × invalid literal for int() with base 10: ''
+  × invalid literal for int() with base 10: 'non_int'
    ╭────
  1 │ {{value|divisibleby:2}}
    ·         ─────┬─────

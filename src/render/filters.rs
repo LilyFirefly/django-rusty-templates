@@ -332,7 +332,7 @@ impl ResolveFilter for DivisibleByFilter {
             Some(v) => v,
             None => {
                 return Err(pyo3::exceptions::PyValueError::new_err(
-                    "invalid literal for int() with base 10: ''",
+                    "invalid literal for int() with base 10: 'None'",
                 )
                 .annotate(py, self.at, "here", template)
                 .into());
@@ -371,11 +371,12 @@ impl ResolveFilter for DivisibleByFilter {
         }
 
         let Some(left_val) = variable.to_bigint() else {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                "invalid literal for int() with base 10: ''",
-            )
-            .annotate(py, self.at, "here", template)
-            .into());
+            let value_str = variable.render(context)?;
+            let msg = format!("invalid literal for int() with base 10: '{}'", value_str);
+
+            return Err(pyo3::exceptions::PyValueError::new_err(msg)
+                .annotate(py, self.at, "here", template)
+                .into());
         };
 
         Ok(Some(Content::Bool((left_val % right_val).is_zero())))
