@@ -2,7 +2,7 @@ import sys
 import pytest
 from inline_snapshot import snapshot
 
-from django.template import VariableDoesNotExist
+from django.template import VariableDoesNotExist, TemplateSyntaxError
 
 
 @pytest.mark.parametrize(
@@ -112,33 +112,55 @@ def test_divisibleby_none(assert_render_error):
     )
 
 
-def test_divisibleby_zero_division(assert_render_error):
+def test_divisibleby_zero_division_variable(assert_render_error):
     if sys.version_info >= (3, 14):
-        error_message = "division by zero"
+        django_error = "division by zero"
     elif sys.version_info >= (3, 11):
-        error_message = "integer modulo by zero"
+        django_error = "integer modulo by zero"
     else:
-        error_message = "integer division or modulo by zero"
+        django_error = "integer division or modulo by zero"
 
-    template = "{{ 10|divisibleby:0 }}"
-    context = {}
+    template = "{{ 10|divisibleby:divisor }}"
+    context = {"divisor": 0}
 
-    rusty_template = """\
-  × %(error_message)s
+    rusty_message = snapshot("""\
+  × Invalid divisibility check: cannot divide by zero
    ╭────
- 1 │ {{ 10|divisibleby:0 }}
-   ·                   ┬
-   ·                   ╰── here
+ 1 │ {{ 10|divisibleby:divisor }}
+   ·                   ───┬───
+   ·                      ╰── here
    ╰────
-"""
+""")
 
     assert_render_error(
         template=template,
         context=context,
         exception=ZeroDivisionError,
-        django_message=snapshot(error_message),
-        rusty_message=snapshot(rusty_template % {"error_message": error_message}),
+        django_message=snapshot(django_error),
+        rusty_message=rusty_message,
     )
+
+
+def test_divisibleby_zero_division_literal(template_engine):
+    if sys.version_info >= (3, 14):
+        django_error = "division by zero"
+    elif sys.version_info >= (3, 11):
+        django_error = "integer modulo by zero"
+    else:
+        django_error = "integer division or modulo by zero"
+
+    template = "{{ 10|divisibleby:0 }}"
+
+    if template_engine.name.startswith("rusty"):
+        with pytest.raises(TemplateSyntaxError) as exc_info:
+            template_engine.from_string(template)
+        assert "divisibleby: division by zero" in str(exc_info.value)
+    else:
+        # Django succeeds at parse time, fails at render time
+        t = template_engine.from_string(template)
+        with pytest.raises(ZeroDivisionError) as exc_info:
+            t.render({})
+        assert str(exc_info.value) == django_error
 
 
 def test_divisibleby_no_argument(assert_parse_error):
@@ -204,34 +226,26 @@ def test_divisibleby_error_invalid_arg_type(assert_render_error):
     )
 
 
-def test_divisibleby_right_zero_negative(assert_render_error):
+def test_divisibleby_right_zero_negative_literal(template_engine):
+    if sys.version_info >= (3, 14):
+        django_error = "division by zero"
+    elif sys.version_info >= (3, 11):
+        django_error = "integer modulo by zero"
+    else:
+        django_error = "integer division or modulo by zero"
+
     template = "{{ 10|divisibleby:-0 }}"
 
-    if sys.version_info >= (3, 14):
-        error_message = "division by zero"
-    elif sys.version_info >= (3, 11):
-        error_message = "integer modulo by zero"
+    if template_engine.name.startswith("rusty"):
+        with pytest.raises(TemplateSyntaxError) as exc_info:
+            template_engine.from_string(template)
+        assert "divisibleby: division by zero" in str(exc_info.value)
     else:
-        error_message = "integer division or modulo by zero"
-
-    context = {}
-
-    rusty_template = """\
-  × %(error_message)s
-   ╭────
- 1 │ {{ 10|divisibleby:-0 }}
-   ·                   ─┬
-   ·                    ╰── here
-   ╰────
-"""
-
-    assert_render_error(
-        template=template,
-        context=context,
-        exception=ZeroDivisionError,
-        django_message=error_message,
-        rusty_message=rusty_template % {"error_message": error_message},
-    )
+        # Django succeeds at parse time, fails at render time
+        t = template_engine.from_string(template)
+        with pytest.raises(ZeroDivisionError) as exc_info:
+            t.render({})
+        assert str(exc_info.value) == django_error
 
 
 def test_divisibleby_arg_variable(assert_render):

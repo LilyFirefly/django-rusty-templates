@@ -363,11 +363,11 @@ impl ResolveFilter for DivisibleByFilter {
         };
 
         if right_val.is_zero() {
-            return Err(
-                pyo3::exceptions::PyZeroDivisionError::new_err("integer modulo by zero")
-                    .annotate(py, self.argument.at, "here", template)
-                    .into(),
-            );
+            return Err(pyo3::exceptions::PyZeroDivisionError::new_err(
+                "Invalid divisibility check: cannot divide by zero",
+            )
+            .annotate(py, self.argument.at, "here", template)
+            .into());
         }
 
         let Some(left_val) = variable.to_bigint() else {

@@ -3,6 +3,7 @@
 // https://github.com/rust-lang/rust/issues/147648
 #![expect(unused_assignments)]
 use dtl_lexer::DelimitedToken;
+use num_traits::Zero;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::iter::Peekable;
@@ -184,7 +185,16 @@ impl Filter {
                 None => return Err(ParseError::MissingArgument { at: at.into() }),
             },
             "divisibleby" => match right {
-                Some(right) => FilterType::DivisibleBy(DivisibleByFilter::new(at, right)),
+                Some(right) => {
+                    if let ArgumentType::Int(ref n) = right.argument_type
+                        && n.is_zero()
+                    {
+                        return Err(ParseError::DivisibleByZero {
+                            at: right.at.into(),
+                        });
+                    }
+                    FilterType::DivisibleBy(DivisibleByFilter::new(at, right))
+                }
                 None => return Err(ParseError::MissingArgument { at: at.into() }),
             },
             "date" => FilterType::Date(DateFilter::new(right, at)),
@@ -843,6 +853,11 @@ pub enum ParseError {
     #[error("Not expecting '{token}' in this position")]
     InvalidIfPosition {
         token: String,
+        #[label("here")]
+        at: SourceSpan,
+    },
+    #[error("divisibleby: division by zero")]
+    DivisibleByZero {
         #[label("here")]
         at: SourceSpan,
     },
