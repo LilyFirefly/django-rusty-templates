@@ -1884,6 +1884,9 @@ impl<'t, 'py> Parser<'t, 'py> {
         let view_name = view_token?.parse(self)?;
 
         let mut tokens = lexer.collect::<Result<Vec<_>, _>>()?;
+
+        // We swallow errors here to match django's behavior at parsing time because we cannot
+        // be sure if 'as' is supposed to be a variable or a regular 'as my_var' binding.
         let asvar = extract_as_variable(&mut tokens, &self.template).unwrap_or_default();
 
         let mut args = vec![];

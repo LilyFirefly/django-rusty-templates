@@ -19,17 +19,6 @@ def test_render_url_variable(assert_render):
     assert_render(template="{% url home %}", context={"home": "home"}, expected="/")
 
 
-def test_render_url_variable_missing(template_engine):
-    template = "{% url home %}"
-    template = template_engine.from_string(template)
-
-    with pytest.raises(NoReverseMatch) as exc_info:
-        template.render({})
-
-    msg = "Reverse for '' not found. '' is not a valid view function or pattern name."
-    assert str(exc_info.value) == msg
-
-
 def test_render_url_view_missing_as(assert_render):
     template = "{% url 'missing' as missing %}{{ missing }}"
     expected = ""
@@ -201,6 +190,20 @@ def test_render_url_dotted_lookup_keyword(assert_parse_error):
     )
 
 
+def test_render_url_variable_missing(assert_render_error):
+    assert_render_error(
+        template="{% url home %}",
+        context={},
+        exception=NoReverseMatch,
+        django_message=snapshot(
+            "Reverse for '' not found. '' is not a valid view function or pattern name."
+        ),
+        rusty_message=snapshot(
+            "Reverse for '' not found. '' is not a valid view function or pattern name."
+        ),
+    )
+
+
 def test_render_url_dotted_lookup_filter_with_equal_char(assert_render_error):
     template = "{% url foo.bar|default:'=' %}"
 
@@ -229,6 +232,26 @@ def test_render_url_var_after_as(assert_render_error):
     )
     rusty_message = snapshot(
         "Reverse for 'user' with arguments '('', '', '', '')' not found. 1 pattern(s) tried: ['users/(?P<username>[^/]+)/\\\\Z']"
+    )
+    assert_render_error(
+        template=template,
+        context={},
+        exception=NoReverseMatch,
+        django_message=django_message,
+        rusty_message=rusty_message,
+        request_factory=request,
+    )
+
+
+def test_render_valid_url_and_invalid_as_binding(assert_render_error):
+    template = "{% url 'users:user' 'lily' as my_url my_url %}"
+    request = factory.get("/")
+
+    django_message = snapshot(
+        "Reverse for 'user' with arguments '('lily', '', '', '')' not found. 1 pattern(s) tried: ['users/(?P<username>[^/]+)/\\\\Z']"
+    )
+    rusty_message = snapshot(
+        "Reverse for 'user' with arguments '('lily', '', '', '')' not found. 1 pattern(s) tried: ['users/(?P<username>[^/]+)/\\\\Z']"
     )
     assert_render_error(
         template=template,
