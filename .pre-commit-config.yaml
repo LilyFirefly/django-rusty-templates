@@ -28,7 +28,7 @@ repos:
       - id: trailing-whitespace
       - id: fix-byte-order-marker
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: 45ef068da5f21267bb2a7ec4a623092959f09ce5  # frozen: v0.14.14
+    rev: a27a2e47c7751b639d2b5badf0ef6ff11fee893f  # frozen: v0.15.4
     hooks:
       - id: ruff-check
         args: [--fix, --exit-non-zero-on-fix]
@@ -38,7 +38,7 @@ repos:
     hooks:
       - id: cargo-fmt
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 5419f5b504dd5329d26fdf936719cb3b08b3eadf  # frozen: 0.9.28
+    rev: 099118db1761b62a9c5a3680a66fa6e2d973bcad  # frozen: 0.10.7
     hooks:
       - id: uv-lock
       - id: uv-sync
@@ -47,6 +47,6 @@ repos:
     hooks:
       - id: zizmor
   - repo: https://github.com/crate-ci/typos
-    rev: 672d45b4e77223b8fcf1b4b8560bf987f0839902  # frozen: v1
+    rev: 5745f2a8dd91cd7b684680e2e10a2b388ba6e5cf  # frozen: v1
     hooks:
       - id: typos
