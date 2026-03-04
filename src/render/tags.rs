@@ -731,7 +731,7 @@ impl Render for Tag {
                     )? && content.to_bool().unwrap_or(false)
                     {
                         if let Some(asvar) = &firstof.asvar {
-                            context.insert(asvar.clone(), content.to_py(py));
+                            context.insert(asvar.to_string(), content.to_py(py));
                             return Ok(Cow::Borrowed(""));
                         }
 
@@ -740,7 +740,7 @@ impl Render for Tag {
                     }
                 }
                 if let Some(asvar) = &firstof.asvar {
-                    context.insert(asvar.clone(), pyo3::types::PyString::new(py, "").into_any());
+                    context.insert(asvar.to_string(), PyString::new(py, "").into_any());
                 }
                 Cow::Borrowed("")
             }
