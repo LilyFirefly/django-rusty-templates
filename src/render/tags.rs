@@ -723,17 +723,20 @@ impl Render for Tag {
             Self::Now(now) => now.render(py, template, context)?,
             Self::FirstOf(firstof) => {
                 for var in &firstof.vars {
-                    if let Some(content) = var.resolve(py, template, context, ResolveFailures::IgnoreVariableDoesNotExist)? {
-                        if content.to_bool().unwrap_or(false) {
-                            if let Some(asvar) = &firstof.asvar {
-                                context.insert(asvar.clone(), content.to_py(py));
-                                return Ok(Cow::Borrowed(""));
-                            }
-                            // content is an enum, we extract the string roughly by to_py then text representation,
-                            // or better, using typical Display format for the content object.
-                            let format = content.render(context)?.to_string();
-                            return Ok(Cow::Owned(format));
+                    if let Some(content) = var.resolve(
+                        py,
+                        template,
+                        context,
+                        ResolveFailures::IgnoreVariableDoesNotExist,
+                    )? && content.to_bool().unwrap_or(false)
+                    {
+                        if let Some(asvar) = &firstof.asvar {
+                            context.insert(asvar.clone(), content.to_py(py));
+                            return Ok(Cow::Borrowed(""));
                         }
+
+                        let format = content.render(context)?.to_string();
+                        return Ok(Cow::Owned(format));
                     }
                 }
                 if let Some(asvar) = &firstof.asvar {

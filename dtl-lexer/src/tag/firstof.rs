@@ -1,10 +1,7 @@
 use crate::common::LexerError;
-use crate::tag::common::{TagElementLexer, TagElementToken, TagElementTokenType};
 use crate::tag::TagParts;
+use crate::tag::common::{TagElementLexer, TagElementToken, TagElementTokenType};
 use crate::types::{At, TemplateString};
-use miette::{Diagnostic, SourceSpan};
-use thiserror::Error;
-
 
 pub enum FirstOfToken {
     Element(TagElementToken),
@@ -14,7 +11,6 @@ pub enum FirstOfToken {
 pub struct FirstOfLexer<'t> {
     template: TemplateString<'t>,
     lexer: TagElementLexer<'t>,
-    at: At,
 }
 
 impl<'t> FirstOfLexer<'t> {
@@ -22,7 +18,6 @@ impl<'t> FirstOfLexer<'t> {
         Self {
             template,
             lexer: TagElementLexer::new(template, parts.clone()),
-            at: parts.at,
         }
     }
 }

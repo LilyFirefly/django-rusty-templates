@@ -1,5 +1,6 @@
 pub mod autoescape;
 pub mod common;
+pub mod firstof;
 pub mod forloop;
 pub mod ifcondition;
 pub mod include;
@@ -8,7 +9,6 @@ pub mod load;
 pub mod lorem;
 pub mod now;
 pub mod templatetag;
-pub mod firstof;
 
 use crate::common::NextChar;
 use crate::types::{At, TemplateString};

@@ -1431,7 +1431,10 @@ impl<'t, 'py> Parser<'t, 'py> {
                     let next_token = lexer.next();
                     if let Some(Ok(FirstOfToken::Element(as_element))) = next_token {
                         if as_element.token_type != TagElementTokenType::Variable {
-                            return Err(ParseError::InvalidVariableName { at: as_element.at.into() }.into());
+                            return Err(ParseError::InvalidVariableName {
+                                at: as_element.at.into(),
+                            }
+                            .into());
                         }
                         asvar = Some(self.template.content(as_element.content_at()).to_string());
                     } else {
@@ -1442,7 +1445,10 @@ impl<'t, 'py> Parser<'t, 'py> {
         }
 
         if vars.is_empty() {
-            return Err(ParseError::MissingArgument { at: parts.at.into() }.into());
+            return Err(ParseError::MissingArgument {
+                at: parts.at.into(),
+            }
+            .into());
         }
 
         Ok(TokenTree::Tag(Tag::FirstOf(FirstOf { vars, asvar })))
