@@ -1108,9 +1108,29 @@ impl Extends {
         py: Python<'py>,
         template_path: String,
         template: TemplateString<'t>,
+        context: &mut Context,
     ) -> Result<Template, PyErr> {
-        match get_template(self.engine.clone(), py, Cow::Owned(template_path)) {
-            Ok(template) => Ok(template),
+        if context.seen.is_none() {
+            let seen = match &self.origin {
+                Some(origin) => vec![origin.clone()],
+                None => vec![],
+            };
+            context.seen = Some(seen);
+        }
+        let seen = context
+            .seen
+            .as_mut()
+            .expect("context.seen should be populated");
+        match get_template(
+            self.engine.clone(),
+            py,
+            Cow::Owned(template_path),
+            Some(seen),
+        ) {
+            Ok((template, origin)) => {
+                seen.push(origin);
+                Ok(template)
+            }
             Err(error) if error.is_instance_of::<TemplateSyntaxError>(py) => Err(error),
             Err(error) => {
                 Err(error.annotate(py, template_at(&self.template_name), "here", template))
@@ -1122,16 +1142,18 @@ impl Extends {
         &self,
         content: &Bound<'py, PyString>,
         template: TemplateString<'t>,
+        context: &mut Context,
     ) -> Result<Template, PyErr> {
         let py = content.py();
         let template_path = content
             .extract()
             .expect("PyString should be compatible with Cow<str>");
-        let relative_path = construct_relative_path(
-            template_path,
-            self.origin.as_deref(),
-            template_at(&self.template_name),
-        );
+        let origin_name = match &self.origin {
+            Some(origin) => origin.template_name.as_deref(),
+            None => None,
+        };
+        let relative_path =
+            construct_relative_path(template_path, origin_name, template_at(&self.template_name));
         let template_path =
             match relative_path {
                 Err(error) => {
@@ -1146,7 +1168,7 @@ impl Extends {
                 }
                 Ok(None) => template_path.to_string(),
             };
-        self.load_template(py, template_path, template)
+        self.load_template(py, template_path, template, context)
     }
 
     fn get_template<'t, 'py>(
@@ -1154,22 +1176,23 @@ impl Extends {
         template_name: Content<'t, 'py>,
         py: Python<'py>,
         template: TemplateString<'t>,
+        context: &mut Context,
     ) -> Result<Template, PyRenderError> {
         Ok(match template_name {
             Content::String(content) => {
-                self.load_template(py, content.content().to_string(), template)
+                self.load_template(py, content.content().to_string(), template, context)
             }
             Content::Py(content) => {
                 if let Ok(parent) = content.extract::<Template>() {
                     Ok(parent)
                 } else if let Ok(content) = content.cast::<PyString>() {
-                    self.get_template_from_string(content, template)
+                    self.get_template_from_string(content, template, context)
                 } else {
                     let promise = PROMISE.import(py, "django.utils.functional", "Promise")?;
                     let path_like = PATH_LIKE.import(py, "os", "PathLike")?;
                     if content.is_instance(promise)? || content.is_instance(path_like)? {
                         let content = content.str()?;
-                        self.get_template_from_string(&content, template)
+                        self.get_template_from_string(&content, template, context)
                     } else {
                         return Err(invalid_template_name(
                             py,
@@ -1193,7 +1216,7 @@ impl Render for Extends {
         context: &mut Context,
     ) -> RenderResult<'t> {
         let template_name = resolve_template_name(py, &self.template_name, template, context)?;
-        let parent = self.get_template(template_name, py, template)?;
+        let parent = self.get_template(template_name, py, template, context)?;
         parent
             .render_with_blocks(py, context, &self.blocks, template)
             .map(|content| Cow::Owned(content.into_owned()))

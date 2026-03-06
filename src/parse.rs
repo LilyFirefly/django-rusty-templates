@@ -66,6 +66,7 @@ use dtl_lexer::variable::{
 };
 use dtl_lexer::{START_TAG_LEN, TemplateContent};
 
+use crate::loaders::Origin;
 use crate::path::{RelativePathError, construct_relative_path};
 use crate::template::django_rusty_templates::Engine;
 use crate::types::Argument;
@@ -628,7 +629,7 @@ impl PartialEq for Include {
 #[derive(Clone, Debug)]
 pub struct Extends {
     pub template_name: IncludeTemplateName,
-    pub origin: Option<String>,
+    pub origin: Option<Origin>,
     pub engine: Arc<Engine>,
     pub blocks: HashMap<String, Block>,
 }
@@ -1171,7 +1172,7 @@ pub struct Parser<'t, 'py> {
     template: TemplateString<'t>,
     lexer: Lexer<'t>,
     engine: Arc<Engine>,
-    origin: Option<&'t str>,
+    origin: Option<Origin>,
     external_tags: HashMap<String, TagContext<'py>>,
     external_filters: HashMap<String, Bound<'py, PyAny>>,
     forloop_depth: usize,
@@ -1184,7 +1185,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         py: Python<'py>,
         template: TemplateString<'t>,
         engine: Arc<Engine>,
-        origin: Option<&'t str>,
+        origin: Option<Origin>,
     ) -> Self {
         Self {
             py,
@@ -2025,7 +2026,8 @@ impl<'t, 'py> Parser<'t, 'py> {
         let template_name = match parse_extends_template_token(token, self)? {
             IncludeTemplateName::Text(Text { at }) => {
                 let template_path = self.template.content(at);
-                match construct_relative_path(template_path, self.origin, at)
+                let origin_name = self.origin.as_ref().map(|origin| origin.name.as_str());
+                match construct_relative_path(template_path, origin_name, at)
                     .map_err(ParseError::from)?
                 {
                     Some(path) => IncludeTemplateName::Relative(RelativePath {
@@ -2045,7 +2047,7 @@ impl<'t, 'py> Parser<'t, 'py> {
 
         let extends = Extends {
             template_name,
-            origin: self.origin.map(ToString::to_string),
+            origin: self.origin.clone(),
             engine: self.engine.clone(),
             blocks,
         };
@@ -2107,7 +2109,8 @@ impl<'t, 'py> Parser<'t, 'py> {
         let template_name = match parse_include_template_token(template_token, self)? {
             IncludeTemplateName::Text(Text { at }) => {
                 let template_path = self.template.content(at);
-                match construct_relative_path(template_path, self.origin, at)? {
+                let origin_name = self.origin.as_ref().map(|origin| origin.name.as_str());
+                match construct_relative_path(template_path, origin_name, at)? {
                     Some(path) => IncludeTemplateName::Relative(RelativePath {
                         path: path.into_owned(),
                         at,
@@ -2160,9 +2163,10 @@ impl<'t, 'py> Parser<'t, 'py> {
                 return Err(ParseError::MissingKeywordArgument { at: with_at.into() });
             }
         }
+        let origin = self.origin.as_ref().map(|origin| origin.name.clone());
         let include = Include {
             template_name,
-            origin: self.origin.map(ToString::to_string),
+            origin,
             engine: self.engine.clone(),
             kwargs,
             only: only.is_some(),
