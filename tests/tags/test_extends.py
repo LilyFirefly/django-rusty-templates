@@ -36,6 +36,15 @@ def test_extends_relative_path(assert_render):
     )
 
 
+def test_extends_same_name(assert_render):
+    template = "{% extends 'extends_self.txt' %}"
+    assert_render(
+        template=template,
+        context={},
+        expected="Extended content. Extra template content.\n",
+    )
+
+
 def test_extends_variable(assert_render):
     template = (
         "{% extends template_name %}{% block body %}Some content{% endblock body %}"
@@ -534,7 +543,8 @@ def test_extends_variable_relative_path(assert_render_error):
     template = "{% extends 'nested/extends_variable.txt' %}"
     django_message = snapshot("../base.txt")
     rusty_message = snapshot("""\
-  × ../base.txt
+  × The relative path '../base.txt' cannot be evaluated due to an unknown
+  │ template origin.
    ╭─[1:12]
  1 │ {% extends parent %}
    ·            ───┬──
@@ -555,12 +565,12 @@ def test_extends_variable_relative_path_deep(assert_render_error):
     template = "{% extends 'nested/extends_variable.txt' %}"
     django_message = snapshot("../../missing.txt")
     rusty_message = snapshot("""\
-  × The relative path '../../missing.txt' points outside the file hierarchy
-  │ that template 'nested/extends_variable.txt' is in.
+  × The relative path '../../missing.txt' cannot be evaluated due to an
+  │ unknown template origin.
    ╭─[1:12]
  1 │ {% extends parent %}
    ·            ───┬──
-   ·               ╰── relative path
+   ·               ╰── here
  2 │ \n\
    ╰────
 """)

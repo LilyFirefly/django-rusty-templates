@@ -17,6 +17,7 @@ use pyo3::sync::{MutexExt, PyOnceLock};
 use pyo3::types::{PyBool, PyDict, PyInt, PyString, PyType};
 
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
+use crate::loaders::Origin;
 use crate::parse::Block;
 use crate::template::django_rusty_templates::{Engine, Template, get_template, select_template};
 use crate::utils::PyResultMethods;
@@ -71,6 +72,7 @@ pub struct Context {
     names: Vec<HashSet<String>>,
     include_cache: HashMap<IncludeTemplateKey, Arc<Template>>,
     pub block: Option<(Arc<Block>, Arc<String>)>,
+    pub seen: Option<Vec<Origin>>,
 }
 
 impl Context {
@@ -88,6 +90,7 @@ impl Context {
             names: Vec::new(),
             include_cache: HashMap::new(),
             block: None,
+            seen: None,
         }
     }
 
@@ -104,6 +107,7 @@ impl Context {
             names: self.names.clone(),
             include_cache: self.include_cache.clone(),
             block: self.block.clone(),
+            seen: self.seen.clone(),
         }
     }
 
@@ -286,12 +290,12 @@ impl Context {
         match self.include_cache.entry(key.clone()) {
             Entry::Occupied(entry) => Ok(entry.get().clone()),
             Entry::Vacant(entry) => {
-                let include = match key {
+                let (include, _origin) = match key {
                     IncludeTemplateKey::String(content) => {
-                        get_template(engine.clone(), py, Cow::Borrowed(content))?
+                        get_template(engine.clone(), py, Cow::Borrowed(content), None)?
                     }
                     IncludeTemplateKey::Vec(templates) => {
-                        select_template(engine.clone(), py, templates.clone())?
+                        select_template(engine.clone(), py, templates.clone(), None)?
                     }
                 };
                 Ok(entry.insert(Arc::new(include)).clone())
