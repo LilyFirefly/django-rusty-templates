@@ -721,6 +721,29 @@ impl Render for Tag {
             }
             Self::Comment(_) => Cow::Borrowed(""),
             Self::Now(now) => now.render(py, template, context)?,
+            Self::FirstOf(firstof) => {
+                for var in &firstof.vars {
+                    if let Some(content) = var.resolve(
+                        py,
+                        template,
+                        context,
+                        ResolveFailures::IgnoreVariableDoesNotExist,
+                    )? && content.to_bool().unwrap_or(false)
+                    {
+                        if let Some(asvar) = &firstof.asvar {
+                            context.insert(asvar.to_string(), content.to_py(py));
+                            return Ok(Cow::Borrowed(""));
+                        }
+
+                        let format = content.render(context)?.to_string();
+                        return Ok(Cow::Owned(format));
+                    }
+                }
+                if let Some(asvar) = &firstof.asvar {
+                    context.insert(asvar.to_string(), PyString::new(py, "").into_any());
+                }
+                Cow::Borrowed("")
+            }
             Self::TemplateTag(template_tag) => Cow::Borrowed(template_tag.output()),
         })
     }
