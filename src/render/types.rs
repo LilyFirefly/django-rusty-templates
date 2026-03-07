@@ -17,6 +17,7 @@ use pyo3::sync::{MutexExt, PyOnceLock};
 use pyo3::types::{PyBool, PyDict, PyInt, PyString, PyType};
 
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
+use crate::parse::Block;
 use crate::template::django_rusty_templates::{Engine, Template, get_template, select_template};
 use crate::utils::PyResultMethods;
 use dtl_lexer::types::{At, TemplateString};
@@ -69,6 +70,7 @@ pub struct Context {
     pub autoescape: bool,
     names: Vec<HashSet<String>>,
     include_cache: HashMap<IncludeTemplateKey, Arc<Template>>,
+    pub block: Option<(Arc<Block>, Arc<String>)>,
 }
 
 impl Context {
@@ -85,6 +87,7 @@ impl Context {
             loops: Vec::new(),
             names: Vec::new(),
             include_cache: HashMap::new(),
+            block: None,
         }
     }
 
@@ -100,6 +103,7 @@ impl Context {
             loops: self.loops.clone(),
             names: self.names.clone(),
             include_cache: self.include_cache.clone(),
+            block: self.block.clone(),
         }
     }
 
