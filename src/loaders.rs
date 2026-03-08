@@ -20,7 +20,9 @@ pub struct LoaderError {
 
 fn abspath(path: &Path) -> Option<PathBuf> {
     match path.as_os_str().is_empty() {
-        false => std::path::absolute(path).map(|p| p.normalize()).ok(),
+        false => std::path::absolute(path)
+            .map(|p| p.normalize().into_owned())
+            .ok(),
         true => std::env::current_dir().ok(),
     }
 }
