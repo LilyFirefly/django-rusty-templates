@@ -1,0 +1,1 @@
+{% block content %}Extra template content.{% endblock content %}

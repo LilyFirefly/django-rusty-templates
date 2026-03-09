@@ -18,8 +18,10 @@ pub mod django_rusty_templates {
     use pyo3::types::{PyBool, PyDict, PyIterator, PyList, PyString, PyTuple};
 
     use crate::error::RenderError;
-    use crate::loaders::{AppDirsLoader, CachedLoader, FileSystemLoader, Loader, LocMemLoader};
-    use crate::parse::{Parser, TokenTree};
+    use crate::loaders::{
+        AppDirsLoader, CachedLoader, FileSystemLoader, Loader, LocMemLoader, Origin,
+    };
+    use crate::parse::{Block, Parser, Tag, TokenTree};
     use crate::render::types::{Context, PyContext};
     use crate::render::{Render, RenderResult};
     use crate::utils::PyResultMethods;
@@ -34,11 +36,21 @@ pub mod django_rusty_templates {
 
     static IMPORT_STRING: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 
-    trait WithSourceCode {
+    pub trait WithSourceCode {
         fn with_source_code(
             err: miette::Report,
             source: impl miette::SourceCode + 'static,
         ) -> PyErr;
+    }
+
+    impl WithSourceCode for TemplateDoesNotExist {
+        fn with_source_code(
+            err: miette::Report,
+            source: impl miette::SourceCode + 'static,
+        ) -> PyErr {
+            let miette_err = err.with_source_code(source);
+            Self::new_err(format!("{miette_err:?}"))
+        }
     }
 
     impl WithSourceCode for TemplateSyntaxError {
@@ -258,16 +270,18 @@ pub mod django_rusty_templates {
         engine: Arc<Engine>,
         py: Python<'_>,
         template_name: Cow<str>,
-    ) -> PyResult<Template> {
+        skip: Option<&Vec<Origin>>,
+    ) -> PyResult<(Template, Origin)> {
         let mut tried = Vec::new();
         let mut loaders = engine
             .template_loaders
             .lock_py_attached(py)
             .expect("Mutex should not be poisoned");
         for loader in loaders.iter_mut() {
-            match loader.get_template(py, &template_name, engine.clone()) {
-                Ok(template) => return template,
-                Err(e) => tried.push(e.tried),
+            match loader.get_template(py, &template_name, engine.clone(), skip) {
+                Ok(Ok((template, origin))) => return Ok((template, origin)),
+                Ok(Err(e)) => return Err(e),
+                Err(mut e) => tried.append(&mut e.tried),
             }
         }
         drop(loaders);
@@ -281,13 +295,14 @@ pub mod django_rusty_templates {
         engine: Arc<Engine>,
         py: Python<'_>,
         template_name_list: Vec<String>,
-    ) -> PyResult<Template> {
+        skip: Option<&Vec<Origin>>,
+    ) -> PyResult<(Template, Origin)> {
         if template_name_list.is_empty() {
             return Err(TemplateDoesNotExist::new_err("No template names provided"));
         }
         let mut not_found = Vec::new();
         for template_name in template_name_list {
-            match get_template(engine.clone(), py, Cow::Owned(template_name)) {
+            match get_template(engine.clone(), py, Cow::Owned(template_name), skip) {
                 Ok(template) => return Ok(template),
                 Err(e) if e.is_instance_of::<TemplateDoesNotExist>(py) => {
                     not_found.push(e.value(py).to_string());
@@ -393,7 +408,7 @@ pub mod django_rusty_templates {
         ///
         /// See <https://docs.djangoproject.com/en/stable/ref/templates/api/#django.template.Engine.get_template>
         pub fn get_template(&self, py: Python<'_>, template_name: String) -> PyResult<Template> {
-            get_template(self.engine.clone(), py, Cow::Owned(template_name))
+            Ok(get_template(self.engine.clone(), py, Cow::Owned(template_name), None)?.0)
         }
 
         /// Given a list of template names, return the first that can be loaded.
@@ -404,7 +419,7 @@ pub mod django_rusty_templates {
             py: Python<'_>,
             template_name_list: Vec<String>,
         ) -> PyResult<Template> {
-            select_template(self.engine.clone(), py, template_name_list)
+            Ok(select_template(self.engine.clone(), py, template_name_list, None)?.0)
         }
 
         #[allow(clippy::wrong_self_convention)] // We're implementing a Django interface
@@ -491,10 +506,10 @@ pub mod django_rusty_templates {
     }
 
     #[derive(Debug, Clone)]
-    #[pyclass(skip_from_py_object)]
+    #[pyclass(from_py_object)]
     pub struct Template {
         pub filename: Option<PathBuf>,
-        pub template: String,
+        pub template: Arc<String>,
         pub nodes: Vec<TokenTree>,
         pub engine: Arc<Engine>,
     }
@@ -507,12 +522,13 @@ pub mod django_rusty_templates {
             template_name: &str,
             engine: Arc<Engine>,
         ) -> PyResult<Self> {
-            let mut parser = Parser::new(
-                py,
-                TemplateString(template),
-                engine.clone(),
-                Some(template_name),
-            );
+            let origin = Origin {
+                name: template_name.to_string(),
+                template_name: None,
+                loader: None,
+            };
+            let mut parser =
+                Parser::new(py, TemplateString(template), engine.clone(), Some(origin));
             let nodes = match parser.parse() {
                 Ok(nodes) => nodes,
                 Err(err) => {
@@ -523,7 +539,7 @@ pub mod django_rusty_templates {
                 }
             };
             Ok(Self {
-                template: template.to_string(),
+                template: Arc::new(template.to_string()),
                 filename: Some(filename),
                 nodes,
                 engine,
@@ -544,7 +560,7 @@ pub mod django_rusty_templates {
                 }
             };
             Ok(Self {
-                template,
+                template: Arc::new(template),
                 filename: None,
                 nodes,
                 engine,
@@ -556,6 +572,33 @@ pub mod django_rusty_templates {
             let template = TemplateString(&self.template);
             for node in &self.nodes {
                 let content = node.render(py, template, context)?;
+                rendered.push_str(&content);
+            }
+            Ok(Cow::Owned(rendered))
+        }
+
+        pub fn render_with_blocks(
+            &self,
+            py: Python<'_>,
+            context: &mut Context,
+            blocks: &HashMap<String, Block>,
+            template: TemplateString,
+        ) -> RenderResult<'_> {
+            let mut rendered = String::with_capacity(self.template.len());
+            let parent_template = TemplateString(&self.template);
+            for node in &self.nodes {
+                let content = match node {
+                    TokenTree::Tag(Tag::Block(block)) => match blocks.get(&block.name) {
+                        Some(child_block) => {
+                            context.block = Some((Arc::new(block.clone()), self.template.clone()));
+                            let rendered = child_block.render(py, template, context);
+                            context.block = None;
+                            rendered?
+                        }
+                        None => node.render(py, parent_template, context)?,
+                    },
+                    node => node.render(py, parent_template, context)?,
+                };
                 rendered.push_str(&content);
             }
             Ok(Cow::Owned(rendered))
