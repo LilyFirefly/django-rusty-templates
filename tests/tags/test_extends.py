@@ -1,3 +1,4 @@
+import os.path
 from pathlib import Path
 
 import pytest
@@ -583,10 +584,12 @@ def test_extends_variable_relative_path_deep(assert_render_error):
     )
 
 
-def test_extends_recusion_error(assert_render_error):
+def test_extends_recursion_error(template_engine):
     template = "{% extends 'recursion.txt' %}"
-    django_message = snapshot("recursion.txt")
-    rusty_message = snapshot("""\
+    template = template_engine.from_string(template)
+
+    if template_engine.name == "rusty":
+        message = snapshot("""\
   × recursion.txt
    ╭────
  1 │ {% extends "recursion.txt" %}
@@ -594,10 +597,17 @@ def test_extends_recusion_error(assert_render_error):
    ·                   ╰── here
    ╰────
 """)
-    assert_render_error(
-        template=template,
-        context={},
-        exception=TemplateDoesNotExist,
-        django_message=django_message,
-        rusty_message=rusty_message,
-    )
+    else:
+        message = snapshot("recursion.txt")
+
+    with pytest.raises(TemplateDoesNotExist) as exc_info:
+        template.render({})
+
+    error = exc_info.value
+    assert str(error) == message
+
+    first, second = error.tried
+    assert os.path.normcase("/templates/recursion.txt") in first[0].name
+    assert first[1] == "Skipped to avoid recursion"
+    assert os.path.normcase("/extra_templates/recursion.txt") in second[0].name
+    assert second[1] == "Source does not exist"

@@ -99,7 +99,9 @@ pub mod django_rusty_templates {
     #[pyclass(frozen)]
     struct PyOrigin {
         #[pyo3(get)]
-        template_name: String,
+        name: String,
+        #[pyo3(get)]
+        template_name: Option<String>,
     }
 
     fn import_libraries(libraries: Bound<'_, PyAny>) -> PyResult<HashMap<String, Py<PyAny>>> {
@@ -296,7 +298,15 @@ pub mod django_rusty_templates {
             template_name.into_owned(),
             tried
                 .into_iter()
-                .map(|(template_name, reason)| (PyOrigin { template_name }, reason))
+                .map(|(origin, reason)| {
+                    (
+                        PyOrigin {
+                            name: origin.name,
+                            template_name: origin.template_name,
+                        },
+                        reason,
+                    )
+                })
                 .collect::<Vec<_>>(),
         )))
     }

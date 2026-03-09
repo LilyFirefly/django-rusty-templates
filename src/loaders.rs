@@ -24,7 +24,7 @@ pub struct Origin {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LoaderError {
-    pub tried: Vec<(String, String)>,
+    pub tried: Vec<(Origin, String)>,
 }
 
 fn abspath(path: &Path) -> Option<PathBuf> {
@@ -100,17 +100,11 @@ fn get_template(
         if let Some(skip) = skip
             && skip.contains(&this_origin)
         {
-            tried.push((
-                path.display().to_string(),
-                "Skipped to avoid recursion".to_string(),
-            ));
+            tried.push((this_origin, "Skipped to avoid recursion".to_string()));
             continue;
         }
         let Ok(bytes) = std::fs::read(&path) else {
-            tried.push((
-                path.display().to_string(),
-                "Source does not exist".to_string(),
-            ));
+            tried.push((this_origin, "Source does not exist".to_string()));
             continue;
         };
         let (contents, encoding, malformed) = encoding.decode(&bytes);
@@ -311,10 +305,7 @@ impl LocMemLoader {
             && skip.contains(&this_origin)
         {
             return Err(LoaderError {
-                tried: vec![(
-                    template_name.to_string(),
-                    "Skipped to avoid recursion".to_string(),
-                )],
+                tried: vec![(this_origin, "Skipped to avoid recursion".to_string())],
             });
         }
         if let Some(contents) = self.templates.get(template_name) {
@@ -332,10 +323,7 @@ impl LocMemLoader {
             )
         } else {
             Err(LoaderError {
-                tried: vec![(
-                    template_name.to_string(),
-                    "Source does not exist".to_string(),
-                )],
+                tried: vec![(this_origin, "Source does not exist".to_string())],
             })
         }
     }
@@ -451,7 +439,11 @@ mod tests {
                 error,
                 LoaderError {
                     tried: vec![(
-                        expected.display().to_string(),
+                        Origin {
+                            name: expected.display().to_string(),
+                            template_name: Some("missing.txt".to_string()),
+                            loader: Some(loader.id),
+                        },
                         "Source does not exist".to_string(),
                     )],
                 },
@@ -555,6 +547,7 @@ mod tests {
             let engine = Arc::new(Engine::empty());
             let filesystem_loader =
                 FileSystemLoader::new(vec![PathBuf::from("tests/templates")], encoding_rs::UTF_8);
+            let filesystem_loader_id = filesystem_loader.id;
 
             let mut cached_loader = CachedLoader::new(vec![Loader::FileSystem(filesystem_loader)]);
             let error = cached_loader
@@ -568,7 +561,11 @@ mod tests {
             expected.push("tests\\templates\\missing.txt");
             let expected_err = LoaderError {
                 tried: vec![(
-                    expected.display().to_string(),
+                    Origin {
+                        name: expected.display().to_string(),
+                        template_name: Some("missing.txt".to_string()),
+                        loader: Some(filesystem_loader_id),
+                    },
                     "Source does not exist".to_string(),
                 )],
             };
@@ -654,7 +651,11 @@ mod tests {
                 error,
                 LoaderError {
                     tried: vec![(
-                        "index.html".to_string(),
+                        Origin {
+                            name: "index.html".to_string(),
+                            template_name: Some("index.html".to_string()),
+                            loader: Some(loader.id),
+                        },
                         "Source does not exist".to_string(),
                     )],
                 },
@@ -719,11 +720,19 @@ mod tests {
                 LoaderError {
                     tried: vec![
                         (
-                            expected.display().to_string(),
+                            Origin {
+                                name: expected.display().to_string(),
+                                template_name: Some("missing.txt".to_string()),
+                                loader: Some(loader.id),
+                            },
                             "Source does not exist".to_string(),
                         ),
                         (
-                            auth.display().to_string(),
+                            Origin {
+                                name: auth.display().to_string(),
+                                template_name: Some("missing.txt".to_string()),
+                                loader: Some(loader.id),
+                            },
                             "Source does not exist".to_string(),
                         ),
                     ],
