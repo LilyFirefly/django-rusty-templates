@@ -581,3 +581,23 @@ def test_extends_variable_relative_path_deep(assert_render_error):
         django_message=django_message,
         rusty_message=rusty_message,
     )
+
+
+def test_extends_recusion_error(assert_render_error):
+    template = "{% extends 'recursion.txt' %}"
+    django_message = snapshot("recursion.txt")
+    rusty_message = snapshot("""\
+  × recursion.txt
+   ╭────
+ 1 │ {% extends "recursion.txt" %}
+   ·             ──────┬──────
+   ·                   ╰── here
+   ╰────
+""")
+    assert_render_error(
+        template=template,
+        context={},
+        exception=TemplateDoesNotExist,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
