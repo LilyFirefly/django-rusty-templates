@@ -281,7 +281,7 @@ pub mod django_rusty_templates {
             match loader.get_template(py, &template_name, engine.clone(), skip) {
                 Ok(Ok((template, origin))) => return Ok((template, origin)),
                 Ok(Err(e)) => return Err(e),
-                Err(e) => tried.push(e.tried),
+                Err(mut e) => tried.append(&mut e.tried),
             }
         }
         drop(loaders);

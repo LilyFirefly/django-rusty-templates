@@ -8,6 +8,7 @@ use pyo3::prelude::*;
 use thiserror::Error;
 
 use crate::path::RelativePathError;
+use crate::template::django_rusty_templates::TemplateDoesNotExist;
 use dtl_lexer::types::{At, TemplateString};
 
 #[derive(Error, Debug)]
@@ -102,12 +103,9 @@ pub trait AnnotatePyErr {
 
 impl AnnotatePyErr for PyErr {
     fn annotate(self, py: Python<'_>, at: At, label: &str, template: TemplateString<'_>) -> Self {
-        let message = miette!(
-            labels = vec![LabeledSpan::at(at, label)],
-            "{}",
-            self.value(py),
-        )
-        .with_source_code(template.0.to_string());
+        let error = self.value(py);
+        let message = miette!(labels = vec![LabeledSpan::at(at, label)], "{}", &error)
+            .with_source_code(template.0.to_string());
         if self.is_instance_of::<PyKeyError>(py) {
             let message = format!("{message:?}");
             // Python converts the message to `repr(message)` for KeyError.
@@ -116,6 +114,24 @@ impl AnnotatePyErr for PyErr {
             // https://github.com/python/cpython/blob/43573028c6ae21c66c118b8bae866c8968b87b68/Objects/exceptions.c#L2946-L2954
             let message = KeyErrorMessage { message };
             PyKeyError::new_err((message,))
+        } else if self.is_instance_of::<TemplateDoesNotExist>(py) {
+            let args = (
+                format!("{message:?}"),
+                error
+                    .getattr("tried")
+                    .expect("TemplateDoesNotExist should have a 'tried' attribute")
+                    .unbind(),
+                error
+                    .getattr("backend")
+                    .expect("TemplateDoesNotExist should have a 'backend' attribute")
+                    .unbind(),
+                error
+                    .getattr("chain")
+                    .expect("TemplateDoesNotExist should have a 'chain' attribute")
+                    .unbind(),
+            );
+            let err_type = self.get_type(py);
+            Self::from_type(err_type, args)
         } else {
             let err_type = self.get_type(py);
             Self::from_type(err_type, format!("{message:?}"))
