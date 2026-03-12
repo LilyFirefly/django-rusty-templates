@@ -21,8 +21,8 @@ use super::types::{
 use super::{Evaluate, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
 use crate::parse::{
-    CsrfToken, For, IfCondition, Include, IncludeTemplateName, SimpleBlockTag, SimpleTag, Tag,
-    TagElement, Url,
+    CsrfToken, For, IfCondition, Include, IncludeTemplateName, Lorem, SimpleBlockTag, SimpleTag,
+    Tag, TagElement, Url,
 };
 use crate::path::construct_relative_path;
 use crate::template::django_rusty_templates::{NoReverseMatch, Template, TemplateDoesNotExist};
@@ -675,50 +675,7 @@ impl Render for Tag {
             Self::SimpleBlockTag(simple_tag) => simple_tag.render(py, template, context)?,
             Self::Url(url) => url.render(py, template, context)?,
             Self::CsrfToken(csrf_token) => csrf_token.render(py, template, context)?,
-            Self::Lorem(lorem) => {
-                let count_content = lorem.count.resolve(
-                    py,
-                    template,
-                    context,
-                    ResolveFailures::IgnoreVariableDoesNotExist,
-                )?;
-                let val = count_content
-                    .and_then(|c| c.to_bigint())
-                    .and_then(|n| n.to_i64())
-                    .unwrap_or(1);
-
-                let text = match lorem.method {
-                    LoremMethod::Words => {
-                        let final_count = match (val, lorem.common) {
-                            (val, true) if val < 0 => {
-                                (COMMON_WORDS.len() as i64 + val).max(0) as usize
-                            }
-                            (val, false) if val < 0 => 0,
-                            (val, _) => val as usize,
-                        };
-                        words(final_count, lorem.common)
-                    }
-                    LoremMethod::Paragraphs | LoremMethod::Blocks => {
-                        if val <= 0 {
-                            return Ok(Cow::Borrowed(""));
-                        } else {
-                            let count = val as usize;
-                            let paras = paragraphs(count, lorem.common);
-                            if matches!(lorem.method, LoremMethod::Paragraphs) {
-                                paras
-                                    .into_iter()
-                                    .map(|p| format!("<p>{}</p>", p))
-                                    .collect::<Vec<_>>()
-                                    .join("\n\n")
-                            } else {
-                                paras.join("\n\n")
-                            }
-                        }
-                    }
-                };
-
-                Cow::Owned(text)
-            }
+            Self::Lorem(lorem) => lorem.render(py, template, context)?,
             Self::Comment(_) => Cow::Borrowed(""),
             Self::Now(now) => now.render(py, template, context)?,
             Self::TemplateTag(template_tag) => Cow::Borrowed(template_tag.output()),
@@ -1342,5 +1299,55 @@ impl Render for CsrfToken {
                 Ok(Cow::Borrowed(""))
             }
         }
+    }
+}
+
+impl Render for Lorem {
+    fn render<'t>(
+        &self,
+        py: Python<'_>,
+        template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> RenderResult<'t> {
+        let count_content = self.count.resolve(
+            py,
+            template,
+            context,
+            ResolveFailures::IgnoreVariableDoesNotExist,
+        )?;
+        let val = count_content
+            .and_then(|c| c.to_bigint())
+            .and_then(|n| n.to_i64())
+            .unwrap_or(1);
+
+        let text = match self.method {
+            LoremMethod::Words => {
+                let final_count = match (val, self.common) {
+                    (val, true) if val < 0 => (COMMON_WORDS.len() as i64 + val).max(0) as usize,
+                    (val, false) if val < 0 => 0,
+                    (val, _) => val as usize,
+                };
+                words(final_count, self.common)
+            }
+            LoremMethod::Paragraphs | LoremMethod::Blocks => {
+                if val <= 0 {
+                    return Ok(Cow::Borrowed(""));
+                } else {
+                    let count = val as usize;
+                    let paras = paragraphs(count, self.common);
+                    if matches!(self.method, LoremMethod::Paragraphs) {
+                        paras
+                            .into_iter()
+                            .map(|p| format!("<p>{}</p>", p))
+                            .collect::<Vec<_>>()
+                            .join("\n\n")
+                    } else {
+                        paras.join("\n\n")
+                    }
+                }
+            }
+        };
+
+        Ok(Cow::Owned(text))
     }
 }
