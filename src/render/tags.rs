@@ -1190,8 +1190,15 @@ impl Render for Extends {
         context: &mut Context,
     ) -> RenderResult<'t> {
         let parent = self.get_template(py, template, context)?;
+        for (name, block) in self.blocks.clone() {
+            context
+                .blocks
+                .entry(name)
+                .or_default()
+                .push_back((block, template.to_string()));
+        }
         parent
-            .render_with_blocks(py, context, &self.blocks, template)
+            .render_with_blocks(py, context)
             .map(|content| Cow::Owned(content.into_owned()))
     }
 }
@@ -1203,7 +1210,14 @@ impl Render for Block {
         template: TemplateString<'t>,
         context: &mut Context,
     ) -> RenderResult<'t> {
-        self.nodes.render(py, template, context)
+        if let Some(child_blocks) = context.blocks.get_mut(&self.name)
+            && let Some((child_block, child_template)) = child_blocks.pop_front()
+        {
+            context.block = Some((child_block, child_template));
+        }
+        let rendered = self.nodes.render(py, template, context);
+        context.block = None;
+        rendered
     }
 }
 
