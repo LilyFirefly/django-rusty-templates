@@ -1418,37 +1418,43 @@ impl<'t, 'py> Parser<'t, 'py> {
 
     fn parse_firstof(&mut self, parts: TagParts) -> Result<TokenTree, PyParseError> {
         let mut lexer = FirstOfLexer::new(self.template, parts.clone());
-        let mut vars = Vec::new();
-        let mut asvar = None;
+        let mut tokens = Vec::new();
 
         while let Some(token) = lexer.next() {
             let token: FirstOfToken = token.map_err(ParseError::from)?;
-            match token {
-                FirstOfToken::Element(element_token) => {
-                    vars.push(element_token.parse(self)?);
-                }
-                FirstOfToken::AsVar(at) => {
-                    let next_token = lexer.next();
-                    if let Some(Ok(FirstOfToken::Element(as_element))) = next_token {
-                        if as_element.token_type != TagElementTokenType::Variable {
-                            return Err(ParseError::InvalidVariableName {
-                                at: as_element.at.into(),
-                            }
-                            .into());
-                        }
-                        asvar = Some(self.template.content(as_element.content_at()).to_string());
-                    } else {
-                        return Err(ParseError::InvalidVariableName { at: at.into() }.into());
-                    }
-                }
-            }
+            let element_token = match token {
+                FirstOfToken::Element(element_token) => element_token,
+                FirstOfToken::AsVar(at) => TagElementToken {
+                    at,
+                    token_type: TagElementTokenType::Variable,
+                },
+            };
+            tokens.push(element_token);
         }
 
-        if vars.is_empty() {
+        if tokens.is_empty() {
             return Err(ParseError::MissingArgument {
                 at: parts.at.into(),
             }
             .into());
+        }
+
+        let mut asvar = None;
+        if tokens.len() >= 2 {
+            let as_index = tokens.len() - 2;
+            let as_token = &tokens[as_index];
+            if as_token.token_type == TagElementTokenType::Variable
+                && self.template.content(as_token.content_at()) == "as"
+            {
+                let var_token = tokens.pop().expect("checked len");
+                tokens.pop();
+                asvar = Some(self.template.content(var_token.content_at()).to_string());
+            }
+        }
+
+        let mut vars = Vec::with_capacity(tokens.len());
+        for token in tokens {
+            vars.push(token.parse(self)?);
         }
 
         Ok(TokenTree::Tag(Tag::FirstOf(FirstOf { vars, asvar })))

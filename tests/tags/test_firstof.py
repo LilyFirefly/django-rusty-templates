@@ -18,6 +18,9 @@ from inline_snapshot import snapshot
         ("{% firstof a b %}", {"a": "", "b": ">"}, "&gt;"),
         ("{% autoescape off %}{% firstof a %}{% endautoescape %}", {"a": "<"}, "<"),
         ("{% firstof a|safe b %}", {"a": "<"}, "<"),
+        ("{% firstof a|default:'fallback' %}", {"a": ""}, "fallback"),
+        ("{% firstof a b %}", {"a": [1, 2], "b": 3}, "[1, 2]"),
+        ("{% firstof a b %}", {"a": [], "b": 3}, "3"),
     ],
 )
 def test_firstof_render(assert_render, template, context, expected):
@@ -44,6 +47,15 @@ def test_all_false_arguments_asvar(assert_render):
     )
 
 
+def test_firstof_as_variable_name(assert_render):
+    # 'as' can be a variable name if not used as the keyword
+    assert_render(
+        template="{% firstof as b %}",
+        context={"as": "foo", "b": "bar"},
+        expected="",
+    )
+
+
 def test_firstof_missing_argument_error(assert_parse_error):
     assert_parse_error(
         template="{% firstof %}",
@@ -56,4 +68,28 @@ def test_firstof_missing_argument_error(assert_parse_error):
    ·           ╰── here
    ╰────
 """),
+    )
+
+
+def test_firstof_invalid_as_usage_error(assert_render):
+    assert_render(
+        template="{% firstof a as %}",
+        context={"a": 1},
+        expected="1",
+    )
+
+
+def test_firstof_invalid_as_variable_error(assert_render):
+    assert_render(
+        template="{% firstof a as 123 %}",
+        context={"a": 0, "as": "foo"},
+        expected="",
+    )
+
+
+def test_firstof_too_many_arguments_after_as(assert_render):
+    assert_render(
+        template="{% firstof a as b c %}",
+        context={"a": 0, "as": "foo", "b": "bar", "c": "baz"},
+        expected="foo",
     )
