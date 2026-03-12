@@ -21,8 +21,8 @@ use super::types::{
 use super::{Evaluate, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
 use crate::parse::{
-    CsrfToken, For, IfCondition, Include, IncludeTemplateName, SimpleBlockTag, SimpleTag, Tag,
-    TagElement, Url,
+    CsrfToken, FirstOf, For, IfCondition, Include, IncludeTemplateName, SimpleBlockTag, SimpleTag,
+    Tag, TagElement, Url,
 };
 use crate::path::construct_relative_path;
 use crate::template::django_rusty_templates::{NoReverseMatch, Template, TemplateDoesNotExist};
@@ -721,6 +721,7 @@ impl Render for Tag {
             }
             Self::Comment(_) => Cow::Borrowed(""),
             Self::Now(now) => now.render(py, template, context)?,
+            Self::FirstOf(firstof) => firstof.render(py, template, context)?,
             Self::TemplateTag(template_tag) => Cow::Borrowed(template_tag.output()),
         })
     }
@@ -1342,5 +1343,36 @@ impl Render for CsrfToken {
                 Ok(Cow::Borrowed(""))
             }
         }
+    }
+}
+
+impl Render for FirstOf {
+    fn render<'t>(
+        &self,
+        py: Python<'_>,
+        template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> RenderResult<'t> {
+        for var in &self.vars {
+            if let Some(content) = var.resolve(
+                py,
+                template,
+                context,
+                ResolveFailures::IgnoreVariableDoesNotExist,
+            )? && content.to_bool().unwrap_or(false)
+            {
+                if let Some(asvar) = &self.asvar {
+                    context.insert(asvar.to_string(), content.to_py(py));
+                    return Ok(Cow::Borrowed(""));
+                }
+
+                let format = content.render(context)?.to_string();
+                return Ok(Cow::Owned(format));
+            }
+        }
+        if let Some(asvar) = &self.asvar {
+            context.insert(asvar.to_string(), PyString::new(py, "").into_any());
+        }
+        Ok(Cow::Borrowed(""))
     }
 }
