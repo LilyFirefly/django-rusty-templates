@@ -11,8 +11,8 @@ use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
 use crate::filters::{
     AddFilter, AddSlashesFilter, CapfirstFilter, CenterFilter, CutFilter, DateFilter,
     DefaultFilter, DefaultIfNoneFilter, DivisibleByFilter, EscapeFilter, EscapejsFilter,
-    ExternalFilter, FilterType, LastFilter, LengthFilter, LowerFilter, SafeFilter, SlugifyFilter, TitleFilter,
-    UpperFilter, WordcountFilter, WordwrapFilter, YesnoFilter,
+    ExternalFilter, FilterType, LastFilter, LengthFilter, LowerFilter, SafeFilter, SlugifyFilter,
+    TitleFilter, UpperFilter, WordcountFilter, WordwrapFilter, YesnoFilter,
 };
 use crate::parse::Filter;
 use crate::render::common::gettext;
