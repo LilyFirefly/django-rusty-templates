@@ -95,7 +95,7 @@ impl Parse<Argument> for ArgumentToken {
         Ok(match *self {
             Self::Variable(at) => Argument {
                 at,
-                argument_type: ArgumentType::Variable(parser.parse_variable(at)),
+                argument_type: ArgumentType::Variable(parser.parse_variable(at)?),
             },
             Self::Text(at) => Argument {
                 at,
@@ -944,6 +944,12 @@ pub enum ParseError {
         #[label("second here")]
         second_at: SourceSpan,
     },
+    #[error("Cannot use {{{{ block.super }}}} in a base template.")]
+    #[diagnostic(help("Add an {{% extends %}} tag or remove {{{{ block.super }}}}."))]
+    BlockSuperInBaseTemplate {
+        #[label("here")]
+        at: SourceSpan,
+    },
     #[error("")]
     DuplicateBlock {
         #[label("first here")]
@@ -1251,6 +1257,7 @@ pub struct Parser<'t, 'py> {
     forloop_depth: usize,
     first_tag: Option<At>,
     seen_blocks: HashMap<String, At>,
+    seen_extends: bool,
 }
 
 impl<'t, 'py> Parser<'t, 'py> {
@@ -1271,6 +1278,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             forloop_depth: 0,
             first_tag: None,
             seen_blocks: HashMap::new(),
+            seen_extends: false,
         }
     }
 
@@ -1291,6 +1299,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             forloop_depth: 0,
             first_tag: None,
             seen_blocks: HashMap::new(),
+            seen_extends: false,
         }
     }
 
@@ -1395,7 +1404,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         .into())
     }
 
-    fn parse_variable(&self, at: At) -> Variable {
+    fn parse_variable(&self, at: At) -> Result<Variable, ParseError> {
         let mut parts = self.template.content(at).split('.');
         let first = parts
             .next()
@@ -1403,19 +1412,25 @@ impl<'t, 'py> Parser<'t, 'py> {
             .trim();
         if first == "block" {
             return match parts.next() {
-                Some(part) if part.trim() == "super" => Variable::BlockSuper(at),
-                _ => Variable::Variable(at),
+                Some(part) if part.trim() == "super" => {
+                    if self.seen_extends {
+                        Ok(Variable::BlockSuper(at))
+                    } else {
+                        Err(ParseError::BlockSuperInBaseTemplate { at: at.into() })
+                    }
+                }
+                _ => Ok(Variable::Variable(at)),
             };
         }
         if self.forloop_depth == 0 || first != "forloop" {
-            return Variable::Variable(at);
+            return Ok(Variable::Variable(at));
         }
         let Some(part) = parts.next_back() else {
-            return Variable::ForVariable(ForVariable {
+            return Ok(Variable::ForVariable(ForVariable {
                 variant: ForVariableName::Object,
                 parent_count: 0,
                 at,
-            });
+            }));
         };
         let variant = match part.trim() {
             "counter" => ForVariableName::Counter,
@@ -1425,12 +1440,12 @@ impl<'t, 'py> Parser<'t, 'py> {
             "first" => ForVariableName::First,
             "last" => ForVariableName::Last,
             "parentloop" => ForVariableName::Object,
-            _ => return Variable::Variable(at),
+            _ => return Ok(Variable::Variable(at)),
         };
         let parts: Vec<_> = parts.collect();
         for part in &parts {
             if part.trim() != "parentloop" {
-                return Variable::Variable(at);
+                return Ok(Variable::Variable(at));
             }
         }
         let mut parent_count = parts.len();
@@ -1438,13 +1453,13 @@ impl<'t, 'py> Parser<'t, 'py> {
             parent_count += 1;
         }
         if parent_count > self.forloop_depth {
-            return Variable::Variable(at);
+            return Ok(Variable::Variable(at));
         }
-        Variable::ForVariable(ForVariable {
+        Ok(Variable::ForVariable(ForVariable {
             variant,
             parent_count,
             at,
-        })
+        }))
     }
 
     fn parse_variable_or_filter(
@@ -1458,7 +1473,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             return Err(ParseError::EmptyVariable { at: at.into() });
         };
         let mut var = match variable_token {
-            VariableToken::Variable => TagElement::Variable(self.parse_variable(at)),
+            VariableToken::Variable => TagElement::Variable(self.parse_variable(at)?),
             VariableToken::Int(n) => TagElement::Int(n),
             VariableToken::Float(f) => TagElement::Float(f),
         };
@@ -2092,6 +2107,8 @@ impl<'t, 'py> Parser<'t, 'py> {
             }
             .into());
         }
+
+        self.seen_extends = true;
 
         let template_name = match parse_extends_template_token(token, self)? {
             IncludeTemplateName::Text(Text { at }) => {

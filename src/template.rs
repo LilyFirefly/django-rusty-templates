@@ -610,14 +610,20 @@ pub mod django_rusty_templates {
                         return extends.render(py, parent_template, context);
                     }
                     TokenTree::Tag(Tag::Block(block)) => {
-                        context.blocks.entry(block.name.clone()).or_default().push_back((block.clone(), parent_template.to_string()));
-                        let child_blocks = context.blocks.get_mut(&block.name).expect("Should have an entry that was just inserted");
-                        let (child_block, template) = child_blocks.pop_front().expect("Should have an entry that was just inserted");
-                        let rendered_child = child_block.render(
-                            py,
-                            TemplateString(&template),
-                            context,
-                        )?;
+                        context
+                            .blocks
+                            .entry(block.name.clone())
+                            .or_default()
+                            .push_back((block.clone(), parent_template.to_string()));
+                        let child_blocks = context
+                            .blocks
+                            .get_mut(&block.name)
+                            .expect("Should have an entry that was just inserted");
+                        let (child_block, template) = child_blocks
+                            .pop_front()
+                            .expect("Should have an entry that was just inserted");
+                        let rendered_child =
+                            child_block.render(py, TemplateString(&template), context)?;
                         rendered.push_str(&rendered_child);
                     }
                     node => rendered.push_str(&node.render(py, parent_template, context)?),

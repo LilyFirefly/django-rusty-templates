@@ -127,18 +127,16 @@ impl Resolve for Variable {
                     }
                 }))
             }
-            Self::BlockSuper(_) => match &context.block {
-                Some((block, template)) => {
-                    let template = template.clone();
-                    let rendered = block
-                        .clone()
-                        .render(py, TemplateString(&template), context)?;
-                    Ok(Some(Content::String(ContentString::String(Cow::Owned(
-                        rendered.to_string(),
-                    )))))
-                }
-                None => std::todo!(),
-            },
+            Self::BlockSuper(_) => {
+                let (block, template) = context
+                    .block
+                    .clone()
+                    .expect("Should already have raised if None.");
+                let rendered = block.render(py, TemplateString(&template), context)?;
+                Ok(Some(Content::String(ContentString::String(Cow::Owned(
+                    rendered.to_string(),
+                )))))
+            }
         }
     }
 }

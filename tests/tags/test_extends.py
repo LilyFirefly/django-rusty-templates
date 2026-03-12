@@ -584,6 +584,36 @@ def test_extends_variable_relative_path_deep(assert_render_error):
     )
 
 
+def test_block_super_no_extends(template_engine):
+    template = "{% block foo %}{{ block.super }}{% endblock foo %}"
+    django_message = snapshot(
+        "'BlockNode' object has no attribute 'context'. Did you use {{ block.super }} in a base template?"
+    )
+    rusty_message = snapshot("""\
+  × Cannot use {{ block.super }} in a base template.
+   ╭────
+ 1 │ {% block foo %}{{ block.super }}{% endblock foo %}
+   ·                   ─────┬─────
+   ·                        ╰── here
+   ╰────
+  help: Add an {% extends %} tag or remove {{ block.super }}.
+""")
+
+    if template_engine.name == "rusty":
+        with pytest.raises(TemplateSyntaxError) as exc_info:
+            template_engine.from_string(template)
+
+        assert str(exc_info.value) == rusty_message
+
+    else:
+        template = template_engine.from_string(template)
+
+        with pytest.raises(TemplateSyntaxError) as exc_info:
+            template.render({})
+
+        assert str(exc_info.value) == django_message
+
+
 def test_extends_recursion_error(template_engine):
     template = "{% extends 'recursion.txt' %}"
     template = template_engine.from_string(template)
