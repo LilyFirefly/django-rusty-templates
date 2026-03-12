@@ -1417,10 +1417,10 @@ impl<'t, 'py> Parser<'t, 'py> {
     }
 
     fn parse_firstof(&mut self, parts: TagParts) -> Result<TokenTree, PyParseError> {
-        let mut lexer = FirstOfLexer::new(self.template, parts.clone());
+        let lexer = FirstOfLexer::new(self.template, parts.clone());
         let mut tokens = Vec::new();
 
-        while let Some(token) = lexer.next() {
+        for token in lexer {
             let token: FirstOfToken = token.map_err(ParseError::from)?;
             let element_token = match token {
                 FirstOfToken::Element(element_token) => element_token,
