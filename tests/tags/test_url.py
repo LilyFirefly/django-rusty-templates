@@ -231,7 +231,7 @@ def test_render_url_var_after_as(assert_render_error):
         "Reverse for 'user' with arguments '('', '', '', '')' not found. 1 pattern(s) tried: ['users/(?P<username>[^/]+)/\\\\Z']"
     )
     rusty_message = snapshot(
-        "Reverse for 'user' with arguments '(None, None, None, None)' not found. 1 pattern(s) tried: ['users/(?P<username>[^/]+)/\\\\Z']"
+        "Reverse for 'user' with arguments '('', '', '', '')' not found. 1 pattern(s) tried: ['users/(?P<username>[^/]+)/\\\\Z']"
     )
     assert_render_error(
         template=template,
@@ -251,7 +251,7 @@ def test_render_valid_url_and_invalid_as_binding(assert_render_error):
         "Reverse for 'user' with arguments '('lily', '', '', '')' not found. 1 pattern(s) tried: ['users/(?P<username>[^/]+)/\\\\Z']"
     )
     rusty_message = snapshot(
-        "Reverse for 'user' with arguments '('lily', None, None, None)' not found. 1 pattern(s) tried: ['users/(?P<username>[^/]+)/\\\\Z']"
+        "Reverse for 'user' with arguments '('lily', '', '', '')' not found. 1 pattern(s) tried: ['users/(?P<username>[^/]+)/\\\\Z']"
     )
     assert_render_error(
         template=template,
