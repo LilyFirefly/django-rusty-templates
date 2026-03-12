@@ -94,6 +94,10 @@ impl Resolve for Url {
             }
             reverse.call1((view_name, py.None(), py.None(), kwargs, current_app))
         };
+        let url = match url {
+            Ok(url) => Ok(url),
+            Err(error) => Err(error.annotate(py, self.at, "here", template)),
+        };
         match &self.asvar {
             None => Ok(Some(Content::Py(url?))),
             Some(variable) => {

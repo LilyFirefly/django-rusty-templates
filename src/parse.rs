@@ -360,6 +360,7 @@ fn parse_include_template_token(
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Url {
+    pub at: At,
     pub view_name: TagElement,
     pub args: Vec<TagElement>,
     pub kwargs: Vec<(String, TagElement)>,
@@ -1905,6 +1906,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             return Err(ParseError::MixedArgsKwargs { at: at.into() });
         }
         let url = Url {
+            at,
             view_name,
             args,
             kwargs,
@@ -2638,6 +2640,7 @@ mod tests {
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
+                at: (0, 25),
                 view_name: TagElement::Text(Text { at: (8, 13) }),
                 args: vec![],
                 kwargs: vec![],
@@ -2658,6 +2661,7 @@ mod tests {
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
+                at: (0, 28),
                 view_name: TagElement::TranslatedText(Text { at: (10, 13) }),
                 args: vec![],
                 kwargs: vec![],
@@ -2678,6 +2682,7 @@ mod tests {
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
+                at: (0, 24),
                 view_name: TagElement::Variable(Variable { at: (7, 14) }),
                 args: vec![],
                 kwargs: vec![],
@@ -2712,6 +2717,7 @@ mod tests {
                 )),
             });
             let url = TokenTree::Tag(Tag::Url(Url {
+                at: (0, 39),
                 view_name: TagElement::Filter(default),
                 args: vec![],
                 kwargs: vec![],
@@ -2744,6 +2750,7 @@ mod tests {
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
+                at: (0, 12),
                 view_name: TagElement::Int(64.into()),
                 args: vec![],
                 kwargs: vec![],
@@ -2764,6 +2771,7 @@ mod tests {
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
+                at: (0, 66),
                 view_name: TagElement::Variable(Variable { at: (7, 14) }),
                 args: vec![
                     TagElement::Text(Text { at: (23, 3) }),
@@ -2801,6 +2809,7 @@ mod tests {
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
+                at: (0, 44),
                 view_name: TagElement::Variable(Variable { at: (7, 14) }),
                 args: vec![],
                 kwargs: vec![
@@ -2824,6 +2833,7 @@ mod tests {
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
+                at: (0, 42),
                 view_name: TagElement::Variable(Variable { at: (7, 14) }),
                 args: vec![TagElement::Text(Text { at: (23, 3) })],
                 kwargs: vec![],
@@ -2844,6 +2854,7 @@ mod tests {
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
+                at: (0, 46),
                 view_name: TagElement::Variable(Variable { at: (7, 14) }),
                 args: vec![],
                 kwargs: vec![("foo".to_string(), TagElement::Text(Text { at: (27, 3) }))],
@@ -2864,6 +2875,7 @@ mod tests {
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
+                at: (0, 39),
                 view_name: TagElement::Variable(Variable { at: (7, 14) }),
                 args: vec![
                     TagElement::Text(Text { at: (23, 3) }),
