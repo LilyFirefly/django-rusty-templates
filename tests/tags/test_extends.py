@@ -611,3 +611,29 @@ def test_extends_recursion_error(template_engine):
     assert first[1] == "Skipped to avoid recursion"
     assert os.path.normcase("/extra_templates/recursion.txt") in second[0].name
     assert second[1] == "Source does not exist"
+
+
+def test_extends_locmem_loader(engine_class):
+    child = "{% extends 'parent' %}{% block extra %}{{ block.super }} Child content.{% endblock extra %}"
+    parent = "{% extends 'parent' %}{% block extra %}Intermediate content.{% endblock extra %}"
+    base = "{% block main %}Parent content.{% endblock main %} {% block extra %}{% endblock extra %}"
+    loaders = [
+        (
+            "django.template.loaders.locmem.Loader",
+            {"parent": parent},
+        ),
+        (
+            "django.template.loaders.locmem.Loader",
+            {"child": child, "parent": base},
+        ),
+    ]
+    config = {
+        "OPTIONS": {"loaders": loaders},
+        "NAME": "locmem",
+        "DIRS": (),
+        "APP_DIRS": False,
+    }
+    engine = engine_class(config)
+
+    template = engine.get_template("child")
+    assert template.render({}) == "Parent content. Intermediate content. Child content."

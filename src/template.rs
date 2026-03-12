@@ -21,7 +21,7 @@ pub mod django_rusty_templates {
     use crate::loaders::{
         AppDirsLoader, CachedLoader, FileSystemLoader, Loader, LocMemLoader, Origin,
     };
-    use crate::parse::{Block, Parser, Tag, TokenTree};
+    use crate::parse::{Parser, Tag, TokenTree};
     use crate::render::types::{Context, PyContext};
     use crate::render::{Render, RenderResult};
     use crate::utils::PyResultMethods;
@@ -601,25 +601,27 @@ pub mod django_rusty_templates {
             &self,
             py: Python<'_>,
             context: &mut Context,
-            blocks: &HashMap<String, Block>,
-            template: TemplateString,
         ) -> RenderResult<'_> {
             let mut rendered = String::with_capacity(self.template.len());
             let parent_template = TemplateString(&self.template);
             for node in &self.nodes {
-                let content = match node {
-                    TokenTree::Tag(Tag::Block(block)) => match blocks.get(&block.name) {
-                        Some(child_block) => {
-                            context.block = Some((Arc::new(block.clone()), self.template.clone()));
-                            let rendered = child_block.render(py, template, context);
-                            context.block = None;
-                            rendered?
-                        }
-                        None => node.render(py, parent_template, context)?,
-                    },
-                    node => node.render(py, parent_template, context)?,
-                };
-                rendered.push_str(&content);
+                match node {
+                    TokenTree::Tag(Tag::Extends(extends)) => {
+                        return extends.render(py, parent_template, context);
+                    }
+                    TokenTree::Tag(Tag::Block(block)) => {
+                        context.blocks.entry(block.name.clone()).or_default().push_back((block.clone(), parent_template.to_string()));
+                        let child_blocks = context.blocks.get_mut(&block.name).expect("Should have an entry that was just inserted");
+                        let (child_block, template) = child_blocks.pop_front().expect("Should have an entry that was just inserted");
+                        let rendered_child = child_block.render(
+                            py,
+                            TemplateString(&template),
+                            context,
+                        )?;
+                        rendered.push_str(&rendered_child);
+                    }
+                    node => rendered.push_str(&node.render(py, parent_template, context)?),
+                }
             }
             Ok(Cow::Owned(rendered))
         }

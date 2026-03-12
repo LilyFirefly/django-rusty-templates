@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::collections::VecDeque;
 use std::collections::hash_map::Entry;
 use std::iter::zip;
 use std::sync::{Arc, Mutex};
@@ -71,7 +72,8 @@ pub struct Context {
     pub autoescape: bool,
     names: Vec<HashSet<String>>,
     include_cache: HashMap<IncludeTemplateKey, Arc<Template>>,
-    pub block: Option<(Arc<Block>, Arc<String>)>,
+    pub block: Option<(Block, String)>,
+    pub blocks: HashMap<String, VecDeque<(Block, String)>>,
     pub seen: Option<Vec<Origin>>,
 }
 
@@ -90,6 +92,7 @@ impl Context {
             names: Vec::new(),
             include_cache: HashMap::new(),
             block: None,
+            blocks: HashMap::new(),
             seen: None,
         }
     }
@@ -107,6 +110,7 @@ impl Context {
             names: self.names.clone(),
             include_cache: self.include_cache.clone(),
             block: self.block.clone(),
+            blocks: self.blocks.clone(),
             seen: self.seen.clone(),
         }
     }
