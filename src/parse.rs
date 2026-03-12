@@ -1,7 +1,6 @@
 // Silence lint warnings for Miette Diagnostic
 // https://github.com/zkat/miette/issues/458
 // https://github.com/rust-lang/rust/issues/147648
-#![expect(unused_assignments)]
 use dtl_lexer::DelimitedToken;
 use num_traits::Zero;
 use std::borrow::Cow;
