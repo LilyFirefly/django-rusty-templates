@@ -17,7 +17,7 @@ impl<'t> FirstOfLexer<'t> {
     pub fn new(template: TemplateString<'t>, parts: TagParts) -> Self {
         Self {
             template,
-            lexer: TagElementLexer::new(template, parts.clone()),
+            lexer: TagElementLexer::new(template, parts),
         }
     }
 }
