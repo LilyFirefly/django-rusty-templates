@@ -39,7 +39,7 @@ use crate::filters::UpperFilter;
 use crate::filters::WordcountFilter;
 use crate::filters::WordwrapFilter;
 use crate::filters::YesnoFilter;
-use dtl_lexer::common::{LexerError, text_content_at, translated_text_content_at};
+use dtl_lexer::common::{LexerError, get_all_at, text_content_at, translated_text_content_at};
 use dtl_lexer::core::{Lexer, TokenType};
 use dtl_lexer::tag::autoescape::{AutoescapeEnabled, AutoescapeError, lex_autoescape_argument};
 use dtl_lexer::tag::common::{TagElementToken, TagElementTokenType};
@@ -308,6 +308,46 @@ impl Parse<TagElement> for TagElementKwargToken {
     }
 }
 
+/// Extracts "as variable" from the end of the tokens list (and truncates it).
+///
+/// This will return:
+/// - Ok(Some(variable_name)) if found and valid
+/// - Ok(None) if "as" not found
+/// - ParseError if as is not at the end or missing a variable
+fn extract_as_variable(
+    tokens: &mut Vec<TagElementKwargToken>,
+    template: &TemplateString<'_>,
+) -> Result<Option<String>, ParseError> {
+    let len = tokens.len();
+    if len < 2 {
+        return Ok(None);
+    }
+    for (idx, token) in tokens.iter().rev().enumerate() {
+        if template.content(token.at) == "as" {
+            return match idx {
+                0 => Err(ParseError::MissingVariableAfterAs {
+                    at: token.at.into(),
+                }),
+                1 => {
+                    let variable = template.content(tokens[len - 1].at).to_string();
+                    tokens.truncate(len - 2);
+                    Ok(Some(variable))
+                }
+                _ => {
+                    let asvar = tokens[len - idx].at;
+                    let next = tokens[len - idx + 1].at;
+                    let last = tokens[len - 1].at;
+                    Err(ParseError::UnexpectedTokensAfterAsVariable {
+                        at: get_all_at(next, last).into(),
+                        var_name: template.content(asvar).to_string(),
+                    })
+                }
+            };
+        }
+    }
+    Ok(None)
+}
+
 fn parse_include_template_token(
     token: IncludeTemplateToken,
     parser: &Parser,
@@ -325,10 +365,11 @@ fn parse_include_template_token(
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Url {
+    pub at: At,
     pub view_name: TagElement,
     pub args: Vec<TagElement>,
     pub kwargs: Vec<(String, TagElement)>,
-    pub variable: Option<String>,
+    pub asvar: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -1031,6 +1072,21 @@ pub enum ParseError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     TemplateTagError(#[from] TemplateTagError),
+
+    #[error("Expected a variable name after 'as'")]
+    #[diagnostic(help("Provide a name to store the date string, e.g. 'as my_var'"))]
+    MissingVariableAfterAs {
+        #[label("expected a variable name here")]
+        at: SourceSpan,
+    },
+
+    #[error("Unexpected tokens after 'as {var_name}'")]
+    #[diagnostic(help("Remove the extra tokens."))]
+    UnexpectedTokensAfterAsVariable {
+        var_name: String,
+        #[label("unexpected tokens here")]
+        at: SourceSpan,
+    },
 }
 
 #[derive(Error, Debug)]
@@ -1530,16 +1586,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         let params_count = context.params.len();
         let mut tokens =
             TagElementKwargLexer::new(self.template, parts).collect::<Result<Vec<_>, _>>()?;
-        let tokens_count = tokens.len();
-        let target_var =
-            if tokens_count >= 2 && self.template.content(tokens[tokens_count - 2].at) == "as" {
-                let last = tokens.pop().expect("tokens should be length 2 or more");
-                tokens.pop();
-                Some(self.template.content(last.at).to_string())
-            } else {
-                None
-            };
-
+        let asvar = extract_as_variable(&mut tokens, &self.template)?;
         for (index, token) in tokens.iter().enumerate() {
             match token.kwarg {
                 None => {
@@ -1612,7 +1659,7 @@ impl<'t, 'py> Parser<'t, 'py> {
                 missing,
             });
         }
-        Ok((args, kwargs, target_var))
+        Ok((args, kwargs, asvar))
     }
 
     fn parse_simple_tag(
@@ -1842,36 +1889,12 @@ impl<'t, 'py> Parser<'t, 'py> {
         };
         let view_name = view_token?.parse(self)?;
 
-        let mut tokens = vec![];
-        for token in lexer {
-            tokens.push(token?);
-        }
-        let mut rev = tokens.iter().rev();
-        let variable = match (rev.next(), rev.next()) {
-            (
-                Some(TagElementKwargToken {
-                    at: last,
-                    token_type: TagElementTokenType::Variable,
-                    ..
-                }),
-                Some(TagElementKwargToken {
-                    at: prev,
-                    token_type: TagElementTokenType::Variable,
-                    ..
-                }),
-            ) => {
-                let prev = self.template.content(*prev);
-                if prev == "as" {
-                    Some(self.template.content(*last).to_string())
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        };
-        if variable.is_some() {
-            tokens.truncate(tokens.len() - 2);
-        }
+        let mut tokens = lexer.collect::<Result<Vec<_>, _>>()?;
+
+        // We swallow errors here to match django's behavior at parsing time because we cannot
+        // be sure if 'as' is supposed to be a variable or a regular 'as my_var' binding.
+        let asvar = extract_as_variable(&mut tokens, &self.template).unwrap_or_default();
+
         let mut args = vec![];
         let mut kwargs = vec![];
         for token in tokens {
@@ -1888,10 +1911,11 @@ impl<'t, 'py> Parser<'t, 'py> {
             return Err(ParseError::MixedArgsKwargs { at: at.into() });
         }
         let url = Url {
+            at,
             view_name,
             args,
             kwargs,
-            variable,
+            asvar,
         };
         Ok(TokenTree::Tag(Tag::Url(url)))
     }
@@ -2621,10 +2645,11 @@ mod tests {
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
+                at: (0, 25),
                 view_name: TagElement::Text(Text { at: (8, 13) }),
                 args: vec![],
                 kwargs: vec![],
-                variable: None,
+                asvar: None,
             }));
 
             assert_eq!(nodes, vec![url]);
@@ -2641,10 +2666,11 @@ mod tests {
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
+                at: (0, 28),
                 view_name: TagElement::TranslatedText(Text { at: (10, 13) }),
                 args: vec![],
                 kwargs: vec![],
-                variable: None,
+                asvar: None,
             }));
 
             assert_eq!(nodes, vec![url]);
@@ -2661,10 +2687,11 @@ mod tests {
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
+                at: (0, 24),
                 view_name: TagElement::Variable(Variable { at: (7, 14) }),
                 args: vec![],
                 kwargs: vec![],
-                variable: None,
+                asvar: None,
             }));
 
             assert_eq!(nodes, vec![url]);
@@ -2695,10 +2722,11 @@ mod tests {
                 )),
             });
             let url = TokenTree::Tag(Tag::Url(Url {
+                at: (0, 39),
                 view_name: TagElement::Filter(default),
                 args: vec![],
                 kwargs: vec![],
-                variable: None,
+                asvar: None,
             }));
 
             assert_eq!(nodes, vec![url]);
@@ -2727,10 +2755,11 @@ mod tests {
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
+                at: (0, 12),
                 view_name: TagElement::Int(64.into()),
                 args: vec![],
                 kwargs: vec![],
-                variable: None,
+                asvar: None,
             }));
 
             assert_eq!(nodes, vec![url]);
@@ -2747,6 +2776,7 @@ mod tests {
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
+                at: (0, 66),
                 view_name: TagElement::Variable(Variable { at: (7, 14) }),
                 args: vec![
                     TagElement::Text(Text { at: (23, 3) }),
@@ -2767,7 +2797,7 @@ mod tests {
                     TagElement::TranslatedText(Text { at: (57, 4) }),
                 ],
                 kwargs: vec![],
-                variable: None,
+                asvar: None,
             }));
 
             assert_eq!(nodes, vec![url]);
@@ -2784,13 +2814,14 @@ mod tests {
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
+                at: (0, 44),
                 view_name: TagElement::Variable(Variable { at: (7, 14) }),
                 args: vec![],
                 kwargs: vec![
                     ("foo".to_string(), TagElement::Text(Text { at: (27, 3) })),
                     ("extra".to_string(), TagElement::Int((-64).into())),
                 ],
-                variable: None,
+                asvar: None,
             }));
 
             assert_eq!(nodes, vec![url]);
@@ -2807,10 +2838,11 @@ mod tests {
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
+                at: (0, 42),
                 view_name: TagElement::Variable(Variable { at: (7, 14) }),
                 args: vec![TagElement::Text(Text { at: (23, 3) })],
                 kwargs: vec![],
-                variable: Some("some_url".to_string()),
+                asvar: Some("some_url".to_string()),
             }));
 
             assert_eq!(nodes, vec![url]);
@@ -2827,10 +2859,11 @@ mod tests {
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
+                at: (0, 46),
                 view_name: TagElement::Variable(Variable { at: (7, 14) }),
                 args: vec![],
                 kwargs: vec![("foo".to_string(), TagElement::Text(Text { at: (27, 3) }))],
-                variable: Some("some_url".to_string()),
+                asvar: Some("some_url".to_string()),
             }));
 
             assert_eq!(nodes, vec![url]);
@@ -2847,6 +2880,7 @@ mod tests {
             let nodes = parser.parse().unwrap();
 
             let url = TokenTree::Tag(Tag::Url(Url {
+                at: (0, 39),
                 view_name: TagElement::Variable(Variable { at: (7, 14) }),
                 args: vec![
                     TagElement::Text(Text { at: (23, 3) }),
@@ -2854,7 +2888,7 @@ mod tests {
                     TagElement::Variable(Variable { at: (32, 4) }),
                 ],
                 kwargs: vec![],
-                variable: None,
+                asvar: None,
             }));
 
             assert_eq!(nodes, vec![url]);

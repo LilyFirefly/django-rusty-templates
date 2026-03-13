@@ -3,13 +3,12 @@ use thiserror::Error;
 use unicode_xid::UnicodeXID;
 
 use crate::common::{
-    LexerError, NextChar, lex_numeric, lex_text, lex_translated, lex_variable, text_content_at,
-    translated_text_content_at,
+    LexerError, NextChar, get_all_at, lex_numeric, lex_text, lex_translated, lex_variable,
+    text_content_at, translated_text_content_at,
 };
 use crate::tag::TagParts;
 use crate::tag::common::TagElementTokenType;
 use crate::types::{At, TemplateString};
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct TagElementKwargToken {
     pub at: At,
@@ -38,7 +37,7 @@ impl TagElementKwargToken {
     pub fn all_at(&self) -> At {
         match self.kwarg {
             None => self.at,
-            Some(kwarg_at) => (kwarg_at.0, self.at.0 - kwarg_at.0 + self.at.1),
+            Some(kwarg_at) => get_all_at(kwarg_at, self.at),
         }
     }
 }

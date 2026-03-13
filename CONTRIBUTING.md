@@ -45,7 +45,7 @@ $ pytest
 You can also run the Rust tests:
 
 ```bash
-$ cargo test
+$ cargo test --workspace
 ```
 
 If you get an `ImportError` from python, you may need to set the `PYTHONPATH` environment variable:

@@ -7,12 +7,6 @@ use crate::types::{At, TemplateString};
 use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Now {
-    pub format_at: At,
-    pub asvar: Option<At>,
-}
-
 pub struct NowLexer<'t> {
     template: TemplateString<'t>,
     lexer: TagElementLexer<'t>,
