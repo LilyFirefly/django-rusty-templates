@@ -1,4 +1,3 @@
-#![expect(unused_assignments)]
 use crate::common::LexerError;
 use crate::tag::TagParts;
 use crate::tag::common::TagElementTokenType::Variable;

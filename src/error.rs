@@ -1,7 +1,3 @@
-// Silence lint warnings for Miette Diagnostic
-// https://github.com/zkat/miette/issues/458
-// https://github.com/rust-lang/rust/issues/147648
-#![expect(unused_assignments)]
 use miette::{Diagnostic, LabeledSpan, SourceSpan, miette};
 use pyo3::exceptions::PyKeyError;
 use pyo3::prelude::*;
