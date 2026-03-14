@@ -5,7 +5,11 @@
 use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 
-use crate::common::{LexerError, NextChar, lex_numeric, lex_text, lex_translated, lex_variable};
+use crate::TemplateContent;
+use crate::common::{
+    LexerError, NextChar, lex_numeric, lex_text, lex_translated, lex_variable, text_content_at,
+    translated_text_content_at,
+};
 use crate::tag::TagParts;
 use crate::types::{At, TemplateString};
 
@@ -58,10 +62,27 @@ pub struct ForVariableNameToken {
     pub at: At,
 }
 
+impl<'t> TemplateContent<'t> for ForVariableNameToken {
+    fn content(&self, template: TemplateString<'t>) -> &'t str {
+        template.content(self.at)
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct ForVariableToken {
     pub at: At,
     pub token_type: ForTokenType,
+}
+
+impl<'t> TemplateContent<'t> for ForVariableToken {
+    fn content(&self, template: TemplateString<'t>) -> &'t str {
+        match self.token_type {
+            ForTokenType::Numeric => template.content(self.at),
+            ForTokenType::Text => template.content(text_content_at(self.at)),
+            ForTokenType::TranslatedText => template.content(translated_text_content_at(self.at)),
+            ForTokenType::Variable => template.content(self.at),
+        }
+    }
 }
 
 enum State {
