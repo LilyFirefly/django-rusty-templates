@@ -91,7 +91,7 @@ pub mod django_rusty_templates {
         #[pyo3(get)]
         name: String,
         #[pyo3(get)]
-        template_name: Option<String>,
+        template_name: String,
     }
 
     fn import_libraries(libraries: Bound<'_, PyAny>) -> PyResult<HashMap<String, Py<PyAny>>> {
@@ -746,8 +746,8 @@ mod tests {
             let template_string = std::fs::read_to_string(&filename).unwrap();
             let origin = crate::loaders::Origin {
                 name: "parse_error.txt".to_string(),
-                template_name: None,
-                loader: None,
+                template_name: "parse_error.txt".to_string(),
+                loader: 0,
             };
             let error = temp_env::with_var("NO_COLOR", Some("1"), || {
                 Template::new(py, &template_string, filename, engine, origin).unwrap_err()

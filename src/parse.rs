@@ -2121,7 +2121,10 @@ impl<'t, 'py> Parser<'t, 'py> {
         let template_name = match parse_extends_template_token(token, self)? {
             IncludeTemplateName::Text(Text { at }) => {
                 let template_path = self.template.content(at);
-                let origin_name = self.origin.as_ref().map(|origin| origin.as_name());
+                let origin_name = self
+                    .origin
+                    .as_ref()
+                    .map(|origin| origin.template_name.as_str());
                 match construct_relative_path(template_path, origin_name, at)
                     .map_err(ParseError::from)?
                 {
@@ -2208,7 +2211,10 @@ impl<'t, 'py> Parser<'t, 'py> {
         let template_name = match parse_include_template_token(template_token, self)? {
             IncludeTemplateName::Text(Text { at }) => {
                 let template_path = self.template.content(at);
-                let origin_name = self.origin.as_ref().map(|origin| origin.as_name());
+                let origin_name = self
+                    .origin
+                    .as_ref()
+                    .map(|origin| origin.template_name.as_str());
                 match construct_relative_path(template_path, origin_name, at)? {
                     Some(path) => IncludeTemplateName::Relative(RelativePath {
                         path: path.into_owned(),
@@ -2265,7 +2271,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         let origin = self
             .origin
             .as_ref()
-            .map(|origin| origin.as_name().to_string());
+            .map(|origin| origin.template_name.to_string());
         let include = Include {
             template_name,
             origin,
