@@ -26,8 +26,7 @@ use crate::parse::{
 };
 use crate::path::construct_relative_path;
 use crate::template::django_rusty_templates::{
-    NoReverseMatch, Template, TemplateDoesNotExist, TemplateSyntaxError, WithSourceCode,
-    get_template,
+    NoReverseMatch, Template, TemplateDoesNotExist, TemplateSyntaxError, get_template,
 };
 use crate::types::Variable;
 use crate::utils::PyResultMethods;
@@ -1103,39 +1102,6 @@ impl Extends {
         }
     }
 
-    fn get_template_from_string<'t, 'py>(
-        &self,
-        content: &Bound<'py, PyString>,
-        template: TemplateString<'t>,
-        context: &mut Context,
-    ) -> Result<Template, PyErr> {
-        let py = content.py();
-        let template_path = content
-            .extract()
-            .expect("PyString should be compatible with Cow<str>");
-        let origin_name = match &self.origin {
-            Some(origin) => origin.template_name.as_deref(),
-            None => None,
-        };
-        let relative_path =
-            construct_relative_path(template_path, origin_name, template_at(&self.template_name));
-        let template_path =
-            match relative_path {
-                Err(error) => {
-                    return Err(TemplateDoesNotExist::with_source_code(
-                        error.into(),
-                        template.to_string(),
-                    ));
-                }
-                Ok(Some(_)) => {
-                    return Err(TemplateDoesNotExist::new_err((template_path.to_string(),))
-                        .annotate(py, template_at(&self.template_name), "here", template));
-                }
-                Ok(None) => template_path.to_string(),
-            };
-        self.load_template(py, template_path, template, context)
-    }
-
     fn get_template<'t, 'py>(
         &self,
         template_name: Content<'t, 'py>,
@@ -1151,13 +1117,19 @@ impl Extends {
                 if let Ok(parent) = content.extract::<Template>() {
                     Ok(parent)
                 } else if let Ok(content) = content.cast::<PyString>() {
-                    self.get_template_from_string(content, template, context)
+                    let template_path = content
+                        .extract()
+                        .expect("PyString should be compatible with Cow<str>");
+                    self.load_template(py, template_path, template, context)
                 } else {
                     let promise = PROMISE.import(py, "django.utils.functional", "Promise")?;
                     let path_like = PATH_LIKE.import(py, "os", "PathLike")?;
                     if content.is_instance(promise)? || content.is_instance(path_like)? {
                         let content = content.str()?;
-                        self.get_template_from_string(&content, template, context)
+                        let template_path = content
+                            .extract()
+                            .expect("PyString should be compatible with Cow<str>");
+                        self.load_template(py, template_path, template, context)
                     } else {
                         return Err(invalid_template_name(
                             py,

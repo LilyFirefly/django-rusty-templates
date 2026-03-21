@@ -22,6 +22,15 @@ pub struct Origin {
     pub loader: Option<usize>,
 }
 
+impl Origin {
+    pub fn as_name(&self) -> &str {
+        match &self.template_name {
+            Some(name) => name,
+            None => &self.name,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LoaderError {
     pub tried: Vec<(Origin, String)>,
@@ -116,7 +125,14 @@ fn get_template(
             ))));
         }
         return Ok(
-            match Template::new(py, &contents, path, template_name, engine) {
+            match Template::new(
+                py,
+                &contents,
+                path,
+                template_name,
+                engine,
+                Some(this_origin.clone()),
+            ) {
                 Ok(template) => Ok((template, this_origin)),
                 Err(error) => Err(error),
             },
@@ -316,6 +332,7 @@ impl LocMemLoader {
                     PathBuf::from(template_name),
                     template_name,
                     engine,
+                    Some(this_origin.clone()),
                 ) {
                     Ok(template) => Ok((template, this_origin)),
                     Err(error) => Err(error),
