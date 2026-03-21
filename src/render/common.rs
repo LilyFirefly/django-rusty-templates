@@ -193,8 +193,12 @@ impl Resolve for Argument {
                     None => {
                         let at = match variable {
                             Variable::Variable(at) => *at,
-                            Variable::BlockSuper(at) => *at,
-                            Variable::ForVariable(for_variable) => for_variable.at,
+                            Variable::BlockSuper(_) => {
+                                unreachable!("A BlockSuper should always resolve.")
+                            }
+                            Variable::ForVariable(_) => {
+                                unreachable!("A ForVariable should always resolve.")
+                            }
                         };
                         let key = template.content(at).to_string();
                         let object = context.display(py);
