@@ -219,6 +219,27 @@ def test_extends_after_load_tag(assert_parse_error):
     )
 
 
+def test_block_no_arguments(assert_parse_error):
+    template = "{% block %}"
+    django_message = snapshot("'block' tag takes only one argument")
+    rusty_message = snapshot("""\
+  × block tag must have a name
+   ╭────
+ 1 │ {% block %}
+   · ─────┬─────
+   ·      ╰── here
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_endblock_no_arguments(assert_render):
+    template = "{% block foo %}Foo{% endblock %}"
+    assert_render(template, {}, "Foo")
+
+
 def test_block_too_many_arguments(assert_parse_error):
     template = "{% extends 'base.txt' %}{% block body with extra arguments %}Some content{% endblock %}"
     django_message = snapshot("'block' tag takes only one argument")

@@ -957,6 +957,11 @@ pub enum ParseError {
         #[label("duplicate here")]
         new_block_at: SourceSpan,
     },
+    #[error("block tag must have a name")]
+    MissingBlockName {
+        #[label("here")]
+        at: SourceSpan,
+    },
     #[error("{extends_tag} must be the first tag in the template.")]
     #[diagnostic(help("Move the extends tag before other tags and variables."))]
     ExtendsAfterTag {
@@ -2170,7 +2175,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         let token = lex_block(self.template, parts, BlockType::Start).map_err(ParseError::from)?;
         let token = match token {
             Some(token) => token,
-            None => std::todo!(),
+            None => return Err(ParseError::MissingBlockName { at: at.into() }.into()),
         };
         let name = self.template.content(token.at).to_string();
         match self.seen_blocks.entry(name.clone()) {
