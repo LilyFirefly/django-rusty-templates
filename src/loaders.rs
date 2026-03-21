@@ -18,8 +18,8 @@ static LOADER_ID: AtomicUsize = AtomicUsize::new(0);
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Origin {
     pub name: String,
-    pub template_name: Option<String>,
-    pub loader: Option<usize>,
+    pub template_name: String,
+    pub loader: usize,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -93,8 +93,8 @@ fn get_template(
         };
         let this_origin = Origin {
             name: path.display().to_string(),
-            template_name: Some(template_name.to_string()),
-            loader: Some(loader_id),
+            template_name: template_name.to_string(),
+            loader: loader_id,
         };
         if let Some(skip) = skip
             && skip.contains(&this_origin)
@@ -115,7 +115,7 @@ fn get_template(
             ))));
         }
         return Ok(
-            match Template::new(py, &contents, path, template_name, engine) {
+            match Template::new(py, &contents, path, engine, this_origin.clone()) {
                 Ok(template) => Ok((template, this_origin)),
                 Err(error) => Err(error),
             },
@@ -221,7 +221,7 @@ impl CachedLoader {
             Some(skip) => {
                 let matching: Vec<_> = skip
                     .iter()
-                    .filter(|o| o.template_name.as_deref() == Some(template_name))
+                    .filter(|o| o.template_name == template_name)
                     .map(|o| o.name.clone())
                     .collect();
                 if matching.is_empty() {
@@ -297,8 +297,8 @@ impl LocMemLoader {
     ) -> Result<PyResult<(Template, Origin)>, LoaderError> {
         let this_origin = Origin {
             name: template_name.to_string(),
-            template_name: Some(template_name.to_string()),
-            loader: Some(self.id),
+            template_name: template_name.to_string(),
+            loader: self.id,
         };
         if let Some(skip) = skip
             && skip.contains(&this_origin)
@@ -313,8 +313,8 @@ impl LocMemLoader {
                     py,
                     contents,
                     PathBuf::from(template_name),
-                    template_name,
                     engine,
+                    this_origin.clone(),
                 ) {
                     Ok(template) => Ok((template, this_origin)),
                     Err(error) => Err(error),
@@ -440,8 +440,8 @@ mod tests {
                     tried: vec![(
                         Origin {
                             name: expected.display().to_string(),
-                            template_name: Some("missing.txt".to_string()),
-                            loader: Some(loader.id),
+                            template_name: "missing.txt".to_string(),
+                            loader: loader.id,
                         },
                         "Source does not exist".to_string(),
                     )],
@@ -562,8 +562,8 @@ mod tests {
                 tried: vec![(
                     Origin {
                         name: expected.display().to_string(),
-                        template_name: Some("missing.txt".to_string()),
-                        loader: Some(filesystem_loader_id),
+                        template_name: "missing.txt".to_string(),
+                        loader: filesystem_loader_id,
                     },
                     "Source does not exist".to_string(),
                 )],
@@ -652,8 +652,8 @@ mod tests {
                     tried: vec![(
                         Origin {
                             name: "index.html".to_string(),
-                            template_name: Some("index.html".to_string()),
-                            loader: Some(loader.id),
+                            template_name: "index.html".to_string(),
+                            loader: loader.id,
                         },
                         "Source does not exist".to_string(),
                     )],
@@ -721,16 +721,16 @@ mod tests {
                         (
                             Origin {
                                 name: expected.display().to_string(),
-                                template_name: Some("missing.txt".to_string()),
-                                loader: Some(loader.id),
+                                template_name: "missing.txt".to_string(),
+                                loader: loader.id,
                             },
                             "Source does not exist".to_string(),
                         ),
                         (
                             Origin {
                                 name: auth.display().to_string(),
-                                template_name: Some("missing.txt".to_string()),
-                                loader: Some(loader.id),
+                                template_name: "missing.txt".to_string(),
+                                loader: loader.id,
                             },
                             "Source does not exist".to_string(),
                         ),

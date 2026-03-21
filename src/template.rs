@@ -43,16 +43,6 @@ pub mod django_rusty_templates {
         ) -> PyErr;
     }
 
-    impl WithSourceCode for TemplateDoesNotExist {
-        fn with_source_code(
-            err: miette::Report,
-            source: impl miette::SourceCode + 'static,
-        ) -> PyErr {
-            let miette_err = err.with_source_code(source);
-            Self::new_err(format!("{miette_err:?}"))
-        }
-    }
-
     impl WithSourceCode for TemplateSyntaxError {
         fn with_source_code(
             err: miette::Report,
@@ -101,7 +91,7 @@ pub mod django_rusty_templates {
         #[pyo3(get)]
         name: String,
         #[pyo3(get)]
-        template_name: Option<String>,
+        template_name: String,
     }
 
     fn import_libraries(libraries: Bound<'_, PyAny>) -> PyResult<HashMap<String, Py<PyAny>>> {
@@ -543,14 +533,9 @@ pub mod django_rusty_templates {
             py: Python<'_>,
             template: &str,
             filename: PathBuf,
-            template_name: &str,
             engine: Arc<Engine>,
+            origin: Origin,
         ) -> PyResult<Self> {
-            let origin = Origin {
-                name: template_name.to_string(),
-                template_name: None,
-                loader: None,
-            };
             let mut parser =
                 Parser::new(py, TemplateString(template), engine.clone(), Some(origin));
             let nodes = match parser.parse() {
@@ -763,9 +748,13 @@ mod tests {
 
             let engine = Arc::new(Engine::empty());
             let template_string = std::fs::read_to_string(&filename).unwrap();
+            let origin = crate::loaders::Origin {
+                name: "parse_error.txt".to_string(),
+                template_name: "parse_error.txt".to_string(),
+                loader: 0,
+            };
             let error = temp_env::with_var("NO_COLOR", Some("1"), || {
-                Template::new(py, &template_string, filename, "parse_error.txt", engine)
-                    .unwrap_err()
+                Template::new(py, &template_string, filename, engine, origin).unwrap_err()
             });
 
             let error_string = format!("{error}");
