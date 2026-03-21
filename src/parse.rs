@@ -2259,7 +2259,8 @@ impl<'t, 'py> Parser<'t, 'py> {
                 return Err(ParseError::DuplicateExtends {
                     first_at: first_tag_at.into(),
                     second_at: at.into(),
-                }.into());
+                }
+                .into());
             }
             let template_name = match &self.origin {
                 None => "the template".to_string(),
@@ -2350,7 +2351,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         let token = lex_block(self.template, parts, BlockType::Start).map_err(ParseError::from)?;
         let token = match token {
             Some(token) => token,
-            None => std::todo!(),
+            None => return Err(ParseError::MissingBlockName { at: at.into() }.into()),
         };
         let name = self.template.content(token.at).to_string();
         match self.seen_blocks.entry(name.clone()) {
