@@ -1,6 +1,7 @@
 import pytest
 from django.template import engines, TemplateSyntaxError
 from django.template.backends.django import DjangoTemplates
+
 from django_rusty_templates import RustyTemplates
 
 all_engines = pytest.fixture(params=["rusty", "django"])
