@@ -183,7 +183,9 @@ impl Resolve for Argument {
                     None => {
                         let at = match variable {
                             Variable::Variable(at) => *at,
-                            Variable::ForVariable(for_variable) => for_variable.at,
+                            Variable::ForVariable(_) => {
+                                unreachable!("A ForVariable should always resolve.")
+                            }
                         };
                         let key = template.content(at).to_string();
                         let object = context.display(py);
