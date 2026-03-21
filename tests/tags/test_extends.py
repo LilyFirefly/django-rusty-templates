@@ -21,6 +21,18 @@ def test_blocks(assert_render):
     )
 
 
+def test_block_variable_in_block(template_engine):
+    template = """{% autoescape off %}{% block header %}{{ block }}{% endblock header %}{% endautoescape off %}"""
+    template = template_engine.from_string(template)
+    if template_engine.name == "rusty":
+        assert template.render({"block": "Using blocks"}) == "Using blocks"
+    else:
+        assert (
+            template.render({"block": "Using blocks"})
+            == "<Block Node: header. Contents: [<Variable Node: block>]>"
+        )
+
+
 def test_extends_no_blocks(assert_render):
     template = "{% extends 'basic.txt' %}"
     assert_render(template=template, context={"user": "Lily"}, expected="Hello Lily!\n")
