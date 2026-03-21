@@ -3332,4 +3332,28 @@ mod tests {
             );
         });
     }
+
+    #[test]
+    fn test_extends_tag_partial_eq() {
+        Python::initialize();
+
+        Python::attach(|_| {
+            let engine: Arc<Engine> = Engine::empty().into();
+            let template_name = IncludeTemplateName::Variable(TagElement::Float(1.1));
+            assert_eq!(
+                Extends {
+                    template_name: template_name.clone(),
+                    origin: None,
+                    engine: engine.clone(),
+                    blocks: HashMap::new(),
+                },
+                Extends {
+                    template_name,
+                    origin: None,
+                    engine,
+                    blocks: HashMap::new(),
+                },
+            );
+        });
+    }
 }
