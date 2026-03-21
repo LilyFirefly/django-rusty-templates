@@ -125,14 +125,7 @@ fn get_template(
             ))));
         }
         return Ok(
-            match Template::new(
-                py,
-                &contents,
-                path,
-                template_name,
-                engine,
-                Some(this_origin.clone()),
-            ) {
+            match Template::new(py, &contents, path, engine, this_origin.clone()) {
                 Ok(template) => Ok((template, this_origin)),
                 Err(error) => Err(error),
             },
@@ -330,9 +323,8 @@ impl LocMemLoader {
                     py,
                     contents,
                     PathBuf::from(template_name),
-                    template_name,
                     engine,
-                    Some(this_origin.clone()),
+                    this_origin.clone(),
                 ) {
                     Ok(template) => Ok((template, this_origin)),
                     Err(error) => Err(error),

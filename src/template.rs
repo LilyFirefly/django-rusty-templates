@@ -529,18 +529,9 @@ pub mod django_rusty_templates {
             py: Python<'_>,
             template: &str,
             filename: PathBuf,
-            template_name: &str,
             engine: Arc<Engine>,
-            origin: Option<Origin>,
+            origin: Origin,
         ) -> PyResult<Self> {
-            let origin = match origin {
-                Some(origin) => origin,
-                None => Origin {
-                    name: template_name.to_string(),
-                    template_name: None,
-                    loader: None,
-                },
-            };
             let mut parser =
                 Parser::new(py, TemplateString(template), engine.clone(), Some(origin));
             let nodes = match parser.parse() {
@@ -753,16 +744,13 @@ mod tests {
 
             let engine = Arc::new(Engine::empty());
             let template_string = std::fs::read_to_string(&filename).unwrap();
+            let origin = crate::loaders::Origin {
+                name: "parse_error.txt".to_string(),
+                template_name: None,
+                loader: None,
+            };
             let error = temp_env::with_var("NO_COLOR", Some("1"), || {
-                Template::new(
-                    py,
-                    &template_string,
-                    filename,
-                    "parse_error.txt",
-                    engine,
-                    None,
-                )
-                .unwrap_err()
+                Template::new(py, &template_string, filename, engine, origin).unwrap_err()
             });
 
             let error_string = format!("{error}");
