@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 from django.template import TemplateSyntaxError
+from django.template.base import VariableDoesNotExist
 from django.template.exceptions import TemplateDoesNotExist
 from django.utils.translation import gettext_lazy
 from inline_snapshot import snapshot
@@ -619,6 +620,34 @@ def test_block_super_no_extends(template_engine):
             template.render({})
 
         assert str(exc_info.value) == django_message
+
+
+def test_block_super_no_extends_no_block(assert_render):
+    template = "{{ block.super }}"
+    assert_render(template, {}, "")
+
+
+def test_block_super_as_argument_no_extends_no_block(assert_render_error):
+    template = "{{ missing|default:block.super }}"
+    django_message = snapshot(
+        "Failed lookup for key [block] in [{'True': True, 'False': False, 'None': None}, {}]"
+    )
+    rusty_message = snapshot("""\
+  × Failed lookup for key [block.super] in {"False": False, "None": None,
+  │ "True": True}
+   ╭────
+ 1 │ {{ missing|default:block.super }}
+   ·                    ─────┬─────
+   ·                         ╰── key
+   ╰────
+""")
+    assert_render_error(
+        template=template,
+        context={},
+        exception=VariableDoesNotExist,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
 
 
 def test_extends_recursion_error(template_engine):

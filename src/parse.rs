@@ -1258,6 +1258,7 @@ pub struct Parser<'t, 'py> {
     first_tag: Option<At>,
     seen_blocks: HashMap<String, At>,
     seen_extends: bool,
+    in_block: bool,
 }
 
 impl<'t, 'py> Parser<'t, 'py> {
@@ -1279,6 +1280,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             first_tag: None,
             seen_blocks: HashMap::new(),
             seen_extends: false,
+            in_block: false,
         }
     }
 
@@ -1300,6 +1302,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             first_tag: None,
             seen_blocks: HashMap::new(),
             seen_extends: false,
+            in_block: false,
         }
     }
 
@@ -1410,7 +1413,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             .next()
             .expect("a variable can always be split into at least one part")
             .trim();
-        if first == "block" {
+        if first == "block" && self.in_block {
             return match parts.next() {
                 Some(part) if part.trim() == "super" => {
                     if self.seen_extends {
@@ -2184,7 +2187,11 @@ impl<'t, 'py> Parser<'t, 'py> {
             EndTagType::EndBlock(None),
             EndTagType::EndBlock(Some(name.clone())),
         ];
-        let (nodes, _) = self.parse_until(until, "endblock".into(), at)?;
+        let in_block = self.in_block;
+        self.in_block = true;
+        let result = self.parse_until(until, "endblock".into(), at);
+        self.in_block = in_block;
+        let (nodes, _) = result?;
         Ok(TokenTree::Tag(Tag::Block(Block { at, name, nodes })))
     }
 
