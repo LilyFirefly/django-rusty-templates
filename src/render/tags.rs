@@ -1174,10 +1174,28 @@ impl Render for Block {
         template: TemplateString<'t>,
         context: &mut Context,
     ) -> RenderResult<'t> {
-        if let Some(child_blocks) = context.blocks.get_mut(&self.name)
-            && let Some((child_block, child_template)) = child_blocks.pop_front()
-        {
-            context.block = Some((child_block, child_template));
+        if let Some(child_blocks) = context.blocks.get_mut(&self.name) {
+            for (block, _) in &*child_blocks {
+                // If this block is in `context.blocks` then there is a leaf block that
+                // should be rendered first
+                if block == self {
+                    let (leaf_block, leaf_template) = child_blocks
+                        .pop_front()
+                        .expect("child_blocks should not be empty because it contains self");
+                    let leaf_template = TemplateString(&leaf_template);
+
+                    let old_block = std::mem::take(&mut context.block);
+                    if let Some((child_block, child_template)) = child_blocks.pop_front() {
+                        context.block = Some((child_block, child_template));
+                    }
+                    let rendered = leaf_block.nodes.render(py, leaf_template, context);
+                    context.block = old_block;
+                    return Ok(rendered?.into_owned().into());
+                }
+            }
+            if let Some((child_block, child_template)) = child_blocks.pop_front() {
+                context.block = Some((child_block, child_template));
+            }
         }
         let rendered = self.nodes.render(py, template, context);
         context.block = None;

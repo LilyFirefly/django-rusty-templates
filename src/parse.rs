@@ -705,6 +705,22 @@ pub struct Block {
     pub nodes: Vec<TokenTree>,
 }
 
+impl Block {
+    fn nested_blocks(&self) -> Box<dyn Iterator<Item = &Block> + '_> {
+        Box::new(
+            self.nodes
+                .iter()
+                .filter_map(|node| match node {
+                    TokenTree::Tag(Tag::Block(block)) => {
+                        Some(std::iter::once(block).chain(block.nested_blocks()))
+                    }
+                    _ => None,
+                })
+                .flatten(),
+        )
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct SimpleTag {
     pub func: Arc<Py<PyAny>>,
@@ -2147,7 +2163,10 @@ impl<'t, 'py> Parser<'t, 'py> {
 
         let mut blocks = HashMap::new();
         while let Some(block) = self.next_block()? {
-            blocks.insert(block.name.clone(), block);
+            blocks.insert(block.name.clone(), block.clone());
+            for nested in block.nested_blocks() {
+                blocks.insert(nested.name.clone(), nested.clone());
+            }
         }
 
         let extends = Extends {
