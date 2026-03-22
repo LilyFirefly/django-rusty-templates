@@ -2205,7 +2205,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         ];
         let in_block = self.in_block;
         self.in_block = true;
-        let result = self.parse_until(until, "endblock".into(), at);
+        let result = self.parse_until(until, "block".into(), at);
         self.in_block = in_block;
         let (nodes, _) = result?;
         Ok(TokenTree::Tag(Tag::Block(Block { at, name, nodes })))

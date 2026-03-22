@@ -171,6 +171,24 @@ def test_extends_relative_template_variable_parent(assert_render):
     )
 
 
+def test_unmatched_block_tag(assert_parse_error):
+    template = "{% block foo %}"
+    django_message = snapshot(
+        "Unclosed tag on line 1: 'block'. Looking for one of: endblock."
+    )
+    rusty_message = snapshot("""\
+  × Unclosed 'block' tag. Looking for one of: 'endblock', 'endblock foo'
+   ╭────
+ 1 │ {% block foo %}
+   · ───────┬───────
+   ·        ╰── started here
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
 def test_extends_after_variable(assert_parse_error):
     template = "{{ variable }} {% extends 'base.txt' %}{% block body %}Some content{% endblock body %}"
     django_message = snapshot(
