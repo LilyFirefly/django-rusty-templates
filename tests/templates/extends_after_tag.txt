@@ -1,0 +1,1 @@
+{% block foo %}{% endblock %}{% extends "base.txt" %}
