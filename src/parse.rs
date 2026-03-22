@@ -2233,7 +2233,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             EndTagType::EndBlock(None),
             EndTagType::EndBlock(Some(name.clone())),
         ];
-        let (nodes, _) = self.parse_until(until, "endblock".into(), at)?;
+        let (nodes, _) = self.parse_until(until, "block".into(), at)?;
         Ok(TokenTree::Tag(Tag::Block(Block { name, nodes })))
     }
 
