@@ -950,12 +950,13 @@ pub enum ParseError {
         #[label("here")]
         at: SourceSpan,
     },
-    #[error("")]
+    #[error("'block' tag with name '{block_name}' appears more than once")]
     DuplicateBlock {
         #[label("first here")]
         old_block_at: SourceSpan,
         #[label("duplicate here")]
         new_block_at: SourceSpan,
+        block_name: String,
     },
     #[error("block tag must have a name")]
     MissingBlockName {
@@ -2192,6 +2193,7 @@ impl<'t, 'py> Parser<'t, 'py> {
                 return Err(ParseError::DuplicateBlock {
                     old_block_at: (*entry.get()).into(),
                     new_block_at: at.into(),
+                    block_name: name,
                 }
                 .into());
             }
