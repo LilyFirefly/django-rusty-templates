@@ -736,3 +736,25 @@ def test_extends_locmem_loader(engine_class):
 
     template = engine.get_template("child")
     assert template.render({}) == "Parent content. Intermediate content. Child content."
+
+
+def test_extends_after_tag_named_template(template_engine):
+    with pytest.raises(TemplateSyntaxError) as exc_info:
+        template_engine.get_template("extends_after_tag.txt")
+
+    if template_engine.name == "rusty":
+        absolute_template = Path("tests/templates/extends_after_tag.txt").absolute()
+        assert str(exc_info.value) == snapshot(f"""\
+  × {{% extends "base.txt" %}} must be the first tag in 'extends_after_tag.txt'.
+   ╭─[{absolute_template}:1:1]
+ 1 │ {{% block foo %}}{{% endblock %}}{{% extends "base.txt" %}}
+   · ───────┬───────              ────────────┬───────────
+   ·        │                                 ╰── extends tag here
+   ·        ╰── first tag here
+   ╰────
+  help: Move the extends tag before other tags and variables.
+""")
+    else:
+        assert str(exc_info.value) == snapshot(
+            "{% extends \"base.txt\" %} must be the first tag in 'extends_after_tag.txt'."
+        )

@@ -962,7 +962,7 @@ pub enum ParseError {
         #[label("here")]
         at: SourceSpan,
     },
-    #[error("{extends_tag} must be the first tag in the template.")]
+    #[error("{extends_tag} must be the first tag in {template_name}.")]
     #[diagnostic(help("Move the extends tag before other tags and variables."))]
     ExtendsAfterTag {
         extends_tag: String,
@@ -970,6 +970,7 @@ pub enum ParseError {
         extends_at: SourceSpan,
         #[label("first tag here")]
         first_tag_at: SourceSpan,
+        template_name: String,
     },
 
     #[error("Invalid filter: '{filter}'")]
@@ -2095,10 +2096,15 @@ impl<'t, 'py> Parser<'t, 'py> {
 
     fn parse_extends(&mut self, at: At, parts: TagParts) -> Result<TokenTree, PyParseError> {
         if let Some(first_tag_at) = self.first_tag {
+            let template_name = match &self.origin {
+                None => "the template".to_string(),
+                Some(origin) => format!("'{}'", origin.template_name),
+            };
             return Err(ParseError::ExtendsAfterTag {
                 extends_tag: self.template.content(at).to_string(),
                 extends_at: at.into(),
                 first_tag_at: first_tag_at.into(),
+                template_name,
             }
             .into());
         }
