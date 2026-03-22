@@ -38,6 +38,24 @@ def test_extends_no_blocks(assert_render):
     assert_render(template=template, context={"user": "Lily"}, expected="Hello Lily!\n")
 
 
+def test_extends_nested_blocks(assert_render):
+    template = "{% extends 'nested_blocks.txt' %}{% block inner %}Real inner content. {% endblock inner %}"
+    assert_render(
+        template=template,
+        context={},
+        expected="# Header\nSome content. Real inner content. Parent body. Last body content.\n",
+    )
+
+
+def test_extends_nested_blocks_with_super(assert_render):
+    template = "{% extends 'nested_blocks.txt' %}{% block inner %}Real inner content. {{ block.super }}{% endblock inner %}"
+    assert_render(
+        template=template,
+        context={},
+        expected="# Header\nSome content. Real inner content. More content. Parent body. Last body content.\n",
+    )
+
+
 def test_extends(assert_render):
     template = "{% extends 'base.txt' %}{% block body %}Some content{% endblock body %}"
     assert_render(template=template, context={}, expected="# Header\nSome content\n")
