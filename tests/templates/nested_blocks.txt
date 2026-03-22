@@ -1,0 +1,1 @@
+{% extends "nested_parent.txt" %}{% block body %}Some content. {% block inner %}More content. {% endblock inner %}{{ block.super }} Last body content.{% endblock body %}
