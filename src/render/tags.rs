@@ -1104,11 +1104,11 @@ impl Extends {
 
     fn get_template<'t, 'py>(
         &self,
-        template_name: Content<'t, 'py>,
         py: Python<'py>,
         template: TemplateString<'t>,
         context: &mut Context,
     ) -> Result<Template, PyRenderError> {
+        let template_name = resolve_template_name(py, &self.template_name, template, context)?;
         Ok(match template_name {
             Content::String(content) => {
                 self.load_template(py, content.content().to_string(), template, context)
@@ -1152,8 +1152,7 @@ impl Render for Extends {
         template: TemplateString<'t>,
         context: &mut Context,
     ) -> RenderResult<'t> {
-        let template_name = resolve_template_name(py, &self.template_name, template, context)?;
-        let parent = self.get_template(template_name, py, template, context)?;
+        let parent = self.get_template(py, template, context)?;
         for (name, block) in self.blocks.clone() {
             context
                 .blocks
