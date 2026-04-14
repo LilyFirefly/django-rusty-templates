@@ -17,13 +17,13 @@ pub mod django_rusty_templates {
     use pyo3::sync::{MutexExt, PyOnceLock};
     use pyo3::types::{PyBool, PyDict, PyIterator, PyList, PyString, PyTuple};
 
-    use crate::error::RenderError;
+    use crate::error::{PyRenderError, RenderError};
     use crate::loaders::{
         AppDirsLoader, CachedLoader, FileSystemLoader, Loader, LocMemLoader, Origin,
     };
-    use crate::parse::{Parser, Tag, TokenTree};
+    use crate::parse::{Parser, TokenTree};
+    use crate::render::Render;
     use crate::render::types::{Context, PyContext};
-    use crate::render::{Render, RenderResult};
     use crate::utils::PyResultMethods;
     use dtl_lexer::types::TemplateString;
 
@@ -572,49 +572,18 @@ pub mod django_rusty_templates {
             })
         }
 
-        pub fn render(&self, py: Python<'_>, context: &mut Context) -> RenderResult<'_> {
+        pub fn render(
+            &self,
+            py: Python<'_>,
+            context: &mut Context,
+        ) -> Result<String, PyRenderError> {
             let mut rendered = String::with_capacity(self.template.len());
             let template = TemplateString(&self.template);
             for node in &self.nodes {
                 let content = node.render(py, template, context)?;
                 rendered.push_str(&content);
             }
-            Ok(Cow::Owned(rendered))
-        }
-
-        pub fn render_with_blocks(
-            &self,
-            py: Python<'_>,
-            context: &mut Context,
-        ) -> RenderResult<'_> {
-            let mut rendered = String::with_capacity(self.template.len());
-            let parent_template = TemplateString(&self.template);
-            for node in &self.nodes {
-                match node {
-                    TokenTree::Tag(Tag::Extends(extends)) => {
-                        return extends.render(py, parent_template, context);
-                    }
-                    TokenTree::Tag(Tag::Block(block)) => {
-                        context
-                            .blocks
-                            .entry(block.name.clone())
-                            .or_default()
-                            .push_back((block.clone(), parent_template.to_string()));
-                        let child_blocks = context
-                            .blocks
-                            .get_mut(&block.name)
-                            .expect("Should have an entry that was just inserted");
-                        let (child_block, template) = child_blocks
-                            .pop_front()
-                            .expect("Should have an entry that was just inserted");
-                        let rendered_child =
-                            child_block.render(py, TemplateString(&template), context)?;
-                        rendered.push_str(&rendered_child);
-                    }
-                    node => rendered.push_str(&node.render(py, parent_template, context)?),
-                }
-            }
-            Ok(Cow::Owned(rendered))
+            Ok(rendered)
         }
 
         fn _render(&self, py: Python<'_>, context: &mut Context) -> PyResult<String> {

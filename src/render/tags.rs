@@ -10,7 +10,7 @@ use pyo3::prelude::*;
 use pyo3::sync::{MutexExt, PyOnceLock};
 use pyo3::types::{PyBool, PyDict, PyList, PyNone, PyString, PyTuple};
 
-use crate::parse::Now;
+use crate::parse::{Now, TokenTree};
 use crate::render::lorem::{COMMON_WORDS, paragraphs, words};
 use dtl_lexer::tag::lorem::LoremMethod;
 use dtl_lexer::types::{At, TemplateString};
@@ -816,7 +816,7 @@ impl<'t, 'py> IncludeTemplate<'py> {
         template: TemplateString<'t>,
     ) -> RenderResult<'t> {
         match self {
-            Self::Template(template) => template.render(py, context),
+            Self::Template(template) => template.render(py, context).map(Cow::Owned),
             Self::Callable(callable) => {
                 let py_context = build_pycontext(py, context)?;
                 let result = callable.call1((py_context.clone(),));
@@ -1161,9 +1161,26 @@ impl Render for Extends {
                 .or_default()
                 .push_back((block, template.to_string()));
         }
-        parent
-            .render_with_blocks(py, context)
-            .map(|content| Cow::Owned(content.into_owned()))
+        let parent_template = TemplateString(&parent.template);
+        for node in &parent.nodes {
+            match node {
+                TokenTree::Text(..) => continue,
+                TokenTree::Tag(Tag::Extends(_)) => break,
+                _ => {
+                    for node in &parent.nodes {
+                        if let TokenTree::Tag(Tag::Block(block)) = node {
+                            context
+                                .blocks
+                                .entry(block.name.clone())
+                                .or_default()
+                                .push_back((block.clone(), parent_template.to_string()));
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+        parent.render(py, context).map(Cow::Owned)
     }
 }
 
