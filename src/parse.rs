@@ -989,7 +989,15 @@ pub enum ParseError {
         first_tag_at: SourceSpan,
         template_name: String,
     },
-
+    #[error(
+        "The relative path '\"{relative_path}\"' was translated to template name '{resolved_path}', the same template in which the tag appears."
+    )]
+    RecursiveExtends {
+        relative_path: String,
+        resolved_path: String,
+        #[label("here")]
+        at: SourceSpan,
+    },
     #[error("Invalid filter: '{filter}'")]
     InvalidFilter {
         filter: String,
@@ -2151,10 +2159,22 @@ impl<'t, 'py> Parser<'t, 'py> {
                 match construct_relative_path(template_path, origin_name, at)
                     .map_err(ParseError::from)?
                 {
-                    Some(path) => IncludeTemplateName::Relative(RelativePath {
-                        path: path.into_owned(),
-                        at,
-                    }),
+                    Some(path) => {
+                        if let Some(name) = origin_name
+                            && name == path
+                        {
+                            return Err(ParseError::RecursiveExtends {
+                                relative_path: template_path.to_string(),
+                                resolved_path: path.to_string(),
+                                at: at.into(),
+                            }
+                            .into());
+                        }
+                        IncludeTemplateName::Relative(RelativePath {
+                            path: path.into_owned(),
+                            at,
+                        })
+                    }
                     None => IncludeTemplateName::Text(Text { at }),
                 }
             }
