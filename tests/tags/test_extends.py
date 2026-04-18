@@ -748,6 +748,34 @@ def test_extends_recursion_error(template_engine):
     assert second[1] == "Source does not exist"
 
 
+def test_extends_recursion_error_from_file(template_engine):
+    template = "looped.txt"
+    with pytest.raises(TemplateSyntaxError) as exc_info:
+        template_engine.get_template(template)
+
+    if template_engine.name == "rusty":
+        path = Path("tests/templates").absolute() / template
+        message = snapshot(
+            """\
+  × The relative path '"./nested/../looped.txt"' was translated to template
+  │ name 'looped.txt', the same template in which the tag appears.
+   ╭─[%s:1:13]
+ 1 │ {%% extends "./nested/../looped.txt" %%}
+   ·             ───────────┬──────────
+   ·                        ╰── here
+   ╰────
+"""
+            % path
+        )
+    else:
+        message = snapshot(
+            "The relative path '\"./nested/../looped.txt\"' was translated to template name 'looped.txt', the same template in which the tag appears."
+        )
+
+    error = exc_info.value
+    assert str(error) == message
+
+
 def test_extends_locmem_loader(engine_class):
     child = "{% extends 'parent' %}{% block extra %}{{ block.super }} Child content.{% endblock extra %}"
     parent = "{% extends 'parent' %}{% block extra %}Intermediate content.{% endblock extra %}"
