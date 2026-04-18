@@ -497,6 +497,13 @@ impl ResolveFilter for ForceEscapeFilter {
         template: TemplateString<'t>,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
+        let variable = match variable {
+            // We want to re-run the escape filter even if the content has already been resolved to safe HTML
+            Some(Content::String(ContentString::HtmlSafe(c))) => {
+                Some(Content::String(ContentString::String(c)))
+            }
+            other => other,
+        };
         EscapeFilter.resolve(variable, py, template, context)
     }
 }
