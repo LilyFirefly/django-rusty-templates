@@ -11,8 +11,9 @@ use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
 use crate::filters::{
     AddFilter, AddSlashesFilter, CapfirstFilter, CenterFilter, CutFilter, DateFilter,
     DefaultFilter, DefaultIfNoneFilter, DivisibleByFilter, EscapeFilter, EscapejsFilter,
-    ExternalFilter, FilterType, LastFilter, LengthFilter, LowerFilter, SafeFilter, SlugifyFilter,
-    TitleFilter, UpperFilter, WordcountFilter, WordwrapFilter, YesnoFilter,
+    ExternalFilter, FilterType, ForceEscapeFilter, LastFilter, LengthFilter, LowerFilter,
+    SafeFilter, SlugifyFilter, TitleFilter, UpperFilter, WordcountFilter, WordwrapFilter,
+    YesnoFilter,
 };
 use crate::parse::Filter;
 use crate::render::common::gettext;
@@ -47,6 +48,7 @@ impl Resolve for Filter {
             FilterType::Escape(filter) => filter.resolve(left, py, template, context),
             FilterType::Escapejs(filter) => filter.resolve(left, py, template, context),
             FilterType::External(filter) => filter.resolve(left, py, template, context),
+            FilterType::ForceEscape(filter) => filter.resolve(left, py, template, context),
             FilterType::Last(filter) => filter.resolve(left, py, template, context),
             FilterType::Lower(filter) => filter.resolve(left, py, template, context),
             FilterType::Length(filter) => filter.resolve(left, py, template, context),
@@ -484,6 +486,18 @@ impl ResolveFilter for ExternalFilter {
             None => filter.call1((variable,))?,
         };
         Ok(Some(Content::Py(value)))
+    }
+}
+
+impl ResolveFilter for ForceEscapeFilter {
+    fn resolve<'t, 'py>(
+        &self,
+        variable: Option<Content<'t, 'py>>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> ResolveResult<'t, 'py> {
+        EscapeFilter.resolve(variable, py, template, context)
     }
 }
 
