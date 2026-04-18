@@ -1075,16 +1075,17 @@ impl Extends {
         context: &mut Context,
     ) -> Result<Template, PyErr> {
         if context.seen.is_none() {
-            let seen = match &self.origin {
-                Some(origin) => vec![origin.clone()],
-                None => vec![],
-            };
-            context.seen = Some(seen);
+            context.seen = Some(vec![]);
         }
+
         let seen = context
             .seen
             .as_mut()
             .expect("context.seen should be populated");
+
+        if let Some(origin) = &self.origin {
+            seen.push(origin.clone())
+        };
         match get_template(
             self.engine.clone(),
             py,
