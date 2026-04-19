@@ -68,12 +68,11 @@ def test_escape_autoescape_off_lower(assert_render):
 def test_autoescape_on_with_escape_does_nothing(template_engine):
     template_without_escape = "{% autoescape on %}{{ html }}{% endautoescape %}"
     template_with_escape = "{% autoescape on %}{{ html|escape }}{% endautoescape %}"
-    html = "<p>Hello World!</p>"
-    context = {"html": html}
+    context = {"html": "<p>Hello World!</p>"}
     rendered_without_escape = template_engine.from_string(
         template_without_escape
-    ).render(context, None)
+    ).render(context)
     rendered_with_escape = template_engine.from_string(template_with_escape).render(
-        context, None
+        context
     )
     assert rendered_without_escape == rendered_with_escape
