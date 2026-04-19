@@ -86,3 +86,17 @@ def test_force_escape_after_escape_in_autoescape_off(assert_render):
     a = "x&y"
     escaped = "x&amp;amp;y"
     assert_render(template=template, context={"a": a}, expected=escaped)
+
+
+def test_chaining(assert_render):
+    template = '{{ a|force_escape|cut:";" }}'
+    a = "a < b"
+    escaped = "a &amp;lt b"
+    assert_render(template=template, context={"a": a}, expected=escaped)
+
+
+def test_chaining_in_autoescape_off(assert_render):
+    template = '{% autoescape off %}{{ a|force_escape|cut:";" }}{% endautoescape %}'
+    a = "a < b"
+    escaped = "a &lt b"
+    assert_render(template=template, context={"a": a}, expected=escaped)
