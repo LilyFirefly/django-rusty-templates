@@ -245,7 +245,7 @@ index be0deee..4d6657b 100644
              self.assertEqual(
                  "Recursion!  A1  Recursion!  B1   B2   B3  Recursion!  C1",
 diff --git a/tests/template_tests/test_extends.py b/tests/template_tests/test_extends.py
-index 0d2a934..7688176 100644
+index 0d2a934..563d045 100644
 --- a/tests/template_tests/test_extends.py
 +++ b/tests/template_tests/test_extends.py
 @@ -1,6 +1,6 @@
@@ -265,7 +265,7 @@ index 0d2a934..7688176 100644
          self.assertEqual(output.strip(), "three two one")
  
      def test_extend_recursive(self):
-@@ -24,18 +24,18 @@ class ExtendsBehaviorTests(SimpleTestCase):
+@@ -24,14 +24,14 @@ class ExtendsBehaviorTests(SimpleTestCase):
              ]
          )
          template = engine.get_template("recursive.html")
@@ -282,11 +282,6 @@ index 0d2a934..7688176 100644
  
          tried = e.exception.tried
          self.assertEqual(len(tried), 1)
--        self.assertEqual(tried[0][0].template_name, "missing.html")
-+        self.assertTrue(tried[0][0].endswith("missing.html"))
- 
-     def test_recursive_multiple_loaders(self):
-         engine = Engine(
 @@ -62,7 +62,7 @@ class ExtendsBehaviorTests(SimpleTestCase):
              ],
          )
@@ -296,7 +291,7 @@ index 0d2a934..7688176 100644
          self.assertEqual(
              output.strip(), "three locmem-three two locmem-two one locmem-one"
          )
-@@ -75,11 +75,11 @@ class ExtendsBehaviorTests(SimpleTestCase):
+@@ -75,7 +75,7 @@ class ExtendsBehaviorTests(SimpleTestCase):
          engine = Engine(dirs=[os.path.join(RECURSIVE, "fs")])
          template = engine.get_template("self.html")
          with self.assertRaises(TemplateDoesNotExist) as e:
@@ -305,11 +300,6 @@ index 0d2a934..7688176 100644
          tried = e.exception.tried
          self.assertEqual(len(tried), 1)
          origin, message = tried[0]
--        self.assertEqual(origin.template_name, "self.html")
-+        self.assertTrue(origin.endswith("self.html"))
-         self.assertEqual(message, "Skipped to avoid recursion")
- 
-     def test_extend_cached(self):
 @@ -99,7 +99,7 @@ class ExtendsBehaviorTests(SimpleTestCase):
              ],
          )
