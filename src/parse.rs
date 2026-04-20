@@ -77,6 +77,11 @@ use crate::types::Variable;
 trait Parse<R> {
     fn parse(&self, parser: &Parser) -> Result<R, ParseError>;
 }
+
+pub trait GetBlocks {
+    fn get_blocks(&self) -> Box<dyn Iterator<Item = &Block> + '_>;
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Lorem {
     pub count: TagElement,
@@ -812,6 +817,42 @@ pub enum Tag {
     TemplateTag(TemplateTag),
 }
 
+impl GetBlocks for Tag {
+    fn get_blocks(&self) -> Box<dyn Iterator<Item = &Block> + '_> {
+        match self {
+            Self::Autoescape { nodes, .. } | Self::SimpleBlockTag(SimpleBlockTag { nodes, .. }) => {
+                nodes.get_blocks()
+            }
+            Self::Block(block) => Box::new(std::iter::once(block)),
+            Self::Extends(_)
+            | Self::Include(_)
+            | Self::Load
+            | Self::SimpleTag(_)
+            | Self::Url(_)
+            | Self::CsrfToken(_)
+            | Self::Lorem(_)
+            | Self::Comment(_)
+            | Self::Now(_)
+            | Self::FirstOf(_)
+            | Self::TemplateTag(_) => Box::new(std::iter::empty()),
+            Self::If { truthy, falsey, .. } => {
+                let truthy_blocks = truthy.get_blocks();
+                match falsey {
+                    Some(falsey) => Box::new(truthy_blocks.chain(falsey.get_blocks())),
+                    None => truthy_blocks,
+                }
+            }
+            Self::For(_for) => {
+                let body_blocks = _for.body.get_blocks();
+                match &_for.empty {
+                    Some(empty) => Box::new(body_blocks.chain(empty.get_blocks())),
+                    None => body_blocks,
+                }
+            }
+        }
+    }
+}
+
 #[derive(PartialEq, Eq)]
 enum EndTagType {
     Autoescape,
@@ -877,6 +918,21 @@ impl From<TagElement> for TokenTree {
             TagElement::Int(n) => Self::Int(n),
             TagElement::Float(f) => Self::Float(f),
         }
+    }
+}
+
+impl GetBlocks for TokenTree {
+    fn get_blocks(&self) -> Box<dyn Iterator<Item = &Block> + '_> {
+        match self {
+            Self::Tag(tag) => tag.get_blocks(),
+            _ => Box::new(std::iter::empty()),
+        }
+    }
+}
+
+impl GetBlocks for Vec<TokenTree> {
+    fn get_blocks(&self) -> Box<dyn Iterator<Item = &Block> + '_> {
+        Box::new(self.iter().flat_map(|node| node.get_blocks()))
     }
 }
 
@@ -2133,7 +2189,8 @@ impl<'t, 'py> Parser<'t, 'py> {
                 return Err(ParseError::DuplicateExtends {
                     first_at: first_tag_at.into(),
                     second_at: at.into(),
-                }.into());
+                }
+                .into());
             }
             let template_name = match &self.origin {
                 None => "the template".to_string(),
