@@ -267,6 +267,46 @@ def test_extends_after_load_tag(assert_parse_error):
     )
 
 
+def test_extends_after_extends(assert_parse_error):
+    template = "{% extends 'base.txt' %}Some content{% extends 'parent.txt' %}"
+    django_message = snapshot(
+        "'extends' cannot appear more than once in the same template"
+    )
+    rusty_message = snapshot("""\
+  × 'extends' cannot appear more than once in the same template
+   ╭────
+ 1 │ {% extends 'base.txt' %}Some content{% extends 'parent.txt' %}
+   · ────────────┬───────────            ─────────────┬────────────
+   ·             │                                    ╰── second extends tag here
+   ·             ╰── first extends tag here
+   ╰────
+  help: Delete one of the 'extends' tags
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_extends_after_block(assert_parse_error):
+    template = "{% extends 'base.txt' %}{% block body %}Some content{% endblock body %}{% extends 'parent.txt' %}"
+    django_message = snapshot(
+        "{% extends 'parent.txt' %} must be the first tag in the template."
+    )
+    rusty_message = snapshot("""\
+  × 'extends' cannot appear more than once in the same template
+   ╭────
+ 1 │ {% extends 'base.txt' %}{% block body %}Some content{% endblock body %}{% extends 'parent.txt' %}
+   · ────────────┬───────────                                               ─────────────┬────────────
+   ·             │                                                                       ╰── second extends tag here
+   ·             ╰── first extends tag here
+   ╰────
+  help: Delete one of the 'extends' tags
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
 def test_block_no_arguments(assert_parse_error):
     template = "{% block %}"
     django_message = snapshot("'block' tag takes only one argument")
