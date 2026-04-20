@@ -1017,6 +1017,19 @@ pub enum ParseError {
         #[label("duplicate here")]
         new_block_at: SourceSpan,
     },
+    #[error("block tag must have a name")]
+    MissingBlockName {
+        #[label("here")]
+        at: SourceSpan,
+    },
+    #[error("'extends' cannot appear more than once in the same template")]
+    #[diagnostic(help("Delete one of the 'extends' tags"))]
+    DuplicateExtends {
+        #[label("first extends tag here")]
+        first_at: SourceSpan,
+        #[label("second extends tag here")]
+        second_at: SourceSpan,
+    },
     #[error("{extends_tag} must be the first tag in the template.")]
     #[diagnostic(help("Move the extends tag before other tags and variables."))]
     ExtendsAfterTag {
@@ -2235,6 +2248,12 @@ impl<'t, 'py> Parser<'t, 'py> {
 
     fn parse_extends(&mut self, at: At, parts: TagParts) -> Result<TokenTree, PyParseError> {
         if let Some(first_tag_at) = self.first_tag {
+            if self.seen_extends {
+                return Err(ParseError::DuplicateExtends {
+                    first_at: first_tag_at.into(),
+                    second_at: at.into(),
+                }.into());
+            }
             return Err(ParseError::ExtendsAfterTag {
                 extends_tag: self.template.content(at).to_string(),
                 extends_at: at.into(),
@@ -2257,6 +2276,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         }
 
         self.seen_extends = true;
+        self.first_tag = Some(at);
 
         let template_name = match parse_extends_template_token(token, self)? {
             IncludeTemplateName::Text(Text { at }) => {
