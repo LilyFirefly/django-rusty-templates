@@ -1,0 +1,824 @@
+import os.path
+from pathlib import Path
+
+import pytest
+from django.template import TemplateSyntaxError
+from django.template.base import VariableDoesNotExist
+from django.template.exceptions import TemplateDoesNotExist
+from django.utils.translation import gettext_lazy
+from inline_snapshot import snapshot
+
+
+def test_blocks(assert_render):
+    template = """
+{% block header %}# {{ title }}{% endblock header %}
+{% block body %}Hello {{ user.name }}!{% endblock %}
+"""
+    assert_render(
+        template=template,
+        context={"title": "Using blocks", "user": {"name": "Lily"}},
+        expected="\n# Using blocks\nHello Lily!\n",
+    )
+
+
+def test_block_variable_in_block(template_engine):
+    template = """{% autoescape off %}{% block header %}{{ block }}{% endblock header %}{% endautoescape off %}"""
+    template = template_engine.from_string(template)
+    if template_engine.name == "rusty":
+        assert template.render({"block": "Using blocks"}) == "Using blocks"
+    else:
+        assert (
+            template.render({"block": "Using blocks"})
+            == "<Block Node: header. Contents: [<Variable Node: block>]>"
+        )
+
+
+def test_extends_no_blocks(assert_render):
+    template = "{% extends 'basic.txt' %}"
+    assert_render(template=template, context={"user": "Lily"}, expected="Hello Lily!\n")
+
+
+def test_extends_nested_blocks(assert_render):
+    template = "{% extends 'nested_blocks.txt' %}{% block inner %}Real inner content. {% endblock inner %}"
+    assert_render(
+        template=template,
+        context={},
+        expected="# Header\nSome content. Real inner content. Parent body. Last body content.\n",
+    )
+
+
+def test_extends_nested_blocks_with_super(assert_render):
+    template = "{% extends 'nested_blocks.txt' %}{% block inner %}Real inner content. {{ block.super }}{% endblock inner %}"
+    assert_render(
+        template=template,
+        context={},
+        expected="# Header\nSome content. Real inner content. More content. Parent body. Last body content.\n",
+    )
+
+
+def test_extends(assert_render):
+    template = "{% extends 'base.txt' %}{% block body %}Some content{% endblock body %}"
+    assert_render(template=template, context={}, expected="# Header\nSome content\n")
+
+
+def test_extends_relative_path(assert_render):
+    template = "{% extends 'nested/extends_parent.txt' %}"
+    assert_render(
+        template=template, context={}, expected="# Extends\nUsing a relative path.\n"
+    )
+
+
+def test_extends_same_name(assert_render):
+    template = "{% extends 'extends_self.txt' %}"
+    assert_render(
+        template=template,
+        context={},
+        expected="Extended content. Extra template content.\n",
+    )
+
+
+def test_extends_variable(assert_render):
+    template = (
+        "{% extends template_name %}{% block body %}Some content{% endblock body %}"
+    )
+    assert_render(
+        template=template,
+        context={"template_name": "base.txt"},
+        expected="# Header\nSome content\n",
+    )
+
+
+def test_extends_variable_path(assert_render):
+    template = (
+        "{% extends template_name %}{% block body %}Some content{% endblock body %}"
+    )
+    assert_render(
+        template=template,
+        context={"template_name": Path("base.txt")},
+        expected="# Header\nSome content\n",
+    )
+
+
+def test_extends_variable_lazy_translation(assert_render):
+    template = (
+        "{% extends template_name %}{% block body %}Some content{% endblock body %}"
+    )
+    assert_render(
+        template=template,
+        context={"template_name": gettext_lazy("base.txt")},
+        expected="# Header\nSome content\n",
+    )
+
+
+def test_extends_variable_template_object(template_engine, assert_render):
+    parent = "{% block header %}# Header{% endblock header %}\n{% block body %}Parent content{% endblock body %}\n"
+    template = (
+        "{% extends template_object %}{% block body %}Some content{% endblock body %}"
+    )
+    assert_render(
+        template=template,
+        context={"template_object": template_engine.from_string(parent)},
+        expected="# Header\nSome content\n",
+    )
+
+
+def test_extends_translation(assert_render, template_engine):
+    if template_engine.name == "rusty":
+        pytest.xfail("Support for translation is not implemented yet")
+
+    template = (
+        "{% extends _('base.txt') %}{% block body %}Some content{% endblock body %}"
+    )
+    assert_render(
+        template=template,
+        context={"template_name": gettext_lazy("base.txt")},
+        expected="# Header\nSome content\n",
+    )
+
+
+def test_extends_endblock_no_name(assert_render):
+    template = "{% extends 'base.txt' %}{% block body %}Some content{% endblock %}"
+    assert_render(template=template, context={}, expected="# Header\nSome content\n")
+
+
+def test_extends_super(assert_render):
+    template = """\
+{% extends 'base.txt' %}{% block header %}{{ block.super }}
+## Subtitle{% endblock header %}{% block body %}Some content{% endblock body %}"""
+    assert_render(
+        template=template, context={}, expected="# Header\n## Subtitle\nSome content\n"
+    )
+
+
+def test_extends_after_whitespace(assert_render):
+    template = (
+        "  {% extends 'base.txt' %}{% block body %}Some content{% endblock body %}"
+    )
+    assert_render(template=template, context={}, expected="  # Header\nSome content\n")
+
+
+def test_extends_after_text(assert_render):
+    template = (
+        "Text {% extends 'base.txt' %}{% block body %}Some content{% endblock body %}"
+    )
+    assert_render(
+        template=template, context={}, expected="Text # Header\nSome content\n"
+    )
+
+
+def test_extends_after_comment(assert_render):
+    template = "{# Comment #}{% extends 'base.txt' %}{% block body %}Some content{% endblock body %}"
+    assert_render(template=template, context={}, expected="# Header\nSome content\n")
+
+
+def test_extends_content_outside_blocks(assert_render):
+    template = "{% extends 'base.txt' %}Not included{% block body %}Some content{% endblock body %}{{ variable }}{% include 'basic.txt' %}"
+    assert_render(
+        template=template,
+        context={"variable": "also not included"},
+        expected="# Header\nSome content\n",
+    )
+
+
+def test_extends_relative_template_variable_parent(assert_render):
+    template = "{% extends 'extends_extends_variable.txt' %}"
+    assert_render(
+        template=template,
+        context={"parent": "./basic.txt", "user": "Lily"},
+        expected="Hello Lily!\n",
+    )
+
+
+def test_unmatched_block_tag(assert_parse_error):
+    template = "{% block foo %}"
+    django_message = snapshot(
+        "Unclosed tag on line 1: 'block'. Looking for one of: endblock."
+    )
+    rusty_message = snapshot("""\
+  × Unclosed 'block' tag. Looking for one of: 'endblock', 'endblock foo'
+   ╭────
+ 1 │ {% block foo %}
+   · ───────┬───────
+   ·        ╰── started here
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_extends_after_variable(assert_parse_error):
+    template = "{{ variable }} {% extends 'base.txt' %}{% block body %}Some content{% endblock body %}"
+    django_message = snapshot(
+        "{% extends 'base.txt' %} must be the first tag in the template."
+    )
+    rusty_message = snapshot("""\
+  × {% extends 'base.txt' %} must be the first tag in the template.
+   ╭────
+ 1 │ {{ variable }} {% extends 'base.txt' %}{% block body %}Some content{% endblock body %}
+   · ───────┬────── ────────────┬───────────
+   ·        │                   ╰── extends tag here
+   ·        ╰── first tag here
+   ╰────
+  help: Move the extends tag before other tags and variables.
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_extends_after_tag(assert_parse_error):
+    template = "{% url 'home' %} {% extends 'base.txt' %}{% block body %}Some content{% endblock body %}"
+    django_message = snapshot(
+        "{% extends 'base.txt' %} must be the first tag in the template."
+    )
+    rusty_message = snapshot("""\
+  × {% extends 'base.txt' %} must be the first tag in the template.
+   ╭────
+ 1 │ {% url 'home' %} {% extends 'base.txt' %}{% block body %}Some content{% endblock body %}
+   · ────────┬─────── ────────────┬───────────
+   ·         │                    ╰── extends tag here
+   ·         ╰── first tag here
+   ╰────
+  help: Move the extends tag before other tags and variables.
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_extends_after_load_tag(assert_parse_error):
+    template = "{% load custom_tags %} {% extends 'base.txt' %}{% block body %}Some content{% endblock body %}"
+    django_message = snapshot(
+        "{% extends 'base.txt' %} must be the first tag in the template."
+    )
+    rusty_message = snapshot("""\
+  × {% extends 'base.txt' %} must be the first tag in the template.
+   ╭────
+ 1 │ {% load custom_tags %} {% extends 'base.txt' %}{% block body %}Some content{% endblock body %}
+   · ───────────┬────────── ────────────┬───────────
+   ·            │                       ╰── extends tag here
+   ·            ╰── first tag here
+   ╰────
+  help: Move the extends tag before other tags and variables.
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_block_no_arguments(assert_parse_error):
+    template = "{% block %}"
+    django_message = snapshot("'block' tag takes only one argument")
+    rusty_message = snapshot("""\
+  × block tag must have a name
+   ╭────
+ 1 │ {% block %}
+   · ─────┬─────
+   ·      ╰── here
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_endblock_no_arguments(assert_render):
+    template = "{% block foo %}Foo{% endblock %}"
+    assert_render(template, {}, "Foo")
+
+
+def test_block_too_many_arguments(assert_parse_error):
+    template = "{% extends 'base.txt' %}{% block body with extra arguments %}Some content{% endblock %}"
+    django_message = snapshot("'block' tag takes only one argument")
+    rusty_message = snapshot("""\
+  × 'block' tag takes only one argument
+   ╭────
+ 1 │ {% extends 'base.txt' %}{% block body with extra arguments %}Some content{% endblock %}
+   ·                                       ──────────┬─────────
+   ·                                                 ╰── unexpected argument(s)
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_endblock_too_many_arguments(assert_parse_error):
+    template = "{% extends 'base.txt' %}{% block body %}Some content{% endblock body with extra arguments %}"
+    django_message = snapshot(
+        "Invalid block tag on line 1: 'endblock', expected 'endblock' or 'endblock body'. Did you forget to register or load this tag?"
+    )
+    rusty_message = snapshot("""\
+  × 'endblock' tag takes only one argument
+   ╭────
+ 1 │ {% extends 'base.txt' %}{% block body %}Some content{% endblock body with extra arguments %}
+   ·                                                                      ──────────┬─────────
+   ·                                                                                ╰── unexpected argument(s)
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_endblock_wrong_name(assert_parse_error):
+    template = (
+        "{% extends 'base.txt' %}{% block body %}Some content{% endblock other %}"
+    )
+    django_message = snapshot(
+        "Invalid block tag on line 1: 'endblock', expected 'endblock' or 'endblock body'. Did you forget to register or load this tag?"
+    )
+    rusty_message = snapshot("""\
+  × Unexpected tag 'endblock other', expected 'endblock' or 'endblock body'
+   ╭────
+ 1 │ {% extends 'base.txt' %}{% block body %}Some content{% endblock other %}
+   ·                         ────────┬───────            ──────────┬─────────
+   ·                                 │                             ╰── unexpected tag
+   ·                                 ╰── start tag
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_extends_no_name(assert_parse_error):
+    template = "{% extends %}"
+    django_message = snapshot("'extends' takes one argument")
+    rusty_message = snapshot("""\
+  × Expected an argument
+   ╭────
+ 1 │ {% extends %}
+   · ──────┬──────
+   ·       ╰── here
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_extends_extra_argument(assert_parse_error):
+    template = "{% extends 'base.txt' extra %}"
+    django_message = snapshot("'extends' takes one argument")
+    rusty_message = snapshot("""\
+  × Unexpected positional argument
+   ╭────
+ 1 │ {% extends 'base.txt' extra %}
+   ·                       ──┬──
+   ·                         ╰── here
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_extends_invalid_relative_path(assert_render_error):
+    absolute_template = Path("tests/templates/extends_invalid.txt").absolute()
+    template = "{% extends 'extends_invalid.txt' %}"
+
+    django_message = snapshot(
+        "The relative path ''../outside.txt'' points outside the file hierarchy that template 'extends_invalid.txt' is in."
+    )
+    rusty_message = snapshot(
+        """\
+  × The relative path '../outside.txt' points outside the file hierarchy that
+  │ template 'extends_invalid.txt' is in.
+   ╭─[%s:1:13]
+ 1 │ {%% extends '../outside.txt' %%}
+   ·             ───────┬──────
+   ·                    ╰── relative path
+   ╰────
+"""
+        % absolute_template
+    )
+    assert_render_error(
+        template=template,
+        context={},
+        exception=TemplateSyntaxError,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
+def test_extends_duplicate_block(assert_parse_error):
+    template = "{% extends 'base.txt' %}{% block foo %}{% endblock foo %}{% block foo %}{% endblock foo %}"
+    django_message = snapshot("'block' tag with name 'foo' appears more than once")
+    rusty_message = snapshot("""\
+  × 'block' tag with name 'foo' appears more than once
+   ╭────
+ 1 │ {% extends 'base.txt' %}{% block foo %}{% endblock foo %}{% block foo %}{% endblock foo %}
+   ·                         ───────┬───────                  ───────┬───────
+   ·                                │                                ╰── duplicate here
+   ·                                ╰── first here
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_duplicate_block(assert_parse_error):
+    template = "{% block foo %}{% endblock foo %}{% block foo %}{% endblock foo %}"
+    django_message = snapshot("'block' tag with name 'foo' appears more than once")
+    rusty_message = snapshot("""\
+  × 'block' tag with name 'foo' appears more than once
+   ╭────
+ 1 │ {% block foo %}{% endblock foo %}{% block foo %}{% endblock foo %}
+   · ───────┬───────                  ───────┬───────
+   ·        │                                ╰── duplicate here
+   ·        ╰── first here
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_extends_nested_duplicate_block(assert_parse_error):
+    template = "{% extends 'base.txt' %}{% block foo %} {% block foo %}{% endblock foo %}{% endblock foo %}"
+    django_message = snapshot("'block' tag with name 'foo' appears more than once")
+    rusty_message = snapshot("""\
+  × 'block' tag with name 'foo' appears more than once
+   ╭────
+ 1 │ {% extends 'base.txt' %}{% block foo %} {% block foo %}{% endblock foo %}{% endblock foo %}
+   ·                         ───────┬─────── ───────┬───────
+   ·                                │               ╰── duplicate here
+   ·                                ╰── first here
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_nested_duplicate_block(assert_parse_error):
+    template = "{% block foo %} {% block foo %}{% endblock foo %}{% endblock foo %}"
+    django_message = snapshot("'block' tag with name 'foo' appears more than once")
+    rusty_message = snapshot("""\
+  × 'block' tag with name 'foo' appears more than once
+   ╭────
+ 1 │ {% block foo %} {% block foo %}{% endblock foo %}{% endblock foo %}
+   · ───────┬─────── ───────┬───────
+   ·        │               ╰── duplicate here
+   ·        ╰── first here
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_extends_unexpected_endblock(assert_parse_error):
+    template = "{% extends 'base.txt' %}{% endblock foo %}"
+    django_message = snapshot(
+        "Invalid block tag on line 1: 'endblock'. Did you forget to register or load this tag?"
+    )
+    rusty_message = snapshot("""\
+  × Unexpected tag 'endblock foo'
+   ╭────
+ 1 │ {% extends 'base.txt' %}{% endblock foo %}
+   ·                         ─────────┬────────
+   ·                                  ╰── unexpected tag
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_extends_int(template_engine):
+    template = "{% extends 1 %}"
+
+    if template_engine.name == "rusty":
+        with pytest.raises(TemplateSyntaxError) as exc_info:
+            template_engine.from_string(template)
+        assert str(exc_info.value) == snapshot("""\
+  × Template name must be a string or a variable
+   ╭────
+ 1 │ {% extends 1 %}
+   ·            ┬
+   ·            ╰── here
+   ╰────
+""")
+
+    else:
+        template = template_engine.from_string(template)
+        with pytest.raises(TypeError) as exc_info:
+            template.render({})
+        assert str(exc_info.value) == snapshot(
+            "join() argument must be str, bytes, or os.PathLike object, not 'int'"
+        )
+
+
+def test_extends_float(template_engine):
+    template = "{% extends 1.2 %}"
+
+    if template_engine.name == "rusty":
+        with pytest.raises(TemplateSyntaxError) as exc_info:
+            template_engine.from_string(template)
+        assert str(exc_info.value) == snapshot("""\
+  × Template name must be a string or a variable
+   ╭────
+ 1 │ {% extends 1.2 %}
+   ·            ─┬─
+   ·             ╰── here
+   ╰────
+""")
+
+    else:
+        template = template_engine.from_string(template)
+        with pytest.raises(TypeError) as exc_info:
+            template.render({})
+        assert str(exc_info.value) == snapshot(
+            "join() argument must be str, bytes, or os.PathLike object, not 'float'"
+        )
+
+
+def test_extends_missing_template_string(assert_render_error):
+    template = "{% extends 'missing.txt' %}"
+    django_message = snapshot("missing.txt")
+    rusty_message = snapshot("""\
+  × missing.txt
+   ╭────
+ 1 │ {% extends 'missing.txt' %}
+   ·             ─────┬─────
+   ·                  ╰── here
+   ╰────
+""")
+    assert_render_error(
+        template=template,
+        context={},
+        exception=TemplateDoesNotExist,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
+def test_extends_missing_template_variable(assert_render_error):
+    template = "{% extends template_name %}"
+    django_message = snapshot("missing.txt")
+    rusty_message = snapshot("""\
+  × missing.txt
+   ╭────
+ 1 │ {% extends template_name %}
+   ·            ──────┬──────
+   ·                  ╰── here
+   ╰────
+""")
+    assert_render_error(
+        template=template,
+        context={"template_name": "missing.txt"},
+        exception=TemplateDoesNotExist,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
+def test_extends_invalid_variable(assert_render_error):
+    template = "{% extends template_name %}"
+    django_message = snapshot(
+        "join() argument must be str, bytes, or os.PathLike object, not 'int'"
+    )
+    rusty_message = snapshot("""\
+  × Included template name must be a string or iterable of strings.
+   ╭────
+ 1 │ {% extends template_name %}
+   ·            ──────┬──────
+   ·                  ╰── invalid template name: 123
+   ╰────
+""")
+    assert_render_error(
+        template=template,
+        context={"template_name": 123},
+        exception=TypeError,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
+def test_extends_variable_bytes(assert_render_error):
+    template = "{% extends template_name %}"
+    django_message = snapshot("Can't mix strings and bytes in path components")
+    rusty_message = snapshot("""\
+  × Included template name must be a string or iterable of strings.
+   ╭────
+ 1 │ {% extends template_name %}
+   ·            ──────┬──────
+   ·                  ╰── invalid template name: b'base.txt'
+   ╰────
+""")
+    assert_render_error(
+        template=template,
+        context={"template_name": b"base.txt"},
+        exception=TypeError,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
+def test_extends_variable_relative_path(assert_render_error):
+    template = "{% extends 'nested/extends_variable.txt' %}"
+    django_message = snapshot("../base.txt")
+    rusty_message = snapshot("""\
+  × ../base.txt
+   ╭─[1:12]
+ 1 │ {% extends parent %}
+   ·            ───┬──
+   ·               ╰── here
+ 2 │ \n\
+   ╰────
+""")
+    assert_render_error(
+        template=template,
+        context={"parent": "../base.txt"},
+        exception=TemplateDoesNotExist,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
+def test_extends_variable_relative_path_deep(assert_render_error):
+    template = "{% extends 'nested/extends_variable.txt' %}"
+    django_message = snapshot("../../missing.txt")
+    rusty_message = snapshot("""\
+  × ../../missing.txt
+   ╭─[1:12]
+ 1 │ {% extends parent %}
+   ·            ───┬──
+   ·               ╰── here
+ 2 │ \n\
+   ╰────
+""")
+    assert_render_error(
+        template=template,
+        context={"parent": "../../missing.txt"},
+        exception=TemplateDoesNotExist,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
+def test_block_super_no_extends(template_engine):
+    template = "{% block foo %}{{ block.super }}{% endblock foo %}"
+    django_message = snapshot(
+        "'BlockNode' object has no attribute 'context'. Did you use {{ block.super }} in a base template?"
+    )
+    rusty_message = snapshot("""\
+  × Cannot use {{ block.super }} in a base template.
+   ╭────
+ 1 │ {% block foo %}{{ block.super }}{% endblock foo %}
+   ·                   ─────┬─────
+   ·                        ╰── here
+   ╰────
+  help: Add an {% extends %} tag or remove {{ block.super }}.
+""")
+
+    if template_engine.name == "rusty":
+        with pytest.raises(TemplateSyntaxError) as exc_info:
+            template_engine.from_string(template)
+
+        assert str(exc_info.value) == rusty_message
+
+    else:
+        template = template_engine.from_string(template)
+
+        with pytest.raises(TemplateSyntaxError) as exc_info:
+            template.render({})
+
+        assert str(exc_info.value) == django_message
+
+
+def test_block_super_no_extends_no_block(assert_render):
+    template = "{{ block.super }}"
+    assert_render(template, {}, "")
+
+
+def test_block_super_as_argument_no_extends_no_block(assert_render_error):
+    template = "{{ missing|default:block.super }}"
+    django_message = snapshot(
+        "Failed lookup for key [block] in [{'True': True, 'False': False, 'None': None}, {}]"
+    )
+    rusty_message = snapshot("""\
+  × Failed lookup for key [block.super] in {"False": False, "None": None,
+  │ "True": True}
+   ╭────
+ 1 │ {{ missing|default:block.super }}
+   ·                    ─────┬─────
+   ·                         ╰── key
+   ╰────
+""")
+    assert_render_error(
+        template=template,
+        context={},
+        exception=VariableDoesNotExist,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
+def test_extends_recursion_error(template_engine):
+    template = "{% extends 'recursion.txt' %}"
+    template = template_engine.from_string(template)
+
+    if template_engine.name == "rusty":
+        message = snapshot("""\
+  × recursion.txt
+   ╭────
+ 1 │ {% extends "recursion.txt" %}
+   ·             ──────┬──────
+   ·                   ╰── here
+   ╰────
+""")
+    else:
+        message = snapshot("recursion.txt")
+
+    with pytest.raises(TemplateDoesNotExist) as exc_info:
+        template.render({})
+
+    error = exc_info.value
+    assert str(error) == message
+
+    first, second = error.tried
+    assert os.path.normcase("/templates/recursion.txt") in first[0].name
+    assert first[1] == "Skipped to avoid recursion"
+    assert os.path.normcase("/extra_templates/recursion.txt") in second[0].name
+    assert second[1] == "Source does not exist"
+
+
+def test_extends_recursion_error_from_file(template_engine):
+    template = "looped.txt"
+    with pytest.raises(TemplateSyntaxError) as exc_info:
+        template_engine.get_template(template)
+
+    if template_engine.name == "rusty":
+        path = Path("tests/templates").absolute() / template
+        message = snapshot(
+            """\
+  × The relative path '"./nested/../looped.txt"' was translated to template
+  │ name 'looped.txt', the same template in which the tag appears.
+   ╭─[%s:1:13]
+ 1 │ {%% extends "./nested/../looped.txt" %%}
+   ·             ───────────┬──────────
+   ·                        ╰── here
+   ╰────
+"""
+            % path
+        )
+    else:
+        message = snapshot(
+            "The relative path '\"./nested/../looped.txt\"' was translated to template name 'looped.txt', the same template in which the tag appears."
+        )
+
+    error = exc_info.value
+    assert str(error) == message
+
+
+def test_extends_locmem_loader(engine_class):
+    child = "{% extends 'parent' %}{% block extra %}{{ block.super }} Child content.{% endblock extra %}"
+    parent = "{% extends 'parent' %}{% block extra %}Intermediate content.{% endblock extra %}"
+    base = "{% block main %}Parent content.{% endblock main %} {% block extra %}{% endblock extra %}"
+    loaders = [
+        (
+            "django.template.loaders.locmem.Loader",
+            {"parent": parent},
+        ),
+        (
+            "django.template.loaders.locmem.Loader",
+            {"child": child, "parent": base},
+        ),
+    ]
+    config = {
+        "OPTIONS": {"loaders": loaders},
+        "NAME": "locmem",
+        "DIRS": (),
+        "APP_DIRS": False,
+    }
+    engine = engine_class(config)
+
+    template = engine.get_template("child")
+    assert template.render({}) == "Parent content. Intermediate content. Child content."
+
+
+def test_extends_after_tag_named_template(template_engine):
+    with pytest.raises(TemplateSyntaxError) as exc_info:
+        template_engine.get_template("extends_after_tag.txt")
+
+    if template_engine.name == "rusty":
+        absolute_template = Path("tests/templates/extends_after_tag.txt").absolute()
+        assert str(exc_info.value) == snapshot(f"""\
+  × {{% extends "base.txt" %}} must be the first tag in 'extends_after_tag.txt'.
+   ╭─[{absolute_template}:1:1]
+ 1 │ {{% block foo %}}{{% endblock %}}{{% extends "base.txt" %}}
+   · ───────┬───────              ────────────┬───────────
+   ·        │                                 ╰── extends tag here
+   ·        ╰── first tag here
+   ╰────
+  help: Move the extends tag before other tags and variables.
+""")
+    else:
+        assert str(exc_info.value) == snapshot(
+            "{% extends \"base.txt\" %} must be the first tag in 'extends_after_tag.txt'."
+        )

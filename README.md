@@ -4,7 +4,7 @@ Django Rusty Templates is an experimental reimplementation of Django's templatin
 
 ## Goals
 
-* 100% compatibility of rendered output.
+* 100% compatibility of rendered output. (But see [Rendering Edge Cases](README.md#rendering-edge-cases) below.)
 * Error reporting that is at least as useful as Django's errors.
 * Improved performance over Django's pure Python implementation.
 
@@ -36,6 +36,12 @@ TEMPLATES = [
     },
 ]
 ```
+
+## Rendering Edge Cases
+
+Occasionally it is possible to render internal state of the template engine. In these cases, matching Django's rendered output is often prohibitively complicated for little to no benefit. Known cases are listed here:
+
+* `{% block foo %}{{ block }}{% endblock %}`
 
 ## Contributing
 

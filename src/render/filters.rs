@@ -866,7 +866,7 @@ mod tests {
     use crate::parse::TagElement;
     use crate::render::Render;
     use crate::template::django_rusty_templates::{Engine, Template};
-    use crate::types::{Argument, ArgumentType, Text};
+    use crate::types::{Argument, ArgumentType, Text, Variable};
 
     use pyo3::types::{PyDict, PyString};
     static MARK_SAFE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
@@ -885,7 +885,6 @@ mod tests {
         Ok(safe_string)
     }
 
-    use dtl_lexer::types::Variable;
     use std::collections::HashMap;
 
     #[test]
@@ -897,7 +896,7 @@ mod tests {
             let context = HashMap::from([("name".to_string(), name.unbind())]);
             let mut context = Context::new(context, None, false);
             let template = TemplateString("{{ name|default:'Bryony' }}");
-            let variable = Variable::new((3, 4));
+            let variable = Variable::Variable((3, 4));
             let filter = Filter {
                 at: (8, 7),
                 all_at: (3, 12),
@@ -1115,7 +1114,7 @@ mod tests {
             let context = HashMap::from([("quotes".to_string(), name.unbind())]);
             let mut context = Context::new(context, None, false);
             let template = TemplateString("{{ quotes|addslashes }}");
-            let variable = Variable::new((3, 6));
+            let variable = Variable::Variable((3, 6));
             let filter = Filter {
                 at: (10, 10),
                 all_at: (3, 17),
@@ -1268,7 +1267,7 @@ mod tests {
             let context = HashMap::new();
             let mut context = Context::new(context, None, false);
             let template = TemplateString("{{ name|default:'Bryony' }}");
-            let variable = Variable::new((3, 4));
+            let variable = Variable::Variable((3, 4));
             let filter = Filter {
                 at: (8, 7),
                 all_at: (3, 12),
@@ -1295,7 +1294,7 @@ mod tests {
             let context = HashMap::new();
             let mut context = Context::new(context, None, false);
             let template = TemplateString("{{ count|default:12}}");
-            let variable = Variable::new((3, 5));
+            let variable = Variable::Variable((3, 5));
             let filter = Filter {
                 at: (9, 7),
                 all_at: (3, 12),
@@ -1322,7 +1321,7 @@ mod tests {
             let context = HashMap::new();
             let mut context = Context::new(context, None, false);
             let template = TemplateString("{{ count|default:3.5}}");
-            let variable = Variable::new((3, 5));
+            let variable = Variable::Variable((3, 5));
             let filter = Filter {
                 at: (9, 7),
                 all_at: (3, 12),
@@ -1350,7 +1349,7 @@ mod tests {
             let context = HashMap::from([("me".to_string(), me.unbind())]);
             let mut context = Context::new(context, None, false);
             let template = TemplateString("{{ name|default:me}}");
-            let variable = Variable::new((3, 4));
+            let variable = Variable::Variable((3, 4));
             let filter = Filter {
                 at: (8, 7),
                 all_at: (3, 11),
@@ -1358,7 +1357,7 @@ mod tests {
                 filter: FilterType::Default(DefaultFilter::new(
                     Argument {
                         at: (16, 2),
-                        argument_type: ArgumentType::Variable(Variable::new((16, 2))),
+                        argument_type: ArgumentType::Variable(Variable::Variable((16, 2))),
                     },
                     (8, 7),
                 )),
@@ -1378,7 +1377,7 @@ mod tests {
             let context = HashMap::from([("name".to_string(), name.unbind())]);
             let mut context = Context::new(context, None, false);
             let template = TemplateString("{{ name|lower }}");
-            let variable = Variable::new((3, 4));
+            let variable = Variable::Variable((3, 4));
             let filter = Filter {
                 at: (8, 5),
                 all_at: (3, 10),
@@ -1399,7 +1398,7 @@ mod tests {
             let context = HashMap::new();
             let mut context = Context::new(context, None, false);
             let template = TemplateString("{{ name|lower }}");
-            let variable = Variable::new((3, 4));
+            let variable = Variable::Variable((3, 4));
             let filter = Filter {
                 at: (8, 5),
                 all_at: (3, 10),
@@ -1420,7 +1419,7 @@ mod tests {
             let context = HashMap::new();
             let mut context = Context::new(context, None, false);
             let template = TemplateString("{{ name|default:'Bryony'|lower }}");
-            let variable = Variable::new((3, 4));
+            let variable = Variable::Variable((3, 4));
             let default = Filter {
                 at: (8, 7),
                 all_at: (3, 12),
@@ -1454,7 +1453,7 @@ mod tests {
             let context = HashMap::from([("name".to_string(), name.unbind())]);
             let mut context = Context::new(context, None, false);
             let template = TemplateString("{{ name|upper }}");
-            let variable = Variable::new((3, 4));
+            let variable = Variable::Variable((3, 4));
             let filter = Filter {
                 at: (8, 5),
                 all_at: (3, 10),
@@ -1475,7 +1474,7 @@ mod tests {
             let context = HashMap::new();
             let mut context = Context::new(context, None, false);
             let template = TemplateString("{{ name|upper }}");
-            let variable = Variable::new((3, 4));
+            let variable = Variable::Variable((3, 4));
             let filter = Filter {
                 at: (8, 5),
                 all_at: (3, 10),
