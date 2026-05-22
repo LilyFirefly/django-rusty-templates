@@ -471,10 +471,10 @@ impl<'t, 'py> Content<'t, 'py> {
         let output = match self {
             Self::Py(content) => resolve_python(content, context)?,
             Self::String(content) => content,
-            Self::Float(content) => ContentString::String(content.to_string().into()),
-            Self::Int(content) => ContentString::String(content.to_string().into()),
-            Self::Bool(true) => ContentString::String(Cow::Borrowed("True")),
-            Self::Bool(false) => ContentString::String(Cow::Borrowed("False")),
+            Self::Float(content) => return Ok(content.to_string().into()),
+            Self::Int(content) => return Ok(content.to_string().into()),
+            Self::Bool(true) => return Ok(Cow::Borrowed("True")),
+            Self::Bool(false) => return Ok(Cow::Borrowed("False")),
         };
         Ok(render_value_in_context(output, context))
     }

@@ -217,10 +217,10 @@ impl ResolveFilter for CutFilter {
         let result = match content_string {
             ContentString::String(s) => ContentString::String(cut(s, &arg).into()),
             ContentString::HtmlSafe(s) => {
-                let cut = cut(s, &arg);
+                let cut = cut(s, &arg).into();
                 match arg.as_ref() {
-                    ";" => ContentString::HtmlUnsafe(cut.into()),
-                    _ => ContentString::HtmlSafe(cut.into()),
+                    ";" => ContentString::HtmlUnsafe(cut),
+                    _ => ContentString::HtmlSafe(cut),
                 }
             }
             ContentString::HtmlUnsafe(s) => ContentString::HtmlUnsafe(cut(s, &arg).into()),
