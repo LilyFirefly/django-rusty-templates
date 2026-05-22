@@ -456,16 +456,27 @@ pub enum Content<'t, 'py> {
     Bool(bool),
 }
 
+fn render_value_in_context<'t>(value: ContentString<'t>, context: &Context) -> Cow<'t, str> {
+    match value {
+        ContentString::String(content) | ContentString::HtmlSafe(content) => content,
+        ContentString::HtmlUnsafe(content) => match context.autoescape {
+            true => Cow::Owned(encode_quoted_attribute(&content).to_string()),
+            false => Cow::Owned(content.into()),
+        },
+    }
+}
+
 impl<'t, 'py> Content<'t, 'py> {
     pub fn render(self, context: &Context) -> PyResult<Cow<'t, str>> {
-        Ok(match self {
-            Self::Py(content) => resolve_python(content, context)?.content(),
-            Self::String(content) => content.content(),
-            Self::Float(content) => content.to_string().into(),
-            Self::Int(content) => content.to_string().into(),
-            Self::Bool(true) => "True".into(),
-            Self::Bool(false) => "False".into(),
-        })
+        let output = match self {
+            Self::Py(content) => resolve_python(content, context)?,
+            Self::String(content) => content,
+            Self::Float(content) => return Ok(content.to_string().into()),
+            Self::Int(content) => return Ok(content.to_string().into()),
+            Self::Bool(true) => return Ok(Cow::Borrowed("True")),
+            Self::Bool(false) => return Ok(Cow::Borrowed("False")),
+        };
+        Ok(render_value_in_context(output, context))
     }
 
     pub fn resolve_string(self, context: &Context) -> PyResult<ContentString<'t>> {

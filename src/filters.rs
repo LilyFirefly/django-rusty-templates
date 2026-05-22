@@ -19,6 +19,7 @@ pub enum FilterType {
     Escape(EscapeFilter),
     Escapejs(EscapejsFilter),
     External(ExternalFilter),
+    ForceEscape(ForceEscapeFilter),
     Last(LastFilter),
     Lower(LowerFilter),
     Length(LengthFilter),
@@ -146,6 +147,9 @@ impl LastFilter {
         Self { at }
     }
 }
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ForceEscapeFilter;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LowerFilter;

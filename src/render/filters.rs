@@ -11,8 +11,9 @@ use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
 use crate::filters::{
     AddFilter, AddSlashesFilter, CapfirstFilter, CenterFilter, CutFilter, DateFilter,
     DefaultFilter, DefaultIfNoneFilter, DivisibleByFilter, EscapeFilter, EscapejsFilter,
-    ExternalFilter, FilterType, LastFilter, LengthFilter, LowerFilter, SafeFilter, SlugifyFilter,
-    TitleFilter, UpperFilter, WordcountFilter, WordwrapFilter, YesnoFilter,
+    ExternalFilter, FilterType, ForceEscapeFilter, LastFilter, LengthFilter, LowerFilter,
+    SafeFilter, SlugifyFilter, TitleFilter, UpperFilter, WordcountFilter, WordwrapFilter,
+    YesnoFilter,
 };
 use crate::parse::Filter;
 use crate::render::common::gettext;
@@ -47,6 +48,7 @@ impl Resolve for Filter {
             FilterType::Escape(filter) => filter.resolve(left, py, template, context),
             FilterType::Escapejs(filter) => filter.resolve(left, py, template, context),
             FilterType::External(filter) => filter.resolve(left, py, template, context),
+            FilterType::ForceEscape(filter) => filter.resolve(left, py, template, context),
             FilterType::Last(filter) => filter.resolve(left, py, template, context),
             FilterType::Lower(filter) => filter.resolve(left, py, template, context),
             FilterType::Length(filter) => filter.resolve(left, py, template, context),
@@ -215,10 +217,10 @@ impl ResolveFilter for CutFilter {
         let result = match content_string {
             ContentString::String(s) => ContentString::String(cut(s, &arg).into()),
             ContentString::HtmlSafe(s) => {
-                let cut = cut(s, &arg);
+                let cut = cut(s, &arg).into();
                 match arg.as_ref() {
-                    ";" => ContentString::HtmlUnsafe(cut.into()),
-                    _ => ContentString::HtmlSafe(cut.into()),
+                    ";" => ContentString::HtmlUnsafe(cut),
+                    _ => ContentString::HtmlSafe(cut),
                 }
             }
             ContentString::HtmlUnsafe(s) => ContentString::HtmlUnsafe(cut(s, &arg).into()),
@@ -484,6 +486,25 @@ impl ResolveFilter for ExternalFilter {
             None => filter.call1((variable,))?,
         };
         Ok(Some(Content::Py(value)))
+    }
+}
+
+impl ResolveFilter for ForceEscapeFilter {
+    fn resolve<'t, 'py>(
+        &self,
+        variable: Option<Content<'t, 'py>>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> ResolveResult<'t, 'py> {
+        let variable = match variable {
+            // We want to re-run the escape filter even if the content has already been resolved to safe HTML
+            Some(Content::String(ContentString::HtmlSafe(c))) => {
+                Some(Content::String(ContentString::String(c)))
+            }
+            other => other,
+        };
+        EscapeFilter.resolve(variable, py, template, context)
     }
 }
 

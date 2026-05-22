@@ -25,6 +25,7 @@ use crate::filters::EscapeFilter;
 use crate::filters::EscapejsFilter;
 use crate::filters::ExternalFilter;
 use crate::filters::FilterType;
+use crate::filters::ForceEscapeFilter;
 use crate::filters::LastFilter;
 use crate::filters::LengthFilter;
 use crate::filters::LowerFilter;
@@ -202,6 +203,10 @@ impl Filter {
             "escapejs" => match right {
                 Some(right) => return Err(unexpected_argument("escapejs", right)),
                 None => FilterType::Escapejs(EscapejsFilter),
+            },
+            "force_escape" => match right {
+                Some(right) => return Err(unexpected_argument("force_escape", right)),
+                None => FilterType::ForceEscape(ForceEscapeFilter),
             },
             "last" => match right {
                 Some(right) => return Err(unexpected_argument("last", right)),
