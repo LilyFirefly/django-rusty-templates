@@ -72,7 +72,7 @@ html-escape = "0.2.13"
 miette.workspace = true
 num-bigint.workspace = true
 num-traits = "0.2.19"
-pyo3 = { version = "0.28.0", features = ["num-bigint"] }
+pyo3 = { version = "0.29.0", features = ["num-bigint"] }
 rand = "0.10"
 sugar_path = "2.0.0"
 thiserror.workspace = true
