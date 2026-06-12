@@ -49,12 +49,11 @@ fn get_app_template_dir(path: Bound<'_, PyAny>, dirname: &str) -> PyResult<Optio
 }
 
 #[cached(
-    size = 128,          // Cache size
-    result = true,       // Cache Result type
-    key = "String",      // Use owned String as key
-    convert = r##"{ dirname.to_string() }"## // Convert &str to String
+    max_size = 128,  // Cache size
+    key = "String",  // Use owned String as key
+    convert = r#"{ dirname.to_string() }"#  // Convert &str to String
 )]
-fn get_app_template_dirs(py: Python<'_>, dirname: &str) -> PyResult<Vec<PathBuf>> {
+fn get_app_template_dirs(py: Python<'_>, dirname: &str) -> Result<Vec<PathBuf>, PyErr> {
     let apps = APPS.import(py, "django.apps", "apps")?;
     let app_configs = apps.call_method0("get_app_configs")?;
 
