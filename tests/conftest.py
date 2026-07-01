@@ -1,5 +1,8 @@
 import pytest
 from django.template import engines, TemplateSyntaxError
+from django.template.backends.django import DjangoTemplates
+
+from django_rusty_templates import RustyTemplates
 
 all_engines = pytest.fixture(params=["rusty", "django"])
 all_engines_nocache = pytest.fixture(params=["rusty_nocache", "django_nocache"])
@@ -121,3 +124,10 @@ def assert_render_error(request):
         assert str(exc_info.value) == message
 
     return _assert_render_error
+
+
+@all_engines
+def engine_class(request):
+    if request.param == "django":
+        return DjangoTemplates
+    return RustyTemplates

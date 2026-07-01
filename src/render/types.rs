@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::collections::VecDeque;
 use std::collections::hash_map::Entry;
 use std::iter::zip;
 use std::sync::{Arc, Mutex};
@@ -17,6 +18,8 @@ use pyo3::sync::{MutexExt, PyOnceLock};
 use pyo3::types::{PyBool, PyDict, PyInt, PyString, PyType};
 
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
+use crate::loaders::Origin;
+use crate::parse::Block;
 use crate::template::django_rusty_templates::{Engine, Template, get_template, select_template};
 use crate::utils::PyResultMethods;
 use dtl_lexer::types::{At, TemplateString};
@@ -69,6 +72,9 @@ pub struct Context {
     pub autoescape: bool,
     names: Vec<HashSet<String>>,
     include_cache: HashMap<IncludeTemplateKey, Arc<Template>>,
+    pub block: Option<(Block, String)>,
+    pub blocks: HashMap<String, VecDeque<(Block, String)>>,
+    pub seen: Option<Vec<Origin>>,
 }
 
 impl Context {
@@ -85,6 +91,9 @@ impl Context {
             loops: Vec::new(),
             names: Vec::new(),
             include_cache: HashMap::new(),
+            block: None,
+            blocks: HashMap::new(),
+            seen: None,
         }
     }
 
@@ -100,6 +109,9 @@ impl Context {
             loops: self.loops.clone(),
             names: self.names.clone(),
             include_cache: self.include_cache.clone(),
+            block: self.block.clone(),
+            blocks: self.blocks.clone(),
+            seen: self.seen.clone(),
         }
     }
 
@@ -282,12 +294,12 @@ impl Context {
         match self.include_cache.entry(key.clone()) {
             Entry::Occupied(entry) => Ok(entry.get().clone()),
             Entry::Vacant(entry) => {
-                let include = match key {
+                let (include, _origin) = match key {
                     IncludeTemplateKey::String(content) => {
-                        get_template(engine.clone(), py, Cow::Borrowed(content))?
+                        get_template(engine.clone(), py, Cow::Borrowed(content), None)?
                     }
                     IncludeTemplateKey::Vec(templates) => {
-                        select_template(engine.clone(), py, templates.clone())?
+                        select_template(engine.clone(), py, templates.clone(), None)?
                     }
                 };
                 Ok(entry.insert(Arc::new(include)).clone())
