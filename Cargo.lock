@@ -410,7 +410,7 @@ dependencies = [
  "encoding_rs",
  "html-escape",
  "miette",
- "num-bigint",
+ "num-bigint 0.5.1",
  "num-traits",
  "proptest",
  "pyo3",
@@ -426,7 +426,7 @@ name = "dtl-lexer"
 version = "0.1.0"
 dependencies = [
  "miette",
- "num-bigint",
+ "num-bigint 0.5.1",
  "thiserror",
  "unicode-xid",
 ]
@@ -778,6 +778,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "num-bigint"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93e7820bc0a80a0238e650327316f929ba18d5be054b647490a3a6a339f3e7c0"
+dependencies = [
+ "num-integer",
+ "num-traits",
+]
+
+[[package]]
 name = "num-integer"
 version = "0.1.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -925,7 +935,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cd274650b21d4bfc26a0a47587962c1edb425f69287324355cd040c3ea66071c"
 dependencies = [
  "libc",
- "num-bigint",
+ "num-bigint 0.4.8",
  "num-traits",
  "once_cell",
  "portable-atomic",
