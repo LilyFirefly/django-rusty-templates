@@ -212,6 +212,29 @@ def test_render_for_loop_invalid_parentloop_variable(assert_render):
     assert_render(template=template, context={"y": y}, expected=expected)
 
 
+def test_forloop_argument_no_loop(assert_render_error):
+    template = "{{ missing|default:forloop }}"
+    django_message = snapshot(
+        "Failed lookup for key [forloop] in [{'True': True, 'False': False, 'None': None}, {}]"
+    )
+    rusty_message = snapshot("""\
+  × Failed lookup for key [forloop] in {"False": False, "None": None, "True":
+  │ True}
+   ╭────
+ 1 │ {{ missing|default:forloop }}
+   ·                    ───┬───
+   ·                       ╰── key
+   ╰────
+""")
+    assert_render_error(
+        template=template,
+        context={},
+        exception=VariableDoesNotExist,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
 def test_render_for_loop_parentloop(template_engine):
     template = """
     {% for x in xs %}

@@ -1,0 +1,2 @@
+{% block header %}# Header{% endblock header %}
+{% block body %}{% endblock body %}

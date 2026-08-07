@@ -11,7 +11,7 @@ INSTALLED_APPS = [
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": ["tests/templates"],
+        "DIRS": ["tests/templates", "tests/extra_templates"],
         "OPTIONS": {
             "libraries": {
                 "custom_filters": "tests.templatetags.custom_filters",
@@ -28,7 +28,7 @@ TEMPLATES = [
     },
     {
         "BACKEND": "django_rusty_templates.RustyTemplates",
-        "DIRS": ["tests/templates"],
+        "DIRS": ["tests/templates", "tests/extra_templates"],
         "NAME": "rusty",
         "OPTIONS": {
             "libraries": {
