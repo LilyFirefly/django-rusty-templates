@@ -33,7 +33,7 @@ rust-coverage:
     cargo llvm-cov --no-report
     maturin develop
     pytest
-    cargo llvm-cov report
+    cargo llvm-cov report --workspace
 
 # Generate an HTML Rust coverage report and open it in the browser
 [group('coverage')]
@@ -45,4 +45,4 @@ rust-coverage-browser:
     cargo llvm-cov --no-report
     maturin develop
     pytest
-    cargo llvm-cov report --open
+    cargo llvm-cov report --workspace --open
