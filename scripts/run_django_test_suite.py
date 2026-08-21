@@ -66,8 +66,12 @@ def parse_test_output(output: str) -> tuple[Counter[str], str]:
             continue
         if line.endswith(("ERROR", "FAIL", "ok")):
             line = re.sub(r"<lambda> at 0x.*>", "<lambda> at ..>", line)
-            summary[line.split("... ", maxsplit=1)[1].upper()] += 1
-            lines.append(line.strip())
+            parts = line.split("... ", maxsplit=1)
+            if len(parts) == 2:
+                summary[parts[1].upper()] += 1
+                lines.append(line.strip())
+            else:
+                print(parts)
 
     return summary, "\n".join(
         [_format_passing_test_pct(summary), _format_summary(summary), *sorted(lines)]

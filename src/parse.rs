@@ -1,6 +1,7 @@
 use dtl_lexer::DelimitedToken;
 use num_traits::Zero;
 use std::borrow::Cow;
+use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::iter::Peekable;
 use std::sync::Arc;
@@ -39,7 +40,8 @@ use crate::filters::YesnoFilter;
 use dtl_lexer::common::{LexerError, get_all_at, text_content_at, translated_text_content_at};
 use dtl_lexer::core::{Lexer, TokenType};
 use dtl_lexer::tag::autoescape::{AutoescapeEnabled, AutoescapeError, lex_autoescape_argument};
-use dtl_lexer::tag::common::{TagElementToken, TagElementTokenType};
+use dtl_lexer::tag::block::{BlockLexerError, BlockType, lex_block};
+use dtl_lexer::tag::common::{TagElementLexer, TagElementToken, TagElementTokenType};
 use dtl_lexer::tag::forloop::{ForLexer, ForLexerError, ForLexerInError, ForTokenType};
 use dtl_lexer::tag::ifcondition::{
     IfConditionAtom, IfConditionLexer, IfConditionOperator, IfConditionTokenType,
@@ -62,20 +64,25 @@ use dtl_lexer::variable::{
 };
 use dtl_lexer::{START_TAG_LEN, TemplateContent};
 
+use crate::loaders::Origin;
 use crate::path::{RelativePathError, construct_relative_path};
 use crate::template::django_rusty_templates::Engine;
 use crate::types::Argument;
 use crate::types::ArgumentType;
 use crate::types::ForVariable;
 use crate::types::ForVariableName;
-
 use crate::types::Text;
 use crate::types::TranslatedText;
-use dtl_lexer::types::Variable;
+use crate::types::Variable;
 
 trait Parse<R> {
     fn parse(&self, parser: &Parser) -> Result<R, ParseError>;
 }
+
+pub trait GetBlocks {
+    fn get_blocks(&self) -> Box<dyn Iterator<Item = &Block> + '_>;
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Lorem {
     pub count: TagElement,
@@ -94,7 +101,7 @@ impl Parse<Argument> for ArgumentToken {
         Ok(match *self {
             Self::Variable(at) => Argument {
                 at,
-                argument_type: parser.parse_for_variable(at).into(),
+                argument_type: ArgumentType::Variable(parser.parse_variable(at)?),
             },
             Self::Text(at) => Argument {
                 at,
@@ -126,7 +133,6 @@ pub enum TagElement {
     Text(Text),
     TranslatedText(Text),
     Variable(Variable),
-    ForVariable(ForVariable),
     Filter(Box<Filter>),
 }
 
@@ -288,7 +294,9 @@ impl Parse<TagElement> for TagElementToken {
             TagElementTokenType::TranslatedText => {
                 Ok(TagElement::TranslatedText(Text::new(content_at)))
             }
-            TagElementTokenType::Variable => parser.parse_variable(content, content_at, start),
+            TagElementTokenType::Variable => {
+                parser.parse_variable_or_filter(content, content_at, start)
+            }
         }
     }
 }
@@ -304,7 +312,9 @@ impl Parse<TagElement> for TagElementKwargToken {
             TagElementTokenType::TranslatedText => {
                 Ok(TagElement::TranslatedText(Text::new(content_at)))
             }
-            TagElementTokenType::Variable => parser.parse_variable(content, content_at, start),
+            TagElementTokenType::Variable => {
+                parser.parse_variable_or_filter(content, content_at, start)
+            }
         }
     }
 }
@@ -367,9 +377,30 @@ fn parse_include_template_token(
     let content = parser.template.content(content_at);
     Ok(match token.token_type {
         IncludeTemplateTokenType::Text => IncludeTemplateName::Text(Text::new(content_at)),
-        IncludeTemplateTokenType::Variable => {
-            IncludeTemplateName::Variable(parser.parse_variable(content, content_at, start)?)
+        IncludeTemplateTokenType::Variable => IncludeTemplateName::Variable(
+            parser.parse_variable_or_filter(content, content_at, start)?,
+        ),
+    })
+}
+
+fn parse_extends_template_token(
+    token: TagElementToken,
+    parser: &Parser,
+) -> Result<IncludeTemplateName, ParseError> {
+    let content_at = token.content_at();
+    let (start, _len) = content_at;
+    let content = parser.template.content(content_at);
+    Ok(match token.token_type {
+        TagElementTokenType::Text => IncludeTemplateName::Text(Text::new(content_at)),
+        TagElementTokenType::Variable => IncludeTemplateName::Variable(
+            parser.parse_variable_or_filter(content, content_at, start)?,
+        ),
+        TagElementTokenType::Numeric => {
+            return Err(ParseError::InvalidTemplateName {
+                at: content_at.into(),
+            });
         }
+        TagElementTokenType::TranslatedText => std::todo!(),
     })
 }
 
@@ -434,7 +465,7 @@ fn parse_if_binding_power(
             IfCondition::Variable(TagElement::TranslatedText(Text::new(token_at)))
         }
         IfConditionTokenType::Atom(IfConditionAtom::Variable) => {
-            IfCondition::Variable(parser.parse_variable(content, token_at, token.at.0)?)
+            IfCondition::Variable(parser.parse_variable_or_filter(content, token_at, token.at.0)?)
         }
         IfConditionTokenType::Not => {
             let if_condition = parse_if_binding_power(parser, lexer, NOT_BINDING_POWER, token_at)?;
@@ -592,7 +623,7 @@ fn parse_for_loop(
         ForTokenType::TranslatedText => {
             TagElement::TranslatedText(Text::new(translated_text_content_at(expression_token.at)))
         }
-        ForTokenType::Variable => parser.parse_variable(
+        ForTokenType::Variable => parser.parse_variable_or_filter(
             expression_content,
             expression_token.at,
             expression_token.at.0,
@@ -653,6 +684,50 @@ impl PartialEq for Include {
             && self.template_name.eq(&other.template_name)
             && self.kwargs == other.kwargs
             && Arc::ptr_eq(&self.engine, &other.engine)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Extends {
+    pub template_name: IncludeTemplateName,
+    pub origin: Option<Origin>,
+    pub engine: Arc<Engine>,
+    pub blocks: HashMap<String, Block>,
+}
+
+impl PartialEq for Extends {
+    fn eq(&self, other: &Self) -> bool {
+        // We use `Arc::ptr_eq` here to avoid needing the `py` token for true
+        // equality comparison between two `Py` smart pointers.
+        //
+        // We only use `eq` in tests, so this concession is acceptable here.
+        self.origin == other.origin
+            && self.template_name.eq(&other.template_name)
+            && self.blocks.eq(&other.blocks)
+            && Arc::ptr_eq(&self.engine, &other.engine)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Block {
+    at: At,
+    pub name: String,
+    pub nodes: Vec<TokenTree>,
+}
+
+impl Block {
+    fn nested_blocks(&self) -> Box<dyn Iterator<Item = &Block> + '_> {
+        Box::new(
+            self.nodes
+                .iter()
+                .filter_map(|node| match node {
+                    TokenTree::Tag(Tag::Block(block)) => {
+                        Some(std::iter::once(block).chain(block.nested_blocks()))
+                    }
+                    _ => None,
+                })
+                .flatten(),
+        )
     }
 }
 
@@ -726,11 +801,13 @@ pub enum Tag {
         enabled: AutoescapeEnabled,
         nodes: Vec<TokenTree>,
     },
+    Block(Block),
     If {
         condition: IfCondition,
         truthy: Vec<TokenTree>,
         falsey: Option<Vec<TokenTree>>,
     },
+    Extends(Extends),
     For(For),
     Include(Include),
     Load,
@@ -745,6 +822,42 @@ pub enum Tag {
     TemplateTag(TemplateTag),
 }
 
+impl GetBlocks for Tag {
+    fn get_blocks(&self) -> Box<dyn Iterator<Item = &Block> + '_> {
+        match self {
+            Self::Autoescape { nodes, .. } | Self::SimpleBlockTag(SimpleBlockTag { nodes, .. }) => {
+                nodes.get_blocks()
+            }
+            Self::Block(block) => Box::new(std::iter::once(block)),
+            Self::Extends(_)
+            | Self::Include(_)
+            | Self::Load
+            | Self::SimpleTag(_)
+            | Self::Url(_)
+            | Self::CsrfToken(_)
+            | Self::Lorem(_)
+            | Self::Comment(_)
+            | Self::Now(_)
+            | Self::FirstOf(_)
+            | Self::TemplateTag(_) => Box::new(std::iter::empty()),
+            Self::If { truthy, falsey, .. } => {
+                let truthy_blocks = truthy.get_blocks();
+                match falsey {
+                    Some(falsey) => Box::new(truthy_blocks.chain(falsey.get_blocks())),
+                    None => truthy_blocks,
+                }
+            }
+            Self::For(_for) => {
+                let body_blocks = _for.body.get_blocks();
+                match &_for.empty {
+                    Some(empty) => Box::new(body_blocks.chain(empty.get_blocks())),
+                    None => body_blocks,
+                }
+            }
+        }
+    }
+}
+
 #[derive(PartialEq, Eq)]
 enum EndTagType {
     Autoescape,
@@ -752,6 +865,7 @@ enum EndTagType {
     Else,
     EndIf,
     Empty,
+    EndBlock(Option<String>),
     EndFor,
     Verbatim,
     Custom(String),
@@ -765,6 +879,8 @@ impl EndTagType {
             Self::Else => "else",
             Self::EndIf => "endif",
             Self::Empty => "empty",
+            Self::EndBlock(None) => "'endblock'",
+            Self::EndBlock(Some(name)) => return Cow::Owned(format!("'endblock {name}'")),
             Self::EndFor => "endfor",
             Self::Verbatim => "endverbatim",
             Self::Custom(s) => return Cow::Owned(s.clone()),
@@ -794,7 +910,6 @@ pub enum TokenTree {
     Float(f64),
     Tag(Tag),
     Variable(Variable),
-    ForVariable(ForVariable),
     Filter(Box<Filter>),
 }
 
@@ -804,7 +919,6 @@ impl From<TagElement> for TokenTree {
             TagElement::Text(text) => Self::Text(text),
             TagElement::TranslatedText(text) => Self::TranslatedText(text),
             TagElement::Variable(variable) => Self::Variable(variable),
-            TagElement::ForVariable(variable) => Self::ForVariable(variable),
             TagElement::Filter(filter) => Self::Filter(filter),
             TagElement::Int(n) => Self::Int(n),
             TagElement::Float(f) => Self::Float(f),
@@ -812,21 +926,18 @@ impl From<TagElement> for TokenTree {
     }
 }
 
-impl From<Either<Variable, ForVariable>> for TagElement {
-    fn from(variable: Either<Variable, ForVariable>) -> Self {
-        match variable {
-            Either::Left(v) => Self::Variable(v),
-            Either::Right(v) => Self::ForVariable(v),
+impl GetBlocks for TokenTree {
+    fn get_blocks(&self) -> Box<dyn Iterator<Item = &Block> + '_> {
+        match self {
+            Self::Tag(tag) => tag.get_blocks(),
+            _ => Box::new(std::iter::empty()),
         }
     }
 }
 
-impl From<Either<Variable, ForVariable>> for ArgumentType {
-    fn from(variable: Either<Variable, ForVariable>) -> Self {
-        match variable {
-            Either::Left(v) => Self::Variable(v),
-            Either::Right(v) => Self::ForVariable(v),
-        }
+impl GetBlocks for Vec<TokenTree> {
+    fn get_blocks(&self) -> Box<dyn Iterator<Item = &Block> + '_> {
+        Box::new(self.iter().flat_map(|node| node.get_blocks()))
     }
 }
 
@@ -865,6 +976,9 @@ pub enum ParseError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     AutoescapeError(#[from] AutoescapeError),
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    BlockLexerError(#[from] BlockLexerError),
     #[error(transparent)]
     #[diagnostic(transparent)]
     BlockError(#[from] TagLexerError),
@@ -906,6 +1020,52 @@ pub enum ParseError {
         first_at: SourceSpan,
         #[label("second here")]
         second_at: SourceSpan,
+    },
+    #[error("Cannot use {{{{ block.super }}}} in a base template.")]
+    #[diagnostic(help("Add an {{% extends %}} tag or remove {{{{ block.super }}}}."))]
+    BlockSuperInBaseTemplate {
+        #[label("here")]
+        at: SourceSpan,
+    },
+    #[error("'block' tag with name '{block_name}' appears more than once")]
+    DuplicateBlock {
+        #[label("first here")]
+        old_block_at: SourceSpan,
+        #[label("duplicate here")]
+        new_block_at: SourceSpan,
+        block_name: String,
+    },
+    #[error("block tag must have a name")]
+    MissingBlockName {
+        #[label("here")]
+        at: SourceSpan,
+    },
+    #[error("'extends' cannot appear more than once in the same template")]
+    #[diagnostic(help("Delete one of the 'extends' tags"))]
+    DuplicateExtends {
+        #[label("first extends tag here")]
+        first_at: SourceSpan,
+        #[label("second extends tag here")]
+        second_at: SourceSpan,
+    },
+    #[error("{extends_tag} must be the first tag in {template_name}.")]
+    #[diagnostic(help("Move the extends tag before other tags and variables."))]
+    ExtendsAfterTag {
+        extends_tag: String,
+        #[label("extends tag here")]
+        extends_at: SourceSpan,
+        #[label("first tag here")]
+        first_tag_at: SourceSpan,
+        template_name: String,
+    },
+    #[error(
+        "The relative path '\"{relative_path}\"' was translated to template name '{resolved_path}', the same template in which the tag appears."
+    )]
+    RecursiveExtends {
+        relative_path: String,
+        resolved_path: String,
+        #[label("here")]
+        at: SourceSpan,
     },
     #[error("Invalid filter: '{filter}'")]
     InvalidFilter {
@@ -1072,8 +1232,8 @@ pub enum ParseError {
         at: SourceSpan,
     },
 
-    #[error("Invalid variable name")]
-    InvalidVariableName {
+    #[error("Template name must be a string or a variable")]
+    InvalidTemplateName {
         #[label("here")]
         at: SourceSpan,
     },
@@ -1191,10 +1351,14 @@ pub struct Parser<'t, 'py> {
     template: TemplateString<'t>,
     lexer: Lexer<'t>,
     engine: Arc<Engine>,
-    origin: Option<&'t str>,
+    origin: Option<Origin>,
     external_tags: HashMap<String, TagContext<'py>>,
     external_filters: HashMap<String, Bound<'py, PyAny>>,
     forloop_depth: usize,
+    first_tag: Option<At>,
+    seen_blocks: HashMap<String, At>,
+    seen_extends: bool,
+    in_block: bool,
 }
 
 impl<'t, 'py> Parser<'t, 'py> {
@@ -1202,7 +1366,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         py: Python<'py>,
         template: TemplateString<'t>,
         engine: Arc<Engine>,
-        origin: Option<&'t str>,
+        origin: Option<Origin>,
     ) -> Self {
         Self {
             py,
@@ -1213,6 +1377,10 @@ impl<'t, 'py> Parser<'t, 'py> {
             external_tags: HashMap::new(),
             external_filters: HashMap::new(),
             forloop_depth: 0,
+            first_tag: None,
+            seen_blocks: HashMap::new(),
+            seen_extends: false,
+            in_block: false,
         }
     }
 
@@ -1231,6 +1399,10 @@ impl<'t, 'py> Parser<'t, 'py> {
             external_tags: HashMap::new(),
             external_filters,
             forloop_depth: 0,
+            first_tag: None,
+            seen_blocks: HashMap::new(),
+            seen_extends: false,
+            in_block: false,
         }
     }
 
@@ -1240,11 +1412,24 @@ impl<'t, 'py> Parser<'t, 'py> {
             let node = match token.token_type {
                 TokenType::Text => TokenTree::Text(Text::new(token.at)),
                 TokenType::Comment => continue,
-                TokenType::Variable => self
-                    .parse_variable(token.content(self.template), token.at, token.trimmed_at().0)?
-                    .into(),
+                TokenType::Variable => {
+                    if self.first_tag.is_none() {
+                        self.first_tag = Some(token.at);
+                    }
+                    self.parse_variable_or_filter(
+                        token.content(self.template),
+                        token.at,
+                        token.trimmed_at().0,
+                    )?
+                    .into()
+                }
                 TokenType::Tag => match self.parse_tag(token.content(self.template), token.at)? {
-                    Either::Left(token_tree) => token_tree,
+                    Either::Left(token_tree) => {
+                        if self.first_tag.is_none() {
+                            self.first_tag = Some(token.at);
+                        }
+                        token_tree
+                    }
                     Either::Right(end_tag) => {
                         return Err(ParseError::UnexpectedEndTag {
                             at: end_tag.at.into(),
@@ -1271,7 +1456,11 @@ impl<'t, 'py> Parser<'t, 'py> {
                 TokenType::Text => TokenTree::Text(Text::new(token.at)),
                 TokenType::Comment => continue,
                 TokenType::Variable => self
-                    .parse_variable(token.content(self.template), token.at, token.trimmed_at().0)?
+                    .parse_variable_or_filter(
+                        token.content(self.template),
+                        token.at,
+                        token.trimmed_at().0,
+                    )?
                     .into(),
                 TokenType::Tag => match self.parse_tag(token.content(self.template), token.at)? {
                     Either::Left(token_tree) => token_tree,
@@ -1279,12 +1468,22 @@ impl<'t, 'py> Parser<'t, 'py> {
                         if until.contains(&end_tag.end) {
                             return Ok((nodes, end_tag));
                         }
+                        let expected = match until.len() {
+                            0 => unreachable!(),
+                            1 => until[0].as_cow(),
+                            n => {
+                                let end_tags = until[..n - 1]
+                                    .iter()
+                                    .map(EndTagType::as_cow)
+                                    .collect::<Vec<_>>()
+                                    .join(", ");
+                                let last = until[n - 1].as_cow();
+                                Cow::Owned(format!("{end_tags} or {last}"))
+                            }
+                        }
+                        .to_string();
                         return Err(ParseError::WrongEndTag {
-                            expected: until
-                                .iter()
-                                .map(EndTagType::as_cow)
-                                .collect::<Vec<_>>()
-                                .join(", "),
+                            expected,
                             unexpected: end_tag.as_cow(),
                             at: end_tag.at.into(),
                             start_at: start_at.into(),
@@ -1308,23 +1507,33 @@ impl<'t, 'py> Parser<'t, 'py> {
         .into())
     }
 
-    fn parse_for_variable(&self, at: At) -> Either<Variable, ForVariable> {
+    fn parse_variable(&self, at: At) -> Result<Variable, ParseError> {
         let mut parts = self.template.content(at).split('.');
-        if self.forloop_depth == 0
-            || parts
-                .next()
-                .expect("a variable can always be split into at least one part")
-                .trim()
-                != "forloop"
-        {
-            return Either::Left(Variable::new(at));
+        let first = parts
+            .next()
+            .expect("a variable can always be split into at least one part")
+            .trim();
+        if first == "block" && self.in_block {
+            return match parts.next() {
+                Some(part) if part.trim() == "super" => {
+                    if self.seen_extends {
+                        Ok(Variable::BlockSuper(at))
+                    } else {
+                        Err(ParseError::BlockSuperInBaseTemplate { at: at.into() })
+                    }
+                }
+                _ => Ok(Variable::Variable(at)),
+            };
+        }
+        if self.forloop_depth == 0 || first != "forloop" {
+            return Ok(Variable::Variable(at));
         }
         let Some(part) = parts.next_back() else {
-            return Either::Right(ForVariable {
+            return Ok(Variable::ForVariable(ForVariable {
                 variant: ForVariableName::Object,
                 parent_count: 0,
                 at,
-            });
+            }));
         };
         let variant = match part.trim() {
             "counter" => ForVariableName::Counter,
@@ -1334,12 +1543,12 @@ impl<'t, 'py> Parser<'t, 'py> {
             "first" => ForVariableName::First,
             "last" => ForVariableName::Last,
             "parentloop" => ForVariableName::Object,
-            _ => return Either::Left(Variable::new(at)),
+            _ => return Ok(Variable::Variable(at)),
         };
         let parts: Vec<_> = parts.collect();
         for part in &parts {
             if part.trim() != "parentloop" {
-                return Either::Left(Variable::new(at));
+                return Ok(Variable::Variable(at));
             }
         }
         let mut parent_count = parts.len();
@@ -1347,16 +1556,16 @@ impl<'t, 'py> Parser<'t, 'py> {
             parent_count += 1;
         }
         if parent_count > self.forloop_depth {
-            return Either::Left(Variable::new(at));
+            return Ok(Variable::Variable(at));
         }
-        Either::Right(ForVariable {
+        Ok(Variable::ForVariable(ForVariable {
             variant,
             parent_count,
             at,
-        })
+        }))
     }
 
-    fn parse_variable(
+    fn parse_variable_or_filter(
         &self,
         variable: &str,
         at: At,
@@ -1367,7 +1576,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             return Err(ParseError::EmptyVariable { at: at.into() });
         };
         let mut var = match variable_token {
-            VariableToken::Variable => self.parse_for_variable(at).into(),
+            VariableToken::Variable => TagElement::Variable(self.parse_variable(at)?),
             VariableToken::Int(n) => TagElement::Int(n),
             VariableToken::Float(f) => TagElement::Float(f),
         };
@@ -1426,7 +1635,8 @@ impl<'t, 'py> Parser<'t, 'py> {
             Some(second) => second.map_err(ParseError::from)?,
         };
 
-        let count = self.parse_variable(self.template.content(first.at), first.at, first.at.0)?;
+        let count =
+            self.parse_variable_or_filter(self.template.content(first.at), first.at, first.at.0)?;
         let third = match lexer.next() {
             None => match second.token_type {
                 LoremTokenType::Method(method) => {
@@ -1552,6 +1762,17 @@ impl<'t, 'py> Parser<'t, 'py> {
                 at,
                 parts: None,
             }),
+            "block" => Either::Left(self.parse_block(at, tag.parts)?),
+            "endblock" => {
+                let token = lex_block(self.template, tag.parts, BlockType::End)
+                    .map_err(ParseError::from)?;
+                let name = token.map(|token| self.template.content(token.at).to_string());
+                Either::Right(EndTag {
+                    end: EndTagType::EndBlock(name),
+                    at,
+                    parts: None,
+                })
+            }
             "endverbatim" => Either::Right(EndTag {
                 end: EndTagType::Verbatim,
                 at,
@@ -1589,6 +1810,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             "comment" => Either::Left(TokenTree::Tag(Tag::Comment(
                 self.parse_comment(at, tag.parts)?,
             ))),
+            "extends" => Either::Left(self.parse_extends(at, tag.parts)?),
             "now" => Either::Left(TokenTree::Tag(Tag::Now(self.parse_now(tag.parts)?))),
             "templatetag" => Either::Left(TokenTree::Tag(Tag::TemplateTag(
                 lex_templatetag(self.template, tag.parts).map_err(ParseError::from)?,
@@ -1966,6 +2188,145 @@ impl<'t, 'py> Parser<'t, 'py> {
         Ok(TokenTree::Tag(Tag::Url(url)))
     }
 
+    fn parse_extends(&mut self, at: At, parts: TagParts) -> Result<TokenTree, PyParseError> {
+        if let Some(first_tag_at) = self.first_tag {
+            if self.seen_extends {
+                return Err(ParseError::DuplicateExtends {
+                    first_at: first_tag_at.into(),
+                    second_at: at.into(),
+                }
+                .into());
+            }
+            let template_name = match &self.origin {
+                None => "the template".to_string(),
+                Some(origin) => format!("'{}'", origin.template_name),
+            };
+            return Err(ParseError::ExtendsAfterTag {
+                extends_tag: self.template.content(at).to_string(),
+                extends_at: at.into(),
+                first_tag_at: first_tag_at.into(),
+                template_name,
+            }
+            .into());
+        }
+
+        let mut lexer = TagElementLexer::new(self.template, parts);
+
+        let Some(token) = lexer.next().transpose().map_err(ParseError::from)? else {
+            return Err(ParseError::MissingArgument { at: at.into() }.into());
+        };
+
+        if let Some(token) = lexer.next().transpose().map_err(ParseError::from)? {
+            return Err(ParseError::TooManyPositionalArguments {
+                at: token.at.into(),
+            }
+            .into());
+        }
+
+        self.seen_extends = true;
+        self.first_tag = Some(at);
+
+        let template_name = match parse_extends_template_token(token, self)? {
+            IncludeTemplateName::Text(Text { at }) => {
+                let template_path = self.template.content(at);
+                let origin_name = self
+                    .origin
+                    .as_ref()
+                    .map(|origin| origin.template_name.as_str());
+                match construct_relative_path(template_path, origin_name, at)
+                    .map_err(ParseError::from)?
+                {
+                    Some(path) => {
+                        if let Some(name) = origin_name
+                            && name == path
+                        {
+                            return Err(ParseError::RecursiveExtends {
+                                relative_path: template_path.to_string(),
+                                resolved_path: path.to_string(),
+                                at: at.into(),
+                            }
+                            .into());
+                        }
+                        IncludeTemplateName::Relative(RelativePath {
+                            path: path.into_owned(),
+                            at,
+                        })
+                    }
+                    None => IncludeTemplateName::Text(Text { at }),
+                }
+            }
+            template_name => template_name,
+        };
+
+        let mut blocks = HashMap::new();
+        while let Some(block) = self.next_block()? {
+            blocks.insert(block.name.clone(), block.clone());
+            for nested in block.nested_blocks() {
+                blocks.insert(nested.name.clone(), nested.clone());
+            }
+        }
+
+        let extends = Extends {
+            template_name,
+            origin: self.origin.clone(),
+            engine: self.engine.clone(),
+            blocks,
+        };
+        Ok(TokenTree::Tag(Tag::Extends(extends)))
+    }
+
+    fn next_block(&mut self) -> Result<Option<Block>, PyParseError> {
+        while let Some(token) = self.lexer.next() {
+            match token.token_type {
+                TokenType::Text | TokenType::Comment | TokenType::Variable => continue,
+                TokenType::Tag => match self.parse_tag(token.content(self.template), token.at)? {
+                    Either::Left(token_tree) => match token_tree {
+                        TokenTree::Tag(Tag::Block(block)) => return Ok(Some(block)),
+                        _ => continue,
+                    },
+                    Either::Right(end_tag) => {
+                        return Err(ParseError::UnexpectedEndTag {
+                            at: end_tag.at.into(),
+                            unexpected: end_tag.as_cow(),
+                        }
+                        .into());
+                    }
+                },
+            };
+        }
+        Ok(None)
+    }
+
+    fn parse_block(&mut self, at: At, parts: TagParts) -> Result<TokenTree, PyParseError> {
+        let token = lex_block(self.template, parts, BlockType::Start).map_err(ParseError::from)?;
+        let token = match token {
+            Some(token) => token,
+            None => return Err(ParseError::MissingBlockName { at: at.into() }.into()),
+        };
+        let name = self.template.content(token.at).to_string();
+        match self.seen_blocks.entry(name.clone()) {
+            Entry::Occupied(entry) => {
+                return Err(ParseError::DuplicateBlock {
+                    old_block_at: (*entry.get()).into(),
+                    new_block_at: at.into(),
+                    block_name: name,
+                }
+                .into());
+            }
+            Entry::Vacant(entry) => entry.insert(at),
+        };
+        let until = vec![
+            EndTagType::EndBlock(None),
+            EndTagType::EndBlock(Some(name.clone())),
+        ];
+        let in_block = self.in_block;
+        self.in_block = true;
+        let result = self.parse_until(until, "block".into(), at);
+        self.in_block = in_block;
+        let (nodes, _) = result?;
+        Ok(TokenTree::Tag(Tag::Block(Block { at, name, nodes })))
+    }
+
     fn parse_include(&self, at: At, parts: TagParts) -> Result<TokenTree, ParseError> {
         let mut lexer = IncludeLexer::new(self.template, parts);
         let Some(template_token) = lexer.lex_template()? else {
@@ -1974,7 +2335,11 @@ impl<'t, 'py> Parser<'t, 'py> {
         let template_name = match parse_include_template_token(template_token, self)? {
             IncludeTemplateName::Text(Text { at }) => {
                 let template_path = self.template.content(at);
-                match construct_relative_path(template_path, self.origin, at)? {
+                let origin_name = self
+                    .origin
+                    .as_ref()
+                    .map(|origin| origin.template_name.as_str());
+                match construct_relative_path(template_path, origin_name, at)? {
                     Some(path) => IncludeTemplateName::Relative(RelativePath {
                         path: path.into_owned(),
                         at,
@@ -2027,9 +2392,13 @@ impl<'t, 'py> Parser<'t, 'py> {
                 return Err(ParseError::MissingKeywordArgument { at: with_at.into() });
             }
         }
+        let origin = self
+            .origin
+            .as_ref()
+            .map(|origin| origin.template_name.to_string());
         let include = Include {
             template_name,
-            origin: self.origin.map(ToString::to_string),
+            origin,
             engine: self.engine.clone(),
             kwargs,
             only: only.is_some(),
@@ -2148,6 +2517,7 @@ mod tests {
         template::django_rusty_templates::{Engine, Template},
     };
     use dtl_lexer::common::LexerError;
+    use dtl_lexer::types::PartsIterator;
 
     fn get_external_filter(node: &TokenTree) -> Arc<Py<PyAny>> {
         match node {
@@ -2231,10 +2601,11 @@ mod tests {
             let template = TemplateString("{{ foo }}");
             let mut parser = Parser::new(py, template, Engine::empty().into(), None);
             let nodes = parser.parse().unwrap();
-            let variable = Variable { at: (3, 3) };
+            let variable_at = (3, 3);
+            let variable = Variable::Variable(variable_at);
             assert_eq!(nodes, vec![TokenTree::Variable(variable)]);
             assert_eq!(
-                variable.parts(template).collect::<Vec<_>>(),
+                PartsIterator::new(template, variable_at).collect::<Vec<_>>(),
                 vec![("foo", (3, 3))]
             );
         });
@@ -2248,10 +2619,11 @@ mod tests {
             let template = TemplateString("{{ foo.bar.baz }}");
             let mut parser = Parser::new(py, template, Engine::empty().into(), None);
             let nodes = parser.parse().unwrap();
-            let variable = Variable { at: (3, 11) };
+            let variable_at = (3, 11);
+            let variable = Variable::Variable(variable_at);
             assert_eq!(nodes, vec![TokenTree::Variable(variable)]);
             assert_eq!(
-                variable.parts(template).collect::<Vec<_>>(),
+                PartsIterator::new(template, variable_at).collect::<Vec<_>>(),
                 vec![("foo", (3, 3)), ("bar", (7, 3)), ("baz", (11, 3))]
             );
         });
@@ -2269,7 +2641,8 @@ mod tests {
 
             assert_eq!(nodes.len(), 1);
 
-            let foo = Variable { at: (3, 3) };
+            let foo_at = (3, 3);
+            let foo = Variable::Variable(foo_at);
             let external = get_external_filter(&nodes[0]);
             assert!(external.is_none(py));
             let bar = TokenTree::Filter(Box::new(Filter {
@@ -2283,7 +2656,7 @@ mod tests {
             }));
             assert_eq!(nodes, vec![bar]);
             assert_eq!(
-                foo.parts(template).collect::<Vec<_>>(),
+                PartsIterator::new(template, foo_at).collect::<Vec<_>>(),
                 vec![("foo", (3, 3))]
             );
         });
@@ -2321,7 +2694,7 @@ mod tests {
             let nodes = parser.parse().unwrap();
             assert_eq!(nodes.len(), 1);
 
-            let foo = TagElement::Variable(Variable { at: (3, 3) });
+            let foo = TagElement::Variable(Variable::Variable((3, 3)));
             let external = get_external_filter_tag_element(&nodes[0]);
             assert!(external.is_none(py));
             let bar = TagElement::Filter(Box::new(Filter {
@@ -2359,8 +2732,9 @@ mod tests {
             let nodes = parser.parse().unwrap();
             assert_eq!(nodes.len(), 1);
 
-            let foo = TagElement::Variable(Variable { at: (3, 3) });
-            let baz = Variable { at: (11, 3) };
+            let foo = TagElement::Variable(Variable::Variable((3, 3)));
+            let baz_at = (11, 3);
+            let baz = Variable::Variable(baz_at);
             let external = get_external_filter(&nodes[0]);
             assert!(external.is_none(py));
             let bar = TokenTree::Filter(Box::new(Filter {
@@ -2377,7 +2751,7 @@ mod tests {
             }));
             assert_eq!(nodes, vec![bar]);
             assert_eq!(
-                baz.parts(template).collect::<Vec<_>>(),
+                PartsIterator::new(template, baz_at).collect::<Vec<_>>(),
                 vec![("baz", (11, 3))]
             );
         });
@@ -2393,7 +2767,7 @@ mod tests {
             let mut parser = Parser::new_with_filters(py, template, filters);
             let nodes = parser.parse().unwrap();
 
-            let foo = TagElement::Variable(Variable { at: (3, 3) });
+            let foo = TagElement::Variable(Variable::Variable((3, 3)));
             let baz = Text::new((12, 3));
             let external = get_external_filter(&nodes[0]);
             assert!(external.is_none(py));
@@ -2424,7 +2798,7 @@ mod tests {
             let mut parser = Parser::new_with_filters(py, template, filters);
             let nodes = parser.parse().unwrap();
 
-            let foo = TagElement::Variable(Variable { at: (3, 3) });
+            let foo = TagElement::Variable(Variable::Variable((3, 3)));
             let baz = TranslatedText::new((14, 3));
             let external = get_external_filter(&nodes[0]);
             assert!(external.is_none(py));
@@ -2455,7 +2829,7 @@ mod tests {
             let mut parser = Parser::new_with_filters(py, template.into(), filters);
             let nodes = parser.parse().unwrap();
 
-            let foo = TagElement::Variable(Variable { at: (3, 3) });
+            let foo = TagElement::Variable(Variable::Variable((3, 3)));
             let num = Argument {
                 at: (11, 5),
                 argument_type: ArgumentType::Float(5.2e3),
@@ -2485,7 +2859,7 @@ mod tests {
             let mut parser = Parser::new_with_filters(py, template.into(), filters);
             let nodes = parser.parse().unwrap();
 
-            let foo = TagElement::Variable(Variable { at: (3, 3) });
+            let foo = TagElement::Variable(Variable::Variable((3, 3)));
             let num = Argument {
                 at: (11, 2),
                 argument_type: ArgumentType::Int(99.into()),
@@ -2515,7 +2889,7 @@ mod tests {
             let mut parser = Parser::new_with_filters(py, template.into(), filters);
             let nodes = parser.parse().unwrap();
 
-            let foo = TagElement::Variable(Variable { at: (3, 3) });
+            let foo = TagElement::Variable(Variable::Variable((3, 3)));
             let num = Argument {
                 at: (11, 17),
                 argument_type: ArgumentType::Int("99999999999999999".parse::<BigInt>().unwrap()),
@@ -2582,8 +2956,9 @@ mod tests {
             let mut parser = Parser::new(py, template, Engine::empty().into(), None);
             let nodes = parser.parse().unwrap();
 
-            let foo = TagElement::Variable(Variable { at: (3, 3) });
-            let baz = Variable { at: (15, 3) };
+            let foo = TagElement::Variable(Variable::Variable((3, 3)));
+            let baz_at = (15, 3);
+            let baz = Variable::Variable(baz_at);
             let bar = TokenTree::Filter(Box::new(Filter {
                 at: (7, 7),
                 all_at: (3, 11),
@@ -2598,7 +2973,7 @@ mod tests {
             }));
             assert_eq!(nodes, vec![bar]);
             assert_eq!(
-                baz.parts(template).collect::<Vec<_>>(),
+                PartsIterator::new(template, baz_at).collect::<Vec<_>>(),
                 vec![("baz", (15, 3))]
             );
         });
@@ -2734,7 +3109,7 @@ mod tests {
 
             let url = TokenTree::Tag(Tag::Url(Url {
                 at: (0, 24),
-                view_name: TagElement::Variable(Variable { at: (7, 14) }),
+                view_name: TagElement::Variable(Variable::Variable((7, 14))),
                 args: vec![],
                 kwargs: vec![],
                 asvar: None,
@@ -2753,7 +3128,7 @@ mod tests {
             let mut parser = Parser::new(py, template.into(), Engine::empty().into(), None);
             let nodes = parser.parse().unwrap();
 
-            let some_view_name = TagElement::Variable(Variable { at: (7, 14) });
+            let some_view_name = TagElement::Variable(Variable::Variable((7, 14)));
             let home = Text { at: (31, 4) };
             let default = Box::new(Filter {
                 at: (22, 7),
@@ -2823,13 +3198,13 @@ mod tests {
 
             let url = TokenTree::Tag(Tag::Url(Url {
                 at: (0, 66),
-                view_name: TagElement::Variable(Variable { at: (7, 14) }),
+                view_name: TagElement::Variable(Variable::Variable((7, 14))),
                 args: vec![
                     TagElement::Text(Text { at: (23, 3) }),
                     TagElement::Filter(Box::new(Filter {
                         at: (32, 7),
                         all_at: (28, 11),
-                        left: TagElement::Variable(Variable { at: (28, 3) }),
+                        left: TagElement::Variable(Variable::Variable((28, 3))),
                         filter: FilterType::Default(DefaultFilter::new(
                             Argument {
                                 at: (40, 6),
@@ -2861,7 +3236,7 @@ mod tests {
 
             let url = TokenTree::Tag(Tag::Url(Url {
                 at: (0, 44),
-                view_name: TagElement::Variable(Variable { at: (7, 14) }),
+                view_name: TagElement::Variable(Variable::Variable((7, 14))),
                 args: vec![],
                 kwargs: vec![
                     ("foo".to_string(), TagElement::Text(Text { at: (27, 3) })),
@@ -2885,7 +3260,7 @@ mod tests {
 
             let url = TokenTree::Tag(Tag::Url(Url {
                 at: (0, 42),
-                view_name: TagElement::Variable(Variable { at: (7, 14) }),
+                view_name: TagElement::Variable(Variable::Variable((7, 14))),
                 args: vec![TagElement::Text(Text { at: (23, 3) })],
                 kwargs: vec![],
                 asvar: Some("some_url".to_string()),
@@ -2906,7 +3281,7 @@ mod tests {
 
             let url = TokenTree::Tag(Tag::Url(Url {
                 at: (0, 46),
-                view_name: TagElement::Variable(Variable { at: (7, 14) }),
+                view_name: TagElement::Variable(Variable::Variable((7, 14))),
                 args: vec![],
                 kwargs: vec![("foo".to_string(), TagElement::Text(Text { at: (27, 3) }))],
                 asvar: Some("some_url".to_string()),
@@ -2927,11 +3302,11 @@ mod tests {
 
             let url = TokenTree::Tag(Tag::Url(Url {
                 at: (0, 39),
-                view_name: TagElement::Variable(Variable { at: (7, 14) }),
+                view_name: TagElement::Variable(Variable::Variable((7, 14))),
                 args: vec![
                     TagElement::Text(Text { at: (23, 3) }),
-                    TagElement::Variable(Variable { at: (28, 3) }),
-                    TagElement::Variable(Variable { at: (32, 4) }),
+                    TagElement::Variable(Variable::Variable((28, 3))),
+                    TagElement::Variable(Variable::Variable((32, 4))),
                 ],
                 kwargs: vec![],
                 asvar: None,
@@ -3077,6 +3452,30 @@ mod tests {
                     only: false,
                     kwargs: Vec::new(),
                     engine,
+                },
+            );
+        });
+    }
+
+    #[test]
+    fn test_extends_tag_partial_eq() {
+        Python::initialize();
+
+        Python::attach(|_| {
+            let engine: Arc<Engine> = Engine::empty().into();
+            let template_name = IncludeTemplateName::Variable(TagElement::Float(1.1));
+            assert_eq!(
+                Extends {
+                    template_name: template_name.clone(),
+                    origin: None,
+                    engine: engine.clone(),
+                    blocks: HashMap::new(),
+                },
+                Extends {
+                    template_name,
+                    origin: None,
+                    engine,
+                    blocks: HashMap::new(),
                 },
             );
         });
