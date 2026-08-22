@@ -652,6 +652,7 @@ impl Render for Tag {
         context: &mut Context,
     ) -> RenderResult<'t> {
         Ok(match self {
+            Self::Cycle(_) => todo!("cycle rendering"),
             Self::Autoescape { enabled, nodes } => {
                 let autoescape = context.autoescape;
                 context.autoescape = enabled.into();
