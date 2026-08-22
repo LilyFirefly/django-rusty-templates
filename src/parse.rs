@@ -721,6 +721,11 @@ pub struct FirstOf {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct Cycle {
+    pub values: Vec<TagElement>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum Tag {
     Autoescape {
         enabled: AutoescapeEnabled,
@@ -743,6 +748,7 @@ pub enum Tag {
     Now(Now),
     FirstOf(FirstOf),
     TemplateTag(TemplateTag),
+    Cycle(Cycle)
 }
 
 #[derive(PartialEq, Eq)]
@@ -1534,6 +1540,10 @@ impl<'t, 'py> Parser<'t, 'py> {
         Ok(TokenTree::Tag(Tag::FirstOf(FirstOf { vars, asvar })))
     }
 
+    fn parse_cycle(&self, _parts:TagParts) -> Result<Cycle, PyParseError> {
+        todo!("cycle parsing")
+    }
+
     fn parse_tag(
         &mut self,
         tag: &'t str,
@@ -1593,6 +1603,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             "templatetag" => Either::Left(TokenTree::Tag(Tag::TemplateTag(
                 lex_templatetag(self.template, tag.parts).map_err(ParseError::from)?,
             ))),
+            "cycle" => Either::Left(TokenTree::Tag(Tag::Cycle(self.parse_cycle(tag.parts)?))),
             tag_name => match self.external_tags.get(tag_name) {
                 Some(TagContext::Simple(context)) => {
                     Either::Left(self.parse_simple_tag(context, at, tag.parts)?)
