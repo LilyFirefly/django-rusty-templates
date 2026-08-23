@@ -167,6 +167,40 @@ def test_named_cycle_sets_missing_context_variable_to_empty(assert_render):
     )
 
 
+def test_cycle_value_resolution_error(assert_render_error):
+    def broken():
+        raise ValueError("cycle resolution error")
+
+    assert_render_error(
+        template="{% cycle broken 'fallback' %}",
+        context={"broken": broken},
+        exception=ValueError,
+        django_message=snapshot("cycle resolution error"),
+        rusty_message=snapshot("""\
+  × cycle resolution error
+   ╭────
+ 1 │ {% cycle broken 'fallback' %}
+   ·          ───┬──
+   ·             ╰── here
+   ╰────
+"""),
+    )
+
+
+def test_cycle_value_rendering_error(assert_render_error):
+    class Unstringable:
+        def __str__(self):
+            raise ValueError("cycle rendering error")
+
+    assert_render_error(
+        template="{% cycle value 'fallback' %}",
+        context={"value": Unstringable()},
+        exception=ValueError,
+        django_message=snapshot("cycle rendering error"),
+        rusty_message=snapshot("cycle rendering error"),
+    )
+
+
 def test_named_cycle_silent(assert_render):
     template = (
         "{% cycle 'a' 'b' 'c' as abc silent %}"
