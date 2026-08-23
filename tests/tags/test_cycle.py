@@ -177,3 +177,44 @@ def test_invalid_cycle_flag_error(assert_parse_error):
   help: Only the 'silent' flag is allowed here.
 """),
     )
+
+
+def test_named_cycle_autoescapes_values(assert_render):
+    assert_render(
+        template="{% cycle first second as current %} &amp; {% cycle current %}",
+        context={
+            "first": "A & B",
+            "second": "C & D",
+        },
+        expected="A &amp; B &amp; C &amp; D",
+    )
+
+
+def test_named_cycle_respects_autoescape_off(assert_render):
+    assert_render(
+        template=(
+            "{% autoescape off %}"
+            "{% cycle first second as current %}"
+            "{% cycle current %}"
+            "{% endautoescape %}"
+        ),
+        context={
+            "first": "<",
+            "second": ">",
+        },
+        expected="<>",
+    )
+
+
+def test_named_cycle_preserves_safe_value(assert_render):
+    assert_render(
+        template=(
+            "{% cycle first|safe second as current %}"
+            "{% cycle current %}"
+        ),
+        context={
+            "first": "<",
+            "second": ">",
+        },
+        expected="<&gt;",
+    )
