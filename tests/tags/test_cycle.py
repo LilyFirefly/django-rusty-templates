@@ -92,3 +92,23 @@ def test_named_cycle(assert_render):
         context={},
         expected="ab",
     )
+
+
+def test_named_cycle_references_share_state(assert_render):
+    template = (
+        "{% cycle 'a' 'b' 'c' as abc %}{% cycle abc %}{% cycle abc %}{% cycle abc %}"
+    )
+
+    assert_render(
+        template=template,
+        context={},
+        expected="abca",
+    )
+
+
+def test_named_cycle_sets_context_variable(assert_render):
+    assert_render(
+        template="{% cycle 'a' 'b' as current %}{{ current }}",
+        context={},
+        expected="aa",
+    )

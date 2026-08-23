@@ -730,6 +730,7 @@ pub struct FirstOf {
 pub struct Cycle {
     pub id: CycleId,
     pub values: Vec<TagElement>,
+    pub asvar: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1585,6 +1586,7 @@ impl<'t, 'py> Parser<'t, 'py> {
                 ..
             } => {
                 let mut values = Vec::new();
+                let asvar = name.map(|name_at| self.template.content(name_at).to_string());
 
                 for token in tokens {
                     let value = token.parse(self)?;
@@ -1592,10 +1594,13 @@ impl<'t, 'py> Parser<'t, 'py> {
                 }
 
                 let id = CycleId(NEXT_CYCLE_ID.fetch_add(1, Ordering::Relaxed));
-                let cycle = Cycle { id, values };
+                let cycle = Cycle {
+                    id,
+                    values,
+                    asvar: asvar.clone(),
+                };
 
-                if let Some(name_at) = name {
-                    let name = self.template.content(name_at).to_string();
+                if let Some(name) = asvar {
                     self.named_cycles.insert(name, cycle.clone());
                 }
 

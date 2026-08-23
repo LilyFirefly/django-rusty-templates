@@ -1404,6 +1404,20 @@ impl Render for Cycle {
         }
         let index = context.next_cycle_index(self.id, self.values.len());
         let value = &self.values[index];
-        value.render(py, template, context)
+        let content = value.resolve(py, template, context, ResolveFailures::Raise)?;
+
+        let Some(content) = content else {
+            if let Some(asvar) = &self.asvar {
+                context.insert(asvar.clone(), PyString::new(py, "").into_any());
+            }
+
+            return Ok(Cow::Borrowed(""));
+        };
+
+        if let Some(asvar) = &self.asvar {
+            context.insert(asvar.clone(), content.to_py(py));
+        }
+
+        Ok(content.render(context)?)
     }
 }
