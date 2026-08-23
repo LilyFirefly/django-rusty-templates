@@ -1,5 +1,6 @@
 pub mod autoescape;
 pub mod common;
+pub mod cycle;
 pub mod forloop;
 pub mod ifcondition;
 pub mod include;

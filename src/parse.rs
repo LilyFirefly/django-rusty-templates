@@ -40,7 +40,8 @@ use crate::filters::YesnoFilter;
 use dtl_lexer::common::{LexerError, get_all_at, text_content_at, translated_text_content_at};
 use dtl_lexer::core::{Lexer, TokenType};
 use dtl_lexer::tag::autoescape::{AutoescapeEnabled, AutoescapeError, lex_autoescape_argument};
-use dtl_lexer::tag::common::{TagElementLexer, TagElementToken, TagElementTokenType};
+use dtl_lexer::tag::common::{TagElementToken, TagElementTokenType};
+use dtl_lexer::tag::cycle::{CycleArguments, CycleLexer};
 use dtl_lexer::tag::forloop::{ForLexer, ForLexerError, ForLexerInError, ForTokenType};
 use dtl_lexer::tag::ifcondition::{
     IfConditionAtom, IfConditionLexer, IfConditionOperator, IfConditionTokenType,
@@ -877,6 +878,13 @@ pub enum ParseError {
         #[label("here")]
         at: SourceSpan,
     },
+    #[error("Unknown named cycle '{name}'")]
+    #[diagnostic(help("Define the named cycle earlier using the 'as' form."))]
+    UnknownNamedCycle {
+        name: String,
+        #[label("unknown cycle")]
+        at: SourceSpan,
+    },
     #[error(transparent)]
     #[diagnostic(transparent)]
     AutoescapeError(#[from] AutoescapeError),
@@ -1210,6 +1218,7 @@ pub struct Parser<'t, 'py> {
     external_tags: HashMap<String, TagContext<'py>>,
     external_filters: HashMap<String, Bound<'py, PyAny>>,
     forloop_depth: usize,
+    named_cycles: HashMap<String, Cycle>,
 }
 
 impl<'t, 'py> Parser<'t, 'py> {
@@ -1228,6 +1237,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             external_tags: HashMap::new(),
             external_filters: HashMap::new(),
             forloop_depth: 0,
+            named_cycles: HashMap::new(),
         }
     }
 
@@ -1246,6 +1256,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             external_tags: HashMap::new(),
             external_filters,
             forloop_depth: 0,
+            named_cycles: HashMap::new(),
         }
     }
 
@@ -1549,20 +1560,48 @@ impl<'t, 'py> Parser<'t, 'py> {
         Ok(TokenTree::Tag(Tag::FirstOf(FirstOf { vars, asvar })))
     }
 
-    fn parse_cycle(&self, parts: TagParts) -> Result<Cycle, ParseError> {
+    fn parse_cycle(&mut self, parts: TagParts) -> Result<Cycle, ParseError> {
         let at = parts.at;
-        let mut values = Vec::new();
-        let lexer = TagElementLexer::new(self.template, parts);
-        for item in lexer {
-            let token = item?;
-            let value = token.parse(self)?;
-            values.push(value);
-        }
-        if values.is_empty() {
+
+        let Some(arguments) = CycleLexer::new(self.template, parts).lex()? else {
             return Err(ParseError::MissingArgument { at: at.into() });
+        };
+
+        match arguments {
+            CycleArguments::Reference { name } => {
+                let name_text = self.template.content(name);
+
+                self.named_cycles.get(name_text).cloned().ok_or_else(|| {
+                    ParseError::UnknownNamedCycle {
+                        name: name_text.to_string(),
+                        at: name.into(),
+                    }
+                })
+            }
+
+            CycleArguments::Definition {
+                values: tokens,
+                name,
+                ..
+            } => {
+                let mut values = Vec::new();
+
+                for token in tokens {
+                    let value = token.parse(self)?;
+                    values.push(value);
+                }
+
+                let id = CycleId(NEXT_CYCLE_ID.fetch_add(1, Ordering::Relaxed));
+                let cycle = Cycle { id, values };
+
+                if let Some(name_at) = name {
+                    let name = self.template.content(name_at).to_string();
+                    self.named_cycles.insert(name, cycle.clone());
+                }
+
+                Ok(cycle)
+            }
         }
-        let id = CycleId(NEXT_CYCLE_ID.fetch_add(1, Ordering::Relaxed));
-        Ok(Cycle { id, values })
     }
 
     fn parse_tag(

@@ -84,3 +84,11 @@ def test_cycle_missing_argument_error(assert_parse_error):
    ╰────
 """),
     )
+
+
+def test_named_cycle(assert_render):
+    assert_render(
+        template="{% cycle 'a' 'b' 'c' as abc %}{% cycle abc %}",
+        context={},
+        expected="ab",
+    )
