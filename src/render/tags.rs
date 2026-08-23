@@ -1399,9 +1399,6 @@ impl Render for Cycle {
         template: TemplateString<'t>,
         context: &mut Context,
     ) -> RenderResult<'t> {
-        if self.values.is_empty() {
-            return Ok(Cow::Borrowed(""));
-        }
         let index = context.next_cycle_index(self.id, self.values.len());
         let value = &self.values[index];
         let content = value.resolve(py, template, context, ResolveFailures::Raise)?;
