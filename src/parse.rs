@@ -4,6 +4,7 @@ use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::iter::Peekable;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use either::Either;
 use miette::{Diagnostic, SourceSpan};
@@ -39,7 +40,7 @@ use crate::filters::YesnoFilter;
 use dtl_lexer::common::{LexerError, get_all_at, text_content_at, translated_text_content_at};
 use dtl_lexer::core::{Lexer, TokenType};
 use dtl_lexer::tag::autoescape::{AutoescapeEnabled, AutoescapeError, lex_autoescape_argument};
-use dtl_lexer::tag::common::{TagElementToken, TagElementTokenType};
+use dtl_lexer::tag::common::{TagElementLexer, TagElementToken, TagElementTokenType};
 use dtl_lexer::tag::forloop::{ForLexer, ForLexerError, ForLexerInError, ForTokenType};
 use dtl_lexer::tag::ifcondition::{
     IfConditionAtom, IfConditionLexer, IfConditionOperator, IfConditionTokenType,
@@ -72,6 +73,10 @@ use crate::types::ForVariableName;
 use crate::types::Text;
 use crate::types::TranslatedText;
 use dtl_lexer::types::Variable;
+
+// Assign each compiled cycle node a unique ID so its current position can be
+// stored per render in Context without interfering with other cycle nodes.
+static NEXT_CYCLE_ID: AtomicUsize = AtomicUsize::new(0);
 
 trait Parse<R> {
     fn parse(&self, parser: &Parser) -> Result<R, ParseError>;
@@ -722,8 +727,12 @@ pub struct FirstOf {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Cycle {
+    pub id: CycleId,
     pub values: Vec<TagElement>,
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct CycleId(usize);
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Tag {
@@ -748,7 +757,7 @@ pub enum Tag {
     Now(Now),
     FirstOf(FirstOf),
     TemplateTag(TemplateTag),
-    Cycle(Cycle)
+    Cycle(Cycle),
 }
 
 #[derive(PartialEq, Eq)]
@@ -1540,8 +1549,16 @@ impl<'t, 'py> Parser<'t, 'py> {
         Ok(TokenTree::Tag(Tag::FirstOf(FirstOf { vars, asvar })))
     }
 
-    fn parse_cycle(&self, _parts:TagParts) -> Result<Cycle, PyParseError> {
-        todo!("cycle parsing")
+    fn parse_cycle(&self, parts: TagParts) -> Result<Cycle, ParseError> {
+        let mut values = Vec::new();
+        let lexer = TagElementLexer::new(self.template, parts);
+        for item in lexer {
+            let token = item?;
+            let value = token.parse(self)?;
+            values.push(value);
+        }
+        let id = CycleId(NEXT_CYCLE_ID.fetch_add(1, Ordering::Relaxed));
+        Ok(Cycle { id, values })
     }
 
     fn parse_tag(
