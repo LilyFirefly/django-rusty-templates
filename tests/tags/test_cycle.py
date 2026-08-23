@@ -144,3 +144,36 @@ def test_named_cycle_silent(assert_render):
         context={},
         expected="",
     )
+
+
+def test_silent_named_cycle_sets_context_variable(assert_render):
+    template = (
+        "{% for item in items %}"
+        "{% cycle 'a' 'b' 'c' as abc silent %}"
+        "{{ abc }}{{ item }}"
+        "{% endfor %}"
+    )
+
+    assert_render(
+        template=template,
+        context={"items": [1, 2, 3, 4]},
+        expected="a1b2c3a4",
+    )
+
+
+def test_invalid_cycle_flag_error(assert_parse_error):
+    assert_parse_error(
+        template="{% cycle 'a' 'b' 'c' as abc invalid_flag %}",
+        django_message=(
+            "Only 'silent' flag is allowed after cycle's name, not 'invalid_flag'."
+        ),
+        rusty_message=snapshot("""\
+  × Invalid flag 'invalid_flag' after cycle name
+   ╭────
+ 1 │ {% cycle 'a' 'b' 'c' as abc invalid_flag %}
+   ·                             ──────┬─────
+   ·                                   ╰── invalid flag
+   ╰────
+  help: Only the 'silent' flag is allowed here.
+"""),
+    )

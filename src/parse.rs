@@ -41,7 +41,7 @@ use dtl_lexer::common::{LexerError, get_all_at, text_content_at, translated_text
 use dtl_lexer::core::{Lexer, TokenType};
 use dtl_lexer::tag::autoescape::{AutoescapeEnabled, AutoescapeError, lex_autoescape_argument};
 use dtl_lexer::tag::common::{TagElementToken, TagElementTokenType};
-use dtl_lexer::tag::cycle::{CycleArguments, CycleLexer};
+use dtl_lexer::tag::cycle::{CycleArguments, CycleLexer, CycleLexerError};
 use dtl_lexer::tag::forloop::{ForLexer, ForLexerError, ForLexerInError, ForTokenType};
 use dtl_lexer::tag::ifcondition::{
     IfConditionAtom, IfConditionLexer, IfConditionOperator, IfConditionTokenType,
@@ -896,6 +896,9 @@ pub enum ParseError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     LexerError(#[from] LexerError),
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    CycleLexerError(#[from] CycleLexerError),
     #[error(transparent)]
     #[diagnostic(transparent)]
     ForLexerError(#[from] ForLexerError),
