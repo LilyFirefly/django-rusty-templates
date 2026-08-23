@@ -86,6 +86,22 @@ def test_cycle_missing_argument_error(assert_parse_error):
     )
 
 
+def test_unknown_named_cycle_error(assert_parse_error):
+    assert_parse_error(
+        template="{% cycle missing %}",
+        django_message="No named cycles in template. 'missing' is not defined",
+        rusty_message=snapshot("""\
+  × Unknown named cycle 'missing'
+   ╭────
+ 1 │ {% cycle missing %}
+   ·          ───┬───
+   ·             ╰── unknown cycle
+   ╰────
+  help: Define the named cycle earlier using the 'as' form.
+"""),
+    )
+
+
 def test_named_cycle(assert_render):
     assert_render(
         template="{% cycle 'a' 'b' 'c' as abc %}{% cycle abc %}",
@@ -111,4 +127,20 @@ def test_named_cycle_sets_context_variable(assert_render):
         template="{% cycle 'a' 'b' as current %}{{ current }}",
         context={},
         expected="aa",
+    )
+
+
+def test_named_cycle_silent(assert_render):
+    template = (
+        "{% cycle 'a' 'b' 'c' as abc silent %}"
+        "{% cycle abc %}"
+        "{% cycle abc %}"
+        "{% cycle abc %}"
+        "{% cycle abc %}"
+    )
+
+    assert_render(
+        template=template,
+        context={},
+        expected="",
     )

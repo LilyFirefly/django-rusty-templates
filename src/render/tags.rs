@@ -1418,6 +1418,10 @@ impl Render for Cycle {
             context.insert(asvar.clone(), content.to_py(py));
         }
 
+        if self.silent {
+            return Ok(Cow::Borrowed(""));
+        }
+
         Ok(content.render(context)?)
     }
 }

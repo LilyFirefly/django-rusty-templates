@@ -39,21 +39,29 @@ impl<'t> CycleLexer<'t> {
             1 => Ok(Some(CycleArguments::Reference { name: tokens[0].at })),
             _ => {
                 let named_suffix = match tokens.as_slice() {
+                    [values @ .., as_token, name_token, silent_token]
+                        if values.len() >= 2
+                            && self.template.content(as_token.at) == "as"
+                            && self.template.content(silent_token.at) == "silent" =>
+                    {
+                        Some((values.len(), name_token.at, true))
+                    }
+
                     [values @ .., as_token, name_token]
                         if values.len() >= 2 && self.template.content(as_token.at) == "as" =>
                     {
-                        Some((values.len(), name_token.at))
+                        Some((values.len(), name_token.at, false))
                     }
                     _ => None,
                 };
 
-                if let Some((value_count, name)) = named_suffix {
+                if let Some((value_count, name, silent)) = named_suffix {
                     tokens.truncate(value_count);
 
                     Ok(Some(CycleArguments::Definition {
                         values: tokens,
                         name: Some(name),
-                        silent: false,
+                        silent,
                     }))
                 } else {
                     Ok(Some(CycleArguments::Definition {

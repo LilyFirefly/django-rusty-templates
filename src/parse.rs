@@ -731,6 +731,7 @@ pub struct Cycle {
     pub id: CycleId,
     pub values: Vec<TagElement>,
     pub asvar: Option<String>,
+    pub silent: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1583,7 +1584,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             CycleArguments::Definition {
                 values: tokens,
                 name,
-                ..
+                silent,
             } => {
                 let mut values = Vec::new();
                 let asvar = name.map(|name_at| self.template.content(name_at).to_string());
@@ -1598,6 +1599,7 @@ impl<'t, 'py> Parser<'t, 'py> {
                     id,
                     values,
                     asvar: asvar.clone(),
+                    silent,
                 };
 
                 if let Some(name) = asvar {
