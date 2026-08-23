@@ -218,3 +218,30 @@ def test_named_cycle_preserves_safe_value(assert_render):
         },
         expected="<&gt;",
     )
+
+
+def test_named_cycle_can_be_called_silent(assert_render):
+    assert_render(
+        template="{% cycle 'a' 'b' as silent %}{% cycle silent %}",
+        context={},
+        expected="ab",
+    )
+
+
+def test_unknown_named_cycle_after_definition_error(assert_parse_error):
+    assert_parse_error(
+        template=(
+            "{% cycle 'a' 'b' as existing %}"
+            "{% cycle missing %}"
+        ),
+        django_message="Named cycle 'missing' does not exist",
+        rusty_message=snapshot("""\
+  × Unknown named cycle 'missing'
+   ╭────
+ 1 │ {% cycle 'a' 'b' as existing %}{% cycle missing %}
+   ·                                         ───┬───
+   ·                                            ╰── unknown cycle
+   ╰────
+  help: Define the named cycle earlier using the 'as' form.
+"""),
+    )
