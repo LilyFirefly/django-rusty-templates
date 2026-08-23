@@ -1550,12 +1550,16 @@ impl<'t, 'py> Parser<'t, 'py> {
     }
 
     fn parse_cycle(&self, parts: TagParts) -> Result<Cycle, ParseError> {
+        let at = parts.at;
         let mut values = Vec::new();
         let lexer = TagElementLexer::new(self.template, parts);
         for item in lexer {
             let token = item?;
             let value = token.parse(self)?;
             values.push(value);
+        }
+        if values.is_empty() {
+            return Err(ParseError::MissingArgument { at: at.into() });
         }
         let id = CycleId(NEXT_CYCLE_ID.fetch_add(1, Ordering::Relaxed));
         Ok(Cycle { id, values })
