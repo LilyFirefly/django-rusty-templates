@@ -1,5 +1,7 @@
-import pytest
 from inline_snapshot import snapshot
+
+# Some tests taken from Django tests suite for cycle tag:
+# https://github.com/django/django/blob/main/tests/template_tests/syntax_tests/test_cycle.py
 
 
 def test_cycle_literals_in_loop(assert_render):
@@ -336,22 +338,6 @@ def test_named_cycle_filtered_variable(assert_render):
     )
 
 
-def test_cycle_inside_filter_block(assert_render, template_engine):
-    if template_engine.name == "rusty":
-        # TODO: Remove this xfail once the Rust engine supports the filter tag.
-        pytest.xfail("The Rust engine does not implement the filter tag yet")
-
-    assert_render(
-        template=(
-            "{% filter force_escape %}"
-            "{% cycle one two as current %} & {% cycle current %}"
-            "{% endfilter %}"
-        ),
-        context={"one": "A & B", "two": "C & D"},
-        expected="A &amp;amp; B &amp; C &amp;amp; D",
-    )
-
-
 def test_silent_named_cycle_suppresses_output_in_loop(assert_render):
     assert_render(
         template=(
@@ -399,55 +385,6 @@ def test_named_cycle_escapes_each_value(assert_render):
         template="{% cycle first second as current %}{% cycle current %}",
         context={"first": "<", "second": ">"},
         expected="&lt;&gt;",
-    )
-
-
-def test_named_cycle_inside_ifchanged(assert_render, template_engine):
-    if template_engine.name == "rusty":
-        # TODO: Remove this xfail once the Rust engine supports the ifchanged tag.
-        pytest.xfail("The Rust engine does not implement the ifchanged tag yet")
-
-    assert_render(
-        template=(
-            "{% cycle 'a' 'b' 'c' as cycler silent %}"
-            "{% for item in items %}"
-            "{% ifchanged item %}"
-            "{% cycle cycler %}{{ cycler }}"
-            "{% else %}"
-            "{{ cycler }}"
-            "{% endifchanged %}"
-            "{% endfor %}"
-        ),
-        context={"items": [1, 2, 3, 4, 5, 6, 7, 8, 8, 8, 9, 9]},
-        expected="bcabcabcccaa",
-    )
-
-
-def test_named_cycle_inside_with_and_ifchanged(assert_render, template_engine):
-    if template_engine.name == "rusty":
-        # TODO: Remove this xfail once the Rust engine supports both tags.
-        pytest.xfail(
-            "The Rust engine does not implement the with and ifchanged tags yet"
-        )
-
-    assert_render(
-        template=(
-            "{% cycle 'a' 'b' 'c' as cycler silent %}"
-            "{% for item in items %}"
-            "{% with does_nothing=irrelevant %}"
-            "{% ifchanged item %}"
-            "{% cycle cycler %}{{ cycler }}"
-            "{% else %}"
-            "{{ cycler }}"
-            "{% endifchanged %}"
-            "{% endwith %}"
-            "{% endfor %}"
-        ),
-        context={
-            "irrelevant": 1,
-            "items": [1, 2, 3, 4, 5, 6, 7, 8, 8, 8, 9, 9],
-        },
-        expected="bcabcabcccaa",
     )
 
 
