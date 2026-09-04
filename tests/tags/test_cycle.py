@@ -1,7 +1,7 @@
 from inline_snapshot import snapshot
 
 # Some tests taken from Django tests suite for cycle tag:
-# https://github.com/django/django/blob/main/tests/template_tests/syntax_tests/test_cycle.py
+# https://github.com/django/django/blob/stable/5.2.x/tests/template_tests/syntax_tests/test_cycle.py
 
 
 def test_cycle_literals_in_loop(assert_render):
