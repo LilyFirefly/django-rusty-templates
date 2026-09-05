@@ -83,6 +83,11 @@ def main():
         type=Path,
         help="The file to write parsed output to",
     )
+    parser.add_argument(
+        "tests",
+        nargs="*",
+        default=["template_tests", "template_loader"],
+    )
     args = parser.parse_args()
     if not DJANGO_REPO_CACHE.exists():
         log(f"Cloning Django repository at {DJANGO_REPO_CACHE}...")
@@ -112,14 +117,7 @@ def main():
     log("Running Django's template test suite...")
 
     result = subprocess.run(
-        [
-            "python",
-            "runtests.py",
-            "--parallel=1",
-            "-v=2",
-            "template_tests",
-            "template_loader",
-        ],
+        ["python", "runtests.py", "--parallel=1", "-v=2", *args.tests],
         cwd=DJANGO_REPO_CACHE / "tests",
         # Ensure the cloned Django repo takes precedence over installed Django
         env={**os.environ, "PYTHONPATH": str(DJANGO_REPO_CACHE)},
