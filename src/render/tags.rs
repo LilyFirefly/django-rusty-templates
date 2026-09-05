@@ -21,8 +21,8 @@ use super::types::{
 use super::{Evaluate, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
 use crate::parse::{
-    CsrfToken, FirstOf, For, IfCondition, Include, IncludeTemplateName, Lorem, SimpleBlockTag,
-    SimpleTag, Tag, TagElement, Url,
+    CsrfToken, Cycle, FirstOf, For, IfCondition, Include, IncludeTemplateName, Lorem,
+    SimpleBlockTag, SimpleTag, Tag, TagElement, Url,
 };
 use crate::path::construct_relative_path;
 use crate::template::django_rusty_templates::{NoReverseMatch, Template, TemplateDoesNotExist};
@@ -652,6 +652,7 @@ impl Render for Tag {
         context: &mut Context,
     ) -> RenderResult<'t> {
         Ok(match self {
+            Self::Cycle(cycle) => cycle.render(py, template, context)?,
             Self::Autoescape { enabled, nodes } => {
                 let autoescape = context.autoescape;
                 context.autoescape = enabled.into();
@@ -1388,5 +1389,36 @@ impl Render for FirstOf {
             context.insert(asvar.to_string(), PyString::new(py, "").into_any());
         }
         Ok(Cow::Borrowed(""))
+    }
+}
+
+impl Render for Cycle {
+    fn render<'t>(
+        &self,
+        py: Python<'_>,
+        template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> RenderResult<'t> {
+        let index = context.next_cycle_index(self.id, self.values.len());
+        let value = &self.values[index];
+        let content = value.resolve(py, template, context, ResolveFailures::Raise)?;
+
+        let Some(content) = content else {
+            if let Some(asvar) = &self.asvar {
+                context.insert(asvar.clone(), PyString::new(py, "").into_any());
+            }
+
+            return Ok(Cow::Borrowed(""));
+        };
+
+        if let Some(asvar) = &self.asvar {
+            context.insert(asvar.clone(), content.to_py(py));
+        }
+
+        if self.silent {
+            return Ok(Cow::Borrowed(""));
+        }
+
+        Ok(content.render(context)?)
     }
 }
