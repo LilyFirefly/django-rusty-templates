@@ -78,9 +78,9 @@ impl<'t> NowLexer<'t> {
         }
     }
 
-    pub fn extra_token(&mut self) -> Result<Option<TagElementToken>, NowError> {
+    pub fn extra_token(&mut self) -> Result<(), NowError> {
         match self.next_element()? {
-            None => Ok(None),
+            None => Ok(()),
             Some(token) => Err(NowError::UnexpectedAfterVariable {
                 at: token.at.into(),
             }),
@@ -241,12 +241,12 @@ mod tests {
     }
 
     #[test]
-    fn test_extra_token_none() {
+    fn test_extra_token_unit() {
         let template = r#"{% now "Y" as var %}"#;
         let parts = TagParts { at: (7, 10) };
         let mut lexer = NowLexer::new(template.into_template_string(), parts);
         lexer.lex_format().unwrap();
         lexer.lex_variable().unwrap();
-        assert_eq!(lexer.extra_token().unwrap(), None);
+        assert_eq!(lexer.extra_token().unwrap(), ());
     }
 }
