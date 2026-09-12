@@ -21,8 +21,8 @@ use super::types::{
 use super::{Evaluate, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
 use crate::parse::{
-    CsrfToken, FirstOf, For, IfCondition, Include, IncludeTemplateName, Lorem, SimpleBlockTag,
-    SimpleTag, Tag, TagElement, Url,
+    CsrfToken, Cycle, FirstOf, For, IfCondition, Include, IncludeTemplateName, Lorem, NamedCycle,
+    SilentNamedCycle, SimpleBlockTag, SimpleCycle, SimpleTag, Tag, TagElement, Url,
 };
 use crate::path::construct_relative_path;
 use crate::template::django_rusty_templates::{NoReverseMatch, Template, TemplateDoesNotExist};
@@ -652,6 +652,7 @@ impl Render for Tag {
         context: &mut Context,
     ) -> RenderResult<'t> {
         Ok(match self {
+            Self::Cycle(cycle) => cycle.render(py, template, context)?,
             Self::Autoescape { enabled, nodes } => {
                 let autoescape = context.autoescape;
                 context.autoescape = enabled.into();
@@ -1388,5 +1389,93 @@ impl Render for FirstOf {
             context.insert(asvar.to_string(), PyString::new(py, "").into_any());
         }
         Ok(Cow::Borrowed(""))
+    }
+}
+
+impl SimpleCycle {
+    fn resolve_next<'t, 'py>(
+        &self,
+        py: Python<'py>,
+        template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> ResolveResult<'t, 'py> {
+        let index = context.next_cycle_index(self.id, self.values.len());
+        self.values[index].resolve(py, template, context, ResolveFailures::Raise)
+    }
+}
+
+impl NamedCycle {
+    fn resolve_and_store<'t, 'py>(
+        &self,
+        py: Python<'py>,
+        template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> ResolveResult<'t, 'py> {
+        let content = self.cycle.resolve_next(py, template, context)?;
+
+        if let Some(content) = &content {
+            context.insert(self.asvar.clone(), content.to_py(py));
+        } else {
+            context.insert(self.asvar.clone(), intern!(py, "").clone().into_any());
+        }
+
+        Ok(content)
+    }
+}
+
+impl Render for SimpleCycle {
+    fn render<'t>(
+        &self,
+        py: Python<'_>,
+        template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> RenderResult<'t> {
+        let Some(content) = self.resolve_next(py, template, context)? else {
+            return Ok(Cow::Borrowed(""));
+        };
+
+        Ok(content.render(context)?)
+    }
+}
+
+impl Render for NamedCycle {
+    fn render<'t>(
+        &self,
+        py: Python<'_>,
+        template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> RenderResult<'t> {
+        let Some(content) = self.resolve_and_store(py, template, context)? else {
+            return Ok(Cow::Borrowed(""));
+        };
+
+        Ok(content.render(context)?)
+    }
+}
+
+impl Render for SilentNamedCycle {
+    fn render<'t>(
+        &self,
+        py: Python<'_>,
+        template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> RenderResult<'t> {
+        self.cycle.resolve_and_store(py, template, context)?;
+        Ok(Cow::Borrowed(""))
+    }
+}
+
+impl Render for Cycle {
+    fn render<'t>(
+        &self,
+        py: Python<'_>,
+        template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> RenderResult<'t> {
+        match self {
+            Self::Simple(cycle) => cycle.render(py, template, context),
+            Self::Named(cycle) => cycle.render(py, template, context),
+            Self::SilentNamed(cycle) => cycle.render(py, template, context),
+        }
     }
 }
