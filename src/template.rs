@@ -17,11 +17,13 @@ pub mod django_rusty_templates {
     use pyo3::sync::{MutexExt, PyOnceLock};
     use pyo3::types::{PyBool, PyDict, PyIterator, PyList, PyString, PyTuple};
 
-    use crate::error::RenderError;
-    use crate::loaders::{AppDirsLoader, CachedLoader, FileSystemLoader, Loader, LocMemLoader};
+    use crate::error::{PyRenderError, RenderError};
+    use crate::loaders::{
+        AppDirsLoader, CachedLoader, FileSystemLoader, Loader, LocMemLoader, Origin,
+    };
     use crate::parse::{Parser, TokenTree};
+    use crate::render::Render;
     use crate::render::types::{Context, PyContext};
-    use crate::render::{Render, RenderResult};
     use crate::utils::PyResultMethods;
     use dtl_lexer::types::TemplateString;
 
@@ -34,7 +36,7 @@ pub mod django_rusty_templates {
 
     static IMPORT_STRING: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 
-    trait WithSourceCode {
+    pub trait WithSourceCode {
         fn with_source_code(
             err: miette::Report,
             source: impl miette::SourceCode + 'static,
@@ -85,7 +87,9 @@ pub mod django_rusty_templates {
     }
 
     #[pyclass(frozen)]
-    struct Origin {
+    struct PyOrigin {
+        #[pyo3(get)]
+        name: String,
         #[pyo3(get)]
         template_name: String,
     }
@@ -146,11 +150,13 @@ pub mod django_rusty_templates {
         py: Python<'_>,
         template_loaders: Bound<'_, PyIterator>,
         encoding: &'static Encoding,
+        dirs: &Vec<PathBuf>,
     ) -> PyResult<Vec<Loader>> {
         template_loaders
             .map(|template_loader| {
-                template_loader
-                    .and_then(|template_loader| find_template_loader(py, template_loader, encoding))
+                template_loader.and_then(|template_loader| {
+                    find_template_loader(py, template_loader, encoding, dirs)
+                })
             })
             .collect()
     }
@@ -159,9 +165,10 @@ pub mod django_rusty_templates {
         py: Python<'_>,
         loader: Bound<'_, PyAny>,
         encoding: &'static Encoding,
+        dirs: &Vec<PathBuf>,
     ) -> PyResult<Loader> {
         if let Ok(loader_str) = loader.extract::<String>() {
-            return map_loader(py, &loader_str, None, encoding);
+            return map_loader(py, &loader_str, None, encoding, dirs);
         }
 
         let (loader_path, args) = unpack(&loader).map_err(|e| {
@@ -171,7 +178,7 @@ pub mod django_rusty_templates {
             ))
         })?;
 
-        map_loader(py, &loader_path, Some(args), encoding)
+        map_loader(py, &loader_path, Some(args), encoding, dirs)
     }
 
     fn map_loader(
@@ -179,6 +186,7 @@ pub mod django_rusty_templates {
         loader_path: &str,
         args: Option<Bound<'_, PyAny>>,
         encoding: &'static Encoding,
+        dirs: &Vec<PathBuf>,
     ) -> PyResult<Loader> {
         match loader_path {
             "django.template.loaders.filesystem.Loader" => {
@@ -189,7 +197,7 @@ pub mod django_rusty_templates {
                             .collect::<PyResult<Vec<_>>>()
                     })
                     .transpose()?
-                    .unwrap_or_default();
+                    .unwrap_or(dirs.clone());
 
                 Ok(Loader::FileSystem(FileSystemLoader::new(paths, encoding)))
             }
@@ -212,7 +220,7 @@ pub mod django_rusty_templates {
                         )
                     })?
                     .try_iter()?
-                    .map(|inner_loader| find_template_loader(py, inner_loader?, encoding))
+                    .map(|inner_loader| find_template_loader(py, inner_loader?, encoding, dirs))
                     .collect::<PyResult<Vec<_>>>()?;
 
                 Ok(Loader::Cached(CachedLoader::new(nested_loaders)))
@@ -264,15 +272,17 @@ pub mod django_rusty_templates {
         engine: Arc<Engine>,
         py: Python<'_>,
         template_name: Cow<str>,
-    ) -> PyResult<Template> {
+        skip: Option<&Vec<Origin>>,
+    ) -> PyResult<(Template, Origin)> {
         let mut tried = Vec::new();
         let mut loaders = engine
             .template_loaders
             .lock_py_attached(py)
             .expect("Mutex should not be poisoned");
         for loader in loaders.iter_mut() {
-            match loader.get_template(py, &template_name, engine.clone()) {
-                Ok(template) => return template,
+            match loader.get_template(py, &template_name, engine.clone(), skip) {
+                Ok(Ok((template, origin))) => return Ok((template, origin)),
+                Ok(Err(e)) => return Err(e),
                 Err(mut e) if !e.tried.is_empty() => tried.append(&mut e.tried),
                 Err(_) => {}
             }
@@ -282,7 +292,15 @@ pub mod django_rusty_templates {
             template_name.into_owned(),
             tried
                 .into_iter()
-                .map(|(template_name, reason)| (Origin { template_name }, reason))
+                .map(|(origin, reason)| {
+                    (
+                        PyOrigin {
+                            name: origin.name,
+                            template_name: origin.template_name,
+                        },
+                        reason,
+                    )
+                })
                 .collect::<Vec<_>>(),
         )))
     }
@@ -291,13 +309,14 @@ pub mod django_rusty_templates {
         engine: Arc<Engine>,
         py: Python<'_>,
         template_name_list: Vec<String>,
-    ) -> PyResult<Template> {
+        skip: Option<&Vec<Origin>>,
+    ) -> PyResult<(Template, Origin)> {
         if template_name_list.is_empty() {
             return Err(TemplateDoesNotExist::new_err("No template names provided"));
         }
         let mut not_found = Vec::new();
         for template_name in template_name_list {
-            match get_template(engine.clone(), py, Cow::Owned(template_name)) {
+            match get_template(engine.clone(), py, Cow::Owned(template_name), skip) {
                 Ok(template) => return Ok(template),
                 Err(e) if e.is_instance_of::<TemplateDoesNotExist>(py) => {
                     not_found.push(e.value(py).to_string());
@@ -361,7 +380,7 @@ pub mod django_rusty_templates {
                     );
                     return Err(err);
                 }
-                Some(loaders) => get_template_loaders(py, loaders.try_iter()?, encoding)?,
+                Some(loaders) => get_template_loaders(py, loaders.try_iter()?, encoding, &dirs)?,
                 None => {
                     let filesystem_loader =
                         Loader::FileSystem(FileSystemLoader::new(dirs.clone(), encoding));
@@ -403,7 +422,7 @@ pub mod django_rusty_templates {
         ///
         /// See <https://docs.djangoproject.com/en/stable/ref/templates/api/#django.template.Engine.get_template>
         pub fn get_template(&self, py: Python<'_>, template_name: String) -> PyResult<Template> {
-            get_template(self.engine.clone(), py, Cow::Owned(template_name))
+            Ok(get_template(self.engine.clone(), py, Cow::Owned(template_name), None)?.0)
         }
 
         /// Given a list of template names, return the first that can be loaded.
@@ -414,7 +433,7 @@ pub mod django_rusty_templates {
             py: Python<'_>,
             template_name_list: Vec<String>,
         ) -> PyResult<Template> {
-            select_template(self.engine.clone(), py, template_name_list)
+            Ok(select_template(self.engine.clone(), py, template_name_list, None)?.0)
         }
 
         #[allow(clippy::wrong_self_convention)] // We're implementing a Django interface
@@ -501,10 +520,10 @@ pub mod django_rusty_templates {
     }
 
     #[derive(Debug, Clone)]
-    #[pyclass(skip_from_py_object)]
+    #[pyclass(from_py_object)]
     pub struct Template {
         pub filename: Option<PathBuf>,
-        pub template: String,
+        pub template: Arc<String>,
         pub nodes: Vec<TokenTree>,
         pub engine: Arc<Engine>,
     }
@@ -514,15 +533,11 @@ pub mod django_rusty_templates {
             py: Python<'_>,
             template: &str,
             filename: PathBuf,
-            template_name: &str,
             engine: Arc<Engine>,
+            origin: Origin,
         ) -> PyResult<Self> {
-            let mut parser = Parser::new(
-                py,
-                TemplateString(template),
-                engine.clone(),
-                Some(template_name),
-            );
+            let mut parser =
+                Parser::new(py, TemplateString(template), engine.clone(), Some(origin));
             let nodes = match parser.parse() {
                 Ok(nodes) => nodes,
                 Err(err) => {
@@ -533,7 +548,7 @@ pub mod django_rusty_templates {
                 }
             };
             Ok(Self {
-                template: template.to_string(),
+                template: Arc::new(template.to_string()),
                 filename: Some(filename),
                 nodes,
                 engine,
@@ -554,21 +569,25 @@ pub mod django_rusty_templates {
                 }
             };
             Ok(Self {
-                template,
+                template: Arc::new(template),
                 filename: None,
                 nodes,
                 engine,
             })
         }
 
-        pub fn render(&self, py: Python<'_>, context: &mut Context) -> RenderResult<'_> {
+        pub fn render(
+            &self,
+            py: Python<'_>,
+            context: &mut Context,
+        ) -> Result<String, PyRenderError> {
             let mut rendered = String::with_capacity(self.template.len());
             let template = TemplateString(&self.template);
             for node in &self.nodes {
                 let content = node.render(py, template, context)?;
                 rendered.push_str(&content);
             }
-            Ok(Cow::Owned(rendered))
+            Ok(rendered)
         }
 
         fn _render(&self, py: Python<'_>, context: &mut Context) -> PyResult<String> {
@@ -698,9 +717,13 @@ mod tests {
 
             let engine = Arc::new(Engine::empty());
             let template_string = std::fs::read_to_string(&filename).unwrap();
+            let origin = crate::loaders::Origin {
+                name: "parse_error.txt".to_string(),
+                template_name: "parse_error.txt".to_string(),
+                loader: 0,
+            };
             let error = temp_env::with_var("NO_COLOR", Some("1"), || {
-                Template::new(py, &template_string, filename, "parse_error.txt", engine)
-                    .unwrap_err()
+                Template::new(py, &template_string, filename, engine, origin).unwrap_err()
             });
 
             let error_string = format!("{error}");

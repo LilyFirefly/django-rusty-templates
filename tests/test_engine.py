@@ -413,3 +413,29 @@ def test_render_to_string_no_valid_template():
 
     with pytest.raises(TemplateDoesNotExist):
         rusty_engine.engine.render_to_string("nonexistent.html", {"user": "Bob"})
+
+
+def test_get_template_outside_directory(template_engine):
+    template_path = "../outside.txt"
+
+    with pytest.raises(TemplateDoesNotExist) as exc_info:
+        template_engine.get_template(template_path)
+
+    assert str(exc_info.value) == template_path
+
+
+def test_get_template_app_dirs_loader_error(engine_class):
+    template_path = "missing.txt"
+    engine = engine_class(
+        {
+            "OPTIONS": {},
+            "NAME": "app_dirs",
+            "DIRS": [],
+            "APP_DIRS": True,
+        }
+    )
+
+    with pytest.raises(TemplateDoesNotExist) as exc_info:
+        engine.get_template(template_path)
+
+    assert str(exc_info.value) == template_path
