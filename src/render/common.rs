@@ -128,11 +128,14 @@ impl Resolve for Variable {
                 }))
             }
             Self::BlockSuper(_) => {
-                let (block, template) = context
+                let block_vec = context
                     .block
                     .clone()
                     .expect("Should already have raised if None.");
-                let rendered = block.render(py, TemplateString(&template), context)?;
+                let (block, template) = block_vec
+                    .last()
+                    .expect("Should have pushed at least one block");
+                let rendered = block.render(py, TemplateString(template), context)?;
                 Ok(Some(Content::String(ContentString::String(Cow::Owned(
                     rendered.to_string(),
                 )))))
