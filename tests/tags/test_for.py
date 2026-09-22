@@ -263,7 +263,55 @@ def test_render_for_loop_empty(assert_render):
 
     </ul>
     """)
+    assert_render(template=template, context={"athlete_list": []}, expected=expected)
+
+
+def test_render_for_loop_empty_missing_variable(assert_render):
+    template = dedent("""
+    <ul>
+    {% for athlete in athlete_list %}
+        <li>{{ athlete.name }}</li>
+    {% empty %}
+        <li>sorry, no athletes in this list.</li>
+    {% endfor %}
+    </ul>
+    """)
+    expected = dedent("""
+    <ul>
+
+        <li>sorry, no athletes in this list.</li>
+
+    </ul>
+    """)
     assert_render(template=template, context={}, expected=expected)
+
+
+def test_render_for_loop_empty_string(assert_render):
+    template = dedent("""
+    <ul>
+    {% for athlete in "" %}
+        <li>{{ athlete.name }}</li>
+    {% empty %}
+        <li>sorry, no athletes in this list.</li>
+    {% endfor %}
+    </ul>
+    """)
+    expected = dedent("""
+    <ul>
+
+        <li>sorry, no athletes in this list.</li>
+
+    </ul>
+    """)
+    assert_render(template=template, context={}, expected=expected)
+
+
+def test_render_for_loop_empty_string_invalid_unpack(assert_render):
+    assert_render(
+        template="{% for x, y in '' %}{{ x }}{{ y }}{% empty %}empty{% endfor %}",
+        context={},
+        expected="empty",
+    )
 
 
 def test_render_for_loop_shadowing_context(assert_render):
