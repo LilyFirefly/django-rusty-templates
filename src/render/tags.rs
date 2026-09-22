@@ -1197,20 +1197,21 @@ impl Render for Block {
             context
                 .block
                 .get_or_insert_default()
-                .push((self.clone(), template.to_string()));
+                .push((self.clone(), template.to_string().into()));
             self.nodes.render(py, template, context)
         } else {
             let blocks = context.blocks.as_mut().expect("blocks is known to be Some");
-            let push = blocks.pop(&self.name);
-            let (block, block_template) = match push {
-                None => (self, template),
-                Some((ref block, ref template)) => (block, TemplateString(template)),
-            };
+            let (block, block_template) = blocks
+                .pop(&self.name)
+                .expect("this block should be in context.blocks");
             context
                 .block
                 .get_or_insert_default()
-                .push((block.clone(), block_template.to_string()));
-            let result = match block.nodes.render(py, block_template, context) {
+                .push((block.clone(), block_template.clone()));
+            let result = match block
+                .nodes
+                .render(py, TemplateString(&block_template), context)
+            {
                 Ok(Cow::Owned(result)) => Ok(Cow::Owned(result)),
                 Ok(Cow::Borrowed(result)) => Ok(Cow::Owned(result.to_string())),
                 Err(err) => Err(err),
@@ -1223,9 +1224,7 @@ impl Render for Block {
                 .pop();
 
             let blocks = context.blocks.as_mut().expect("blocks is known to be Some");
-            if let Some((push, push_template)) = push {
-                blocks.push(&self.name, (&push, push_template));
-            }
+            blocks.push(&self.name, (&block, block_template));
             result
         }
     }

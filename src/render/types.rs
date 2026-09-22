@@ -100,7 +100,7 @@ pub struct Context {
     names: Vec<HashSet<String>>,
     include_cache: HashMap<IncludeTemplateKey, Arc<Template>>,
     cycle_indices: HashMap<CycleId, usize>,
-    pub block: Option<Vec<(Block, String)>>,
+    pub block: Option<Vec<(Block, Arc<String>)>>,
     pub blocks: Option<BlockContext>,
     pub seen: Option<Vec<Origin>>,
 }
