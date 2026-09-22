@@ -898,3 +898,26 @@ def test_extends_block_in_various_tags(assert_render):
         context={"html": "<br>", "foo": 1, "y": range(3)},
         expected="\n<br>\n44\nTRUE!\n{% block %}\n\n012\n",
     )
+
+
+def test_render_error_in_block(assert_render_error):
+    template = "{% extends 'base.txt' %}{% block body %}{{ foo|default:missing }}{% endblock body %}"
+    django_message = snapshot(
+        "Failed lookup for key [missing] in [{'True': True, 'False': False, 'None': None}, {}]"
+    )
+    rusty_message = snapshot("""\
+  × Failed lookup for key [missing] in {"False": False, "None": None, "True":
+  │ True}
+   ╭────
+ 1 │ {% extends 'base.txt' %}{% block body %}{{ foo|default:missing }}{% endblock body %}
+   ·                                                        ───┬───
+   ·                                                           ╰── key
+   ╰────
+""")
+    assert_render_error(
+        template=template,
+        context={},
+        exception=VariableDoesNotExist,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
