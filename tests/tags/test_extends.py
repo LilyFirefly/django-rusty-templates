@@ -882,3 +882,19 @@ def test_extends_block_in_for_loop_empty(assert_render):
         context={"numbers": []},
         expected="X_\n",
     )
+
+
+def test_extends_block_in_various_tags(assert_render):
+    template = """{% extends 'extends/blocks.txt' %}
+    {% block raw %}{{ html }}{% endblock raw %}
+    {% block repeat %}4{% endblock repeat %}
+    {% block truthy %}TRUE!{% endblock truthy %}
+    {% block falsey %}FALSE!{% endblock falsey %}
+    {% block truthy2 %}TRUE?{% endblock truthy2 %}
+    {% block loop %}{{ x }}{% endblock loop %}
+    """
+    assert_render(
+        template=template,
+        context={"html": "<br>", "foo": 1, "y": range(3)},
+        expected="\n<br>\n44\nTRUE!\n{% block %}\n\n012\n",
+    )
