@@ -10,7 +10,6 @@ use pyo3::prelude::*;
 use pyo3::sync::{MutexExt, PyOnceLock};
 use pyo3::types::{PyBool, PyDict, PyList, PyNone, PyString, PyTuple};
 
-use crate::parse::{GetBlocks, Now};
 use crate::render::lorem::{COMMON_WORDS, paragraphs, words};
 use dtl_lexer::tag::lorem::LoremMethod;
 use dtl_lexer::types::{At, TemplateString};
@@ -21,9 +20,9 @@ use super::types::{
 use super::{Evaluate, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
 use crate::parse::{
-    Block, CsrfToken, Cycle, CycleValue, Extends, FirstOf, For, IfCondition, Include,
-    IncludeTemplateName, Lorem, NamedCycle, SilentNamedCycle, SimpleBlockTag, SimpleCycle,
-    SimpleTag, Tag, TagElement, Url,
+    Block, CsrfToken, Cycle, CycleValue, Extends, FirstOf, For, GetBlocks, IfCondition, Include,
+    IncludeTemplateName, Lorem, NamedCycle, Now, SilentNamedCycle, SimpleBlockTag, SimpleCycle,
+    SimpleTag, Tag, TagElement, TokenTree, Url,
 };
 use crate::path::construct_relative_path;
 use crate::template::django_rusty_templates::{
@@ -1162,21 +1161,27 @@ impl Render for Extends {
         context: &mut Context,
     ) -> RenderResult<'t> {
         let parent = self.get_template(py, template, context)?;
-        for (name, block) in self.blocks.clone() {
-            context
-                .blocks
-                .entry(name)
-                .or_default()
-                .push_back((block, template.to_string()));
+        let block_context = context.blocks.get_or_insert_default();
+        for (name, block) in &self.blocks {
+            block_context.push_front(name, (block, template.to_string().into()));
         }
-        let parent_template = TemplateString(&parent.template);
-        for block in parent.nodes.get_blocks() {
-            context
-                .blocks
-                .entry(block.name.clone())
-                .or_default()
-                .push_back((block.clone(), parent_template.to_string()));
+
+        for node in &parent.nodes {
+            match node {
+                TokenTree::Text(_)
+                | TokenTree::TranslatedText(_)
+                | TokenTree::Int(_)
+                | TokenTree::Float(_) => continue,
+                TokenTree::Tag(Tag::Extends(_)) => break,
+                _ => {
+                    for block in parent.nodes.get_blocks() {
+                        block_context.push_front(&block.name, (block, parent.template.clone()));
+                    }
+                    break;
+                }
+            }
         }
+
         parent.render(py, context).map(Cow::Owned)
     }
 }
@@ -1188,32 +1193,41 @@ impl Render for Block {
         template: TemplateString<'t>,
         context: &mut Context,
     ) -> RenderResult<'t> {
-        if let Some(child_blocks) = context.blocks.get_mut(&self.name) {
-            for (block, _) in &*child_blocks {
-                // If this block is in `context.blocks` then there is a leaf block that
-                // should be rendered first
-                if block == self {
-                    let (leaf_block, leaf_template) = child_blocks
-                        .pop_front()
-                        .expect("child_blocks should not be empty because it contains self");
-                    let leaf_template = TemplateString(&leaf_template);
+        if context.blocks.is_none() {
+            context
+                .block
+                .get_or_insert_default()
+                .push((self.clone(), template.to_string()));
+            self.nodes.render(py, template, context)
+        } else {
+            let blocks = context.blocks.as_mut().expect("blocks is known to be Some");
+            let push = blocks.pop(&self.name);
+            let (block, block_template) = match push {
+                None => (self, template),
+                Some((ref block, ref template)) => (block, TemplateString(template)),
+            };
+            context
+                .block
+                .get_or_insert_default()
+                .push((block.clone(), block_template.to_string()));
+            let result = match block.nodes.render(py, block_template, context) {
+                Ok(Cow::Owned(result)) => Ok(Cow::Owned(result)),
+                Ok(Cow::Borrowed(result)) => Ok(Cow::Owned(result.to_string())),
+                Err(err) => Err(err),
+            };
 
-                    let old_block = std::mem::take(&mut context.block);
-                    if let Some((child_block, child_template)) = child_blocks.pop_front() {
-                        context.block = Some((child_block, child_template));
-                    }
-                    let rendered = leaf_block.nodes.render(py, leaf_template, context);
-                    context.block = old_block;
-                    return Ok(rendered?.into_owned().into());
-                }
+            context
+                .block
+                .as_mut()
+                .expect("block should be Some(Vec)")
+                .pop();
+
+            let blocks = context.blocks.as_mut().expect("blocks is known to be Some");
+            if let Some((push, push_template)) = push {
+                blocks.push(&self.name, (&push, push_template));
             }
-            if let Some((child_block, child_template)) = child_blocks.pop_front() {
-                context.block = Some((child_block, child_template));
-            }
+            result
         }
-        let rendered = self.nodes.render(py, template, context);
-        context.block = None;
-        rendered
     }
 }
 

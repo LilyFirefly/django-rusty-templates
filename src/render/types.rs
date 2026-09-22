@@ -64,6 +64,33 @@ pub enum IncludeTemplateKey {
     Vec(Vec<String>),
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct BlockContext {
+    pub blocks: HashMap<String, VecDeque<(Block, Arc<String>)>>,
+}
+
+impl BlockContext {
+    pub fn pop(&mut self, name: &str) -> Option<(Block, Arc<String>)> {
+        self.blocks.get_mut(name).map(|blocks| blocks.pop_back())?
+    }
+
+    pub fn push(&mut self, name: &str, block: (&Block, Arc<String>)) {
+        let (block, template) = block;
+        self.blocks
+            .entry(name.to_string())
+            .or_default()
+            .push_back((block.clone(), template));
+    }
+
+    pub fn push_front(&mut self, name: &str, block: (&Block, Arc<String>)) {
+        let (block, template) = block;
+        self.blocks
+            .entry(name.to_string())
+            .or_default()
+            .push_front((block.clone(), template));
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct Context {
     context: HashMap<String, Vec<Py<PyAny>>>,
@@ -73,8 +100,8 @@ pub struct Context {
     names: Vec<HashSet<String>>,
     include_cache: HashMap<IncludeTemplateKey, Arc<Template>>,
     cycle_indices: HashMap<CycleId, usize>,
-    pub block: Option<(Block, String)>,
-    pub blocks: HashMap<String, VecDeque<(Block, String)>>,
+    pub block: Option<Vec<(Block, String)>>,
+    pub blocks: Option<BlockContext>,
     pub seen: Option<Vec<Origin>>,
 }
 
@@ -94,7 +121,7 @@ impl Context {
             include_cache: HashMap::new(),
             cycle_indices: HashMap::new(),
             block: None,
-            blocks: HashMap::new(),
+            blocks: None,
             seen: None,
         }
     }
