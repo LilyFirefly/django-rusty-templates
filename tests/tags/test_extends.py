@@ -862,3 +862,12 @@ def test_extends_after_tag_named_template(template_engine):
         assert str(exc_info.value) == snapshot(
             "{% extends \"base.txt\" %} must be the first tag in 'extends_after_tag.txt'."
         )
+
+
+def test_extends_block_in_for_loop(assert_render):
+    template = "{% extends 'extends/parent_for.txt' %}{% block opt %}X{% endblock %}"
+    assert_render(
+        template=template,
+        context={"numbers": range(1, 4)},
+        expected="_X_X_X_\n",
+    )
