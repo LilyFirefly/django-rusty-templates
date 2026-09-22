@@ -100,12 +100,16 @@ where
         template: TemplateString<'t>,
         context: &mut Context,
     ) -> RenderResult<'t> {
-        Ok(Cow::Owned(
-            self.iter()
-                .map(|node| node.render(py, template, context))
-                .collect::<Result<Vec<_>, _>>()?
-                .join(""),
-        ))
+        match self.len() {
+            0 => Ok(Cow::Borrowed("")),
+            1 => self[0].render(py, template, context),
+            _ => Ok(Cow::Owned(
+                self.iter()
+                    .map(|node| node.render(py, template, context))
+                    .collect::<Result<Vec<_>, _>>()?
+                    .join(""),
+            )),
+        }
     }
 }
 
