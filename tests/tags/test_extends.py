@@ -871,3 +871,14 @@ def test_extends_block_in_for_loop(assert_render):
         context={"numbers": range(1, 4)},
         expected="_X_X_X_\n",
     )
+
+
+def test_extends_block_in_for_loop_empty(assert_render):
+    template = (
+        "{% extends 'extends/parent_for.txt' %}{% block empty %}X{% endblock empty %}"
+    )
+    assert_render(
+        template=template,
+        context={"numbers": []},
+        expected="X_\n",
+    )

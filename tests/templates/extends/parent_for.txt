@@ -1,1 +1,1 @@
-{% for n in numbers %}_{% block opt %}{{ n }}{% endblock %}{% endfor %}_
+{% for n in numbers %}_{% block opt %}{{ n }}{% endblock %}{% empty %}{% block empty %}empty{% endblock %}{% endfor %}_
