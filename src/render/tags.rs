@@ -699,7 +699,6 @@ impl For {
         template: TemplateString<'t>,
         context: &mut Context,
     ) -> RenderResult<'t> {
-        let mut parts = Vec::new();
         let mut list: Vec<_> = match iterable.try_iter() {
             Ok(iterator) => iterator.collect(),
             Err(error) => {
@@ -707,10 +706,14 @@ impl For {
                 return Err(error.into());
             }
         };
+        if list.is_empty() {
+            return self.empty.render(py, template, context);
+        }
         if self.reversed {
             list.reverse();
         }
         context.push_for_loop(list.len());
+        let mut parts = Vec::new();
         for (index, values) in list.into_iter().enumerate() {
             let values = match values {
                 Ok(values) => values,
@@ -743,6 +746,9 @@ impl For {
         template: TemplateString<'t>,
         context: &mut Context,
     ) -> RenderResult<'t> {
+        if string.is_empty() {
+            return self.empty.render(py, template, context);
+        }
         if self.variables.names.len() > 1 {
             return Err(RenderError::TupleUnpackError {
                 expected_count: self.variables.names.len(),
