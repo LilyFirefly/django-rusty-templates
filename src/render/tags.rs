@@ -21,8 +21,8 @@ use super::types::{
 use super::{Evaluate, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
 use crate::parse::{
-    CsrfToken, Cycle, FirstOf, For, IfCondition, Include, IncludeTemplateName, Lorem, NamedCycle,
-    SilentNamedCycle, SimpleBlockTag, SimpleCycle, SimpleTag, Tag, TagElement, Url,
+    CsrfToken, Cycle, CycleValue, FirstOf, For, IfCondition, Include, IncludeTemplateName, Lorem,
+    NamedCycle, SilentNamedCycle, SimpleBlockTag, SimpleCycle, SimpleTag, Tag, TagElement, Url,
 };
 use crate::path::construct_relative_path;
 use crate::template::django_rusty_templates::{NoReverseMatch, Template, TemplateDoesNotExist};
@@ -1392,15 +1392,22 @@ impl Render for FirstOf {
     }
 }
 
+struct ResolvedCycleValue<'t, 'py> {
+    at: At,
+    content: Option<Content<'t, 'py>>,
+}
+
 impl SimpleCycle {
     fn resolve_next<'t, 'py>(
         &self,
         py: Python<'py>,
         template: TemplateString<'t>,
         context: &mut Context,
-    ) -> ResolveResult<'t, 'py> {
+    ) -> Result<ResolvedCycleValue<'t, 'py>, PyRenderError> {
         let index = context.next_cycle_index(self.id, self.values.len());
-        self.values[index].resolve(py, template, context, ResolveFailures::Raise)
+        let CycleValue { value, at } = &self.values[index];
+        let content = value.resolve(py, template, context, ResolveFailures::Raise)?;
+        Ok(ResolvedCycleValue { at: *at, content })
     }
 }
 
@@ -1410,8 +1417,8 @@ impl NamedCycle {
         py: Python<'py>,
         template: TemplateString<'t>,
         context: &mut Context,
-    ) -> ResolveResult<'t, 'py> {
-        let content = self.cycle.resolve_next(py, template, context)?;
+    ) -> Result<ResolvedCycleValue<'t, 'py>, PyRenderError> {
+        let ResolvedCycleValue { at, content } = self.cycle.resolve_next(py, template, context)?;
 
         if let Some(content) = &content {
             context.insert(self.asvar.clone(), content.to_py(py));
@@ -1419,7 +1426,7 @@ impl NamedCycle {
             context.insert(self.asvar.clone(), intern!(py, "").clone().into_any());
         }
 
-        Ok(content)
+        Ok(ResolvedCycleValue { at, content })
     }
 }
 
@@ -1430,11 +1437,14 @@ impl Render for SimpleCycle {
         template: TemplateString<'t>,
         context: &mut Context,
     ) -> RenderResult<'t> {
-        let Some(content) = self.resolve_next(py, template, context)? else {
+        let ResolvedCycleValue { at, content } = self.resolve_next(py, template, context)?;
+        let Some(content) = content else {
             return Ok(Cow::Borrowed(""));
         };
 
-        Ok(content.render(context)?)
+        Ok(content
+            .render(context)
+            .map_err(|error| error.annotate(py, at, "here", template))?)
     }
 }
 
@@ -1445,11 +1455,14 @@ impl Render for NamedCycle {
         template: TemplateString<'t>,
         context: &mut Context,
     ) -> RenderResult<'t> {
-        let Some(content) = self.resolve_and_store(py, template, context)? else {
+        let ResolvedCycleValue { at, content } = self.resolve_and_store(py, template, context)?;
+        let Some(content) = content else {
             return Ok(Cow::Borrowed(""));
         };
 
-        Ok(content.render(context)?)
+        Ok(content
+            .render(context)
+            .map_err(|error| error.annotate(py, at, "here", template))?)
     }
 }
 

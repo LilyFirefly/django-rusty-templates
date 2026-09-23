@@ -726,9 +726,15 @@ pub struct FirstOf {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct CycleValue {
+    pub value: TagElement,
+    pub at: At,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct SimpleCycle {
     pub id: CycleId,
-    pub values: Vec<TagElement>,
+    pub values: Vec<CycleValue>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -1634,8 +1640,10 @@ impl<'t, 'py> Parser<'t, 'py> {
                 let mut values = Vec::with_capacity(tokens.len());
 
                 for token in tokens {
-                    let value = token.parse(self)?;
-                    values.push(value);
+                    values.push(CycleValue {
+                        value: token.parse(self)?,
+                        at: token.at,
+                    });
                 }
 
                 let id = CycleId(NEXT_CYCLE_ID.fetch_add(1, Ordering::Relaxed));

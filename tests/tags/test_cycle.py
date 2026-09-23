@@ -230,7 +230,14 @@ def test_cycle_value_rendering_error(assert_render_error):
         context={"value": Unstringable()},
         exception=ValueError,
         django_message=snapshot("cycle rendering error"),
-        rusty_message=snapshot("cycle rendering error"),
+        rusty_message=snapshot("""\
+  × cycle rendering error
+   ╭────
+ 1 │ {% cycle value 'fallback' %}
+   ·          ──┬──
+   ·            ╰── here
+   ╰────
+"""),
     )
 
 
@@ -264,7 +271,14 @@ def test_named_cycle_value_rendering_error(assert_render_error):
         context={"value": Unstringable()},
         exception=ValueError,
         django_message=snapshot("cycle rendering error"),
-        rusty_message=snapshot("cycle rendering error"),
+        rusty_message=snapshot("""\
+  × cycle rendering error
+   ╭────
+ 1 │ {% cycle value 'fallback' as current %}
+   ·          ──┬──
+   ·            ╰── here
+   ╰────
+"""),
     )
 
 
