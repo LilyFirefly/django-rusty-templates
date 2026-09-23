@@ -1598,76 +1598,84 @@ impl<'t, 'py> Parser<'t, 'py> {
         let at = parts.at;
         let tokens = TagElementLexer::new(self.template, parts).collect::<Result<Vec<_>, _>>()?;
 
-        match tokens.as_slice() {
-            [] => Err(ParseError::MissingCycleArguments { at: at.into() }),
+        let tokens = match tokens.as_slice() {
+            [] => return Err(ParseError::MissingCycleArguments { at: at.into() }),
+
             [reference] if reference.token_type == TagElementTokenType::Variable => {
                 let name_text = self.template.content(reference.at);
 
-                self.named_cycles.get(name_text).cloned().ok_or_else(|| {
+                return self.named_cycles.get(name_text).cloned().ok_or_else(|| {
                     ParseError::UnknownNamedCycle {
                         name: name_text.to_string(),
                         at: reference.at.into(),
                     }
-                })
+                });
             }
-            [argument] => Err(ParseError::MissingCycleArguments {
-                at: argument.at.into(),
-            }),
-            tokens => {
-                let (tokens, name, silent) = match tokens {
-                    [values @ .., as_token, name_token, flag_token]
-                        if values.len() >= 2 && self.template.content(as_token.at) == "as" =>
-                    {
-                        let flag = self.template.content(flag_token.at);
 
-                        if flag != "silent" {
-                            return Err(ParseError::InvalidCycleFlag {
-                                flag: flag.to_string(),
-                                at: flag_token.at.into(),
-                            });
-                        }
+            [argument] => {
+                return Err(ParseError::MissingCycleArguments {
+                    at: argument.at.into(),
+                });
+            }
 
-                        (values, Some(name_token.at), true)
-                    }
-                    [values @ .., as_token, name_token]
-                        if values.len() >= 2 && self.template.content(as_token.at) == "as" =>
-                    {
-                        (values, Some(name_token.at), false)
-                    }
-                    values => (values, None, false),
-                };
+            tokens => tokens,
+        };
 
-                let mut values = Vec::with_capacity(tokens.len());
+        let (tokens, name_at, silent) = match tokens {
+            [values @ .., as_token, name_token, flag_token]
+                if values.len() >= 2 && self.template.content(as_token.at) == "as" =>
+            {
+                let flag = self.template.content(flag_token.at);
 
-                for token in tokens {
-                    values.push(CycleValue {
-                        value: token.parse(self)?,
-                        at: token.at,
+                if flag != "silent" {
+                    return Err(ParseError::InvalidCycleFlag {
+                        flag: flag.to_string(),
+                        at: flag_token.at.into(),
                     });
                 }
 
-                let id = CycleId(NEXT_CYCLE_ID.fetch_add(1, Ordering::Relaxed));
-                let simple_cycle = SimpleCycle { id, values };
-
-                let Some(name) = name else {
-                    return Ok(Cycle::Simple(simple_cycle));
-                };
-                let asvar = self.template.content(name).to_string();
-                let named_cycle = NamedCycle {
-                    cycle: simple_cycle,
-                    asvar: asvar.clone(),
-                };
-                let cycle = if silent {
-                    Cycle::SilentNamed(SilentNamedCycle { cycle: named_cycle })
-                } else {
-                    Cycle::Named(named_cycle)
-                };
-
-                self.named_cycles.insert(asvar, cycle.clone());
-
-                Ok(cycle)
+                (values, Some(name_token.at), true)
             }
-        }
+
+            [values @ .., as_token, name_token]
+                if values.len() >= 2 && self.template.content(as_token.at) == "as" =>
+            {
+                (values, Some(name_token.at), false)
+            }
+
+            values => (values, None, false),
+        };
+
+        let values = tokens
+            .iter()
+            .map(|token| {
+                Ok(CycleValue {
+                    value: token.parse(self)?,
+                    at: token.at,
+                })
+            })
+            .collect::<Result<Vec<_>, ParseError>>()?;
+
+        let id = CycleId(NEXT_CYCLE_ID.fetch_add(1, Ordering::Relaxed));
+        let simple_cycle = SimpleCycle { id, values };
+
+        let Some(name_at) = name_at else {
+            return Ok(Cycle::Simple(simple_cycle));
+        };
+        let asvar = self.template.content(name_at).to_string();
+        let named_cycle = NamedCycle {
+            cycle: simple_cycle,
+            asvar: asvar.clone(),
+        };
+        let cycle = if silent {
+            Cycle::SilentNamed(SilentNamedCycle { cycle: named_cycle })
+        } else {
+            Cycle::Named(named_cycle)
+        };
+
+        self.named_cycles.insert(asvar, cycle.clone());
+
+        Ok(cycle)
     }
 
     fn parse_tag(
