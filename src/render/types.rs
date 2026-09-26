@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::collections::VecDeque;
 use std::collections::hash_map::Entry;
 use std::iter::zip;
 use std::sync::{Arc, Mutex};
@@ -17,7 +18,8 @@ use pyo3::sync::{MutexExt, PyOnceLock};
 use pyo3::types::{PyBool, PyDict, PyInt, PyString, PyType};
 
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
-use crate::parse::CycleId;
+use crate::loaders::Origin;
+use crate::parse::{Block, CycleId};
 use crate::template::django_rusty_templates::{Engine, Template, get_template, select_template};
 use crate::utils::PyResultMethods;
 use dtl_lexer::types::{At, TemplateString};
@@ -62,6 +64,33 @@ pub enum IncludeTemplateKey {
     Vec(Vec<String>),
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct BlockContext {
+    pub blocks: HashMap<String, VecDeque<(Block, Arc<String>)>>,
+}
+
+impl BlockContext {
+    pub fn pop(&mut self, name: &str) -> Option<(Block, Arc<String>)> {
+        self.blocks.get_mut(name).map(|blocks| blocks.pop_back())?
+    }
+
+    pub fn push(&mut self, name: &str, block: (&Block, Arc<String>)) {
+        let (block, template) = block;
+        self.blocks
+            .entry(name.to_string())
+            .or_default()
+            .push_back((block.clone(), template));
+    }
+
+    pub fn push_front(&mut self, name: &str, block: (&Block, Arc<String>)) {
+        let (block, template) = block;
+        self.blocks
+            .entry(name.to_string())
+            .or_default()
+            .push_front((block.clone(), template));
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct Context {
     context: HashMap<String, Vec<Py<PyAny>>>,
@@ -71,6 +100,9 @@ pub struct Context {
     names: Vec<HashSet<String>>,
     include_cache: HashMap<IncludeTemplateKey, Arc<Template>>,
     cycle_indices: HashMap<CycleId, usize>,
+    pub block: Option<Vec<(Block, Arc<String>)>>,
+    pub blocks: Option<BlockContext>,
+    pub seen: Option<Vec<Origin>>,
 }
 
 impl Context {
@@ -88,6 +120,9 @@ impl Context {
             names: Vec::new(),
             include_cache: HashMap::new(),
             cycle_indices: HashMap::new(),
+            block: None,
+            blocks: None,
+            seen: None,
         }
     }
 
@@ -104,6 +139,9 @@ impl Context {
             names: self.names.clone(),
             include_cache: self.include_cache.clone(),
             cycle_indices: self.cycle_indices.clone(),
+            block: self.block.clone(),
+            blocks: self.blocks.clone(),
+            seen: self.seen.clone(),
         }
     }
 
@@ -286,12 +324,12 @@ impl Context {
         match self.include_cache.entry(key.clone()) {
             Entry::Occupied(entry) => Ok(entry.get().clone()),
             Entry::Vacant(entry) => {
-                let include = match key {
+                let (include, _origin) = match key {
                     IncludeTemplateKey::String(content) => {
-                        get_template(engine.clone(), py, Cow::Borrowed(content))?
+                        get_template(engine.clone(), py, Cow::Borrowed(content), None)?
                     }
                     IncludeTemplateKey::Vec(templates) => {
-                        select_template(engine.clone(), py, templates.clone())?
+                        select_template(engine.clone(), py, templates.clone(), None)?
                     }
                 };
                 Ok(entry.insert(Arc::new(include)).clone())

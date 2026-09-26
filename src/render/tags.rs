@@ -10,7 +10,6 @@ use pyo3::prelude::*;
 use pyo3::sync::{MutexExt, PyOnceLock};
 use pyo3::types::{PyBool, PyDict, PyList, PyNone, PyString, PyTuple};
 
-use crate::parse::Now;
 use crate::render::lorem::{COMMON_WORDS, paragraphs, words};
 use dtl_lexer::tag::lorem::LoremMethod;
 use dtl_lexer::types::{At, TemplateString};
@@ -21,14 +20,18 @@ use super::types::{
 use super::{Evaluate, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
 use crate::parse::{
-    CsrfToken, Cycle, CycleValue, FirstOf, For, IfCondition, Include, IncludeTemplateName, Lorem,
-    NamedCycle, SilentNamedCycle, SimpleBlockTag, SimpleCycle, SimpleTag, Tag, TagElement, Url,
+    Block, CsrfToken, Cycle, CycleValue, Extends, FirstOf, For, GetBlocks, IfCondition, Include,
+    IncludeTemplateName, Lorem, NamedCycle, Now, SilentNamedCycle, SimpleBlockTag, SimpleCycle,
+    SimpleTag, Tag, TagElement, TokenTree, Url,
 };
 use crate::path::construct_relative_path;
-use crate::template::django_rusty_templates::{NoReverseMatch, Template, TemplateDoesNotExist};
+use crate::template::django_rusty_templates::{
+    NoReverseMatch, Template, TemplateDoesNotExist, TemplateSyntaxError, get_template,
+};
 use crate::types::Variable;
 use crate::utils::PyResultMethods;
 
+static PATH_LIKE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static PROMISE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static REVERSE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static WARNINGS_WARN: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
@@ -677,6 +680,8 @@ impl Render for Tag {
                     falsey.render(py, template, context)?
                 }
             }
+            Self::Block(block_tag) => block_tag.render(py, template, context)?,
+            Self::Extends(extends_tag) => extends_tag.render(py, template, context)?,
             Self::For(for_tag) => for_tag.render(py, template, context)?,
             Self::Include(include_tag) => include_tag.render(py, template, context)?,
             Self::Load => Cow::Borrowed(""),
@@ -818,7 +823,7 @@ impl<'t, 'py> IncludeTemplate<'py> {
         template: TemplateString<'t>,
     ) -> RenderResult<'t> {
         match self {
-            Self::Template(template) => template.render(py, context),
+            Self::Template(template) => template.render(py, context).map(Cow::Owned),
             Self::Callable(callable) => {
                 let py_context = build_pycontext(py, context)?;
                 let result = callable.call1((py_context.clone(),));
@@ -832,67 +837,67 @@ impl<'t, 'py> IncludeTemplate<'py> {
     }
 }
 
-impl Include {
-    fn template_at(&self) -> At {
-        match &self.template_name {
-            IncludeTemplateName::Text(text) => text.at,
-            IncludeTemplateName::Variable(TagElement::Variable(Variable::Variable(at))) => *at,
-            IncludeTemplateName::Variable(TagElement::Variable(Variable::ForVariable(
-                for_variable,
-            ))) => for_variable.at,
-            IncludeTemplateName::Variable(TagElement::Filter(filter)) => filter.all_at,
-            IncludeTemplateName::Relative(relative) => relative.at,
-            IncludeTemplateName::Variable(_) => unreachable!(),
-        }
+fn template_at(template_name: &IncludeTemplateName) -> At {
+    match template_name {
+        IncludeTemplateName::Text(text) => text.at,
+        IncludeTemplateName::Variable(TagElement::Variable(Variable::Variable(at))) => *at,
+        IncludeTemplateName::Variable(TagElement::Variable(Variable::ForVariable(
+            for_variable,
+        ))) => for_variable.at,
+        IncludeTemplateName::Variable(TagElement::Filter(filter)) => filter.all_at,
+        IncludeTemplateName::Relative(relative) => relative.at,
+        IncludeTemplateName::Variable(_) => unreachable!(),
     }
+}
 
-    fn invalid_template_name(
-        &self,
-        py: Python<'_>,
-        content: &str,
-        template: TemplateString<'_>,
-    ) -> PyRenderError {
-        PyTypeError::new_err("Included template name must be a string or iterable of strings.")
-            .annotate(
+fn resolve_template_name<'t, 'py>(
+    py: Python<'py>,
+    template_name: &'t IncludeTemplateName,
+    template: TemplateString<'t>,
+    context: &mut Context,
+) -> Result<Content<'t, 'py>, PyRenderError> {
+    let resolved_template_name = match template_name {
+        IncludeTemplateName::Text(text) => text
+            .resolve(py, template, context, ResolveFailures::Raise)
+            .expect("Text should always be resolvable"),
+        IncludeTemplateName::Variable(tag_element) => {
+            tag_element.resolve(py, template, context, ResolveFailures::Raise)?
+        }
+        IncludeTemplateName::Relative(relative) => Some(Content::String(ContentString::String(
+            Cow::Borrowed(&relative.path),
+        ))),
+    };
+    match resolved_template_name {
+        Some(template_name) => Ok(template_name),
+        None => {
+            let error = TemplateDoesNotExist::new_err("No template names provided").annotate(
                 py,
-                self.template_at(),
-                &format!("invalid template name: {content}"),
+                template_at(template_name),
+                "This variable is not in the context",
                 template,
-            )
-            .into()
-    }
-
-    fn resolve_template_name<'t, 'py>(
-        &'t self,
-        py: Python<'py>,
-        template: TemplateString<'t>,
-        context: &mut Context,
-    ) -> Result<Content<'t, 'py>, PyRenderError> {
-        let template_name = match &self.template_name {
-            IncludeTemplateName::Text(text) => text
-                .resolve(py, template, context, ResolveFailures::Raise)
-                .expect("Text should always be resolvable"),
-            IncludeTemplateName::Variable(tag_element) => {
-                tag_element.resolve(py, template, context, ResolveFailures::Raise)?
-            }
-            IncludeTemplateName::Relative(relative) => Some(Content::String(
-                ContentString::String(Cow::Borrowed(&relative.path)),
-            )),
-        };
-        match template_name {
-            Some(template_name) => Ok(template_name),
-            None => {
-                let error = TemplateDoesNotExist::new_err("No template names provided").annotate(
-                    py,
-                    self.template_at(),
-                    "This variable is not in the context",
-                    template,
-                );
-                Err(error.into())
-            }
+            );
+            Err(error.into())
         }
     }
+}
 
+fn invalid_template_name(
+    py: Python<'_>,
+    template_name: &IncludeTemplateName,
+    content: &str,
+    template: TemplateString<'_>,
+) -> PyRenderError {
+    PyTypeError::new_err("Included template name must be a string or iterable of strings.")
+        .annotate(
+            py,
+            template_at(template_name),
+            &format!("invalid template name: {content}"),
+            template,
+        )
+        .into()
+}
+
+impl Include {
     fn get_template<'t, 'py>(
         &self,
         template_name: Content<'t, 'py>,
@@ -919,7 +924,7 @@ impl Include {
                     let template_path = match construct_relative_path(
                         template_path,
                         self.origin.as_deref(),
-                        self.template_at(),
+                        template_at(&self.template_name),
                     )
                     .map_err(RenderError::from)?
                     {
@@ -938,15 +943,16 @@ impl Include {
                         )
                         .annotate(
                             py,
-                            self.template_at(),
+                            template_at(&self.template_name),
                             &format!("invalid template name: {content:?}"),
                             template,
                         )
                         .into());
                     }
                     let Ok(templates) = content.extract::<Vec<String>>() else {
-                        return Err(self.invalid_template_name(
+                        return Err(invalid_template_name(
                             py,
+                            &self.template_name,
                             &format!("{content}"),
                             template,
                         ));
@@ -958,17 +964,41 @@ impl Include {
                 }
             }
             Content::Int(content) => {
-                return Err(self.invalid_template_name(py, &format!("{content}"), template));
+                return Err(invalid_template_name(
+                    py,
+                    &self.template_name,
+                    &format!("{content}"),
+                    template,
+                ));
             }
             Content::Float(content) => {
-                return Err(self.invalid_template_name(py, &format!("{content}"), template));
+                return Err(invalid_template_name(
+                    py,
+                    &self.template_name,
+                    &format!("{content}"),
+                    template,
+                ));
             }
-            Content::Bool(true) => return Err(self.invalid_template_name(py, "True", template)),
-            Content::Bool(false) => return Err(self.invalid_template_name(py, "False", template)),
+            Content::Bool(true) => {
+                return Err(invalid_template_name(
+                    py,
+                    &self.template_name,
+                    "True",
+                    template,
+                ));
+            }
+            Content::Bool(false) => {
+                return Err(invalid_template_name(
+                    py,
+                    &self.template_name,
+                    "False",
+                    template,
+                ));
+            }
         }
         .map_err(|error| {
             error
-                .annotate(py, self.template_at(), "here", template)
+                .annotate(py, template_at(&self.template_name), "here", template)
                 .into()
         })
     }
@@ -981,7 +1011,7 @@ impl Render for Include {
         template: TemplateString<'t>,
         context: &mut Context,
     ) -> RenderResult<'t> {
-        let template_name = self.resolve_template_name(py, template, context)?;
+        let template_name = resolve_template_name(py, &self.template_name, template, context)?;
         let include = self.get_template(template_name, py, template, context)?;
         match self.only {
             false => {
@@ -1005,7 +1035,7 @@ impl Render for Include {
                     context.append(key.to_string(), value);
                 }
                 let rendered = include
-                    .render(py, context, self.template_at(), template)
+                    .render(py, context, template_at(&self.template_name), template)
                     .map(|content| Cow::Owned(content.into_owned()));
                 for key in names {
                     context.pop_variable(key);
@@ -1031,9 +1061,171 @@ impl Render for Include {
                     .map(|request| request.clone_ref(py));
                 let mut new_context = Context::new(inner_context, request, context.autoescape);
                 include
-                    .render(py, &mut new_context, self.template_at(), template)
+                    .render(
+                        py,
+                        &mut new_context,
+                        template_at(&self.template_name),
+                        template,
+                    )
                     .map(|content| Cow::Owned(content.into_owned()))
             }
+        }
+    }
+}
+
+impl Extends {
+    fn load_template<'t, 'py>(
+        &self,
+        py: Python<'py>,
+        template_path: String,
+        template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> Result<Template, PyErr> {
+        if context.seen.is_none() {
+            context.seen = Some(vec![]);
+        }
+
+        let seen = context
+            .seen
+            .as_mut()
+            .expect("context.seen should be populated");
+
+        if let Some(origin) = &self.origin {
+            seen.push(origin.clone())
+        };
+        match get_template(
+            self.engine.clone(),
+            py,
+            Cow::Owned(template_path),
+            Some(seen),
+        ) {
+            Ok((template, origin)) => {
+                seen.push(origin);
+                Ok(template)
+            }
+            Err(error) if error.is_instance_of::<TemplateSyntaxError>(py) => Err(error),
+            Err(error) => {
+                Err(error.annotate(py, template_at(&self.template_name), "here", template))
+            }
+        }
+    }
+
+    fn get_template<'t, 'py>(
+        &self,
+        py: Python<'py>,
+        template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> Result<Template, PyRenderError> {
+        let template_name = resolve_template_name(py, &self.template_name, template, context)?;
+        Ok(match template_name {
+            Content::String(content) => {
+                self.load_template(py, content.content().to_string(), template, context)
+            }
+            Content::Py(content) => {
+                if let Ok(parent) = content.extract::<Template>() {
+                    Ok(parent)
+                } else if let Ok(content) = content.cast::<PyString>() {
+                    let template_path = content
+                        .extract()
+                        .expect("PyString should be compatible with Cow<str>");
+                    self.load_template(py, template_path, template, context)
+                } else {
+                    let promise = PROMISE.import(py, "django.utils.functional", "Promise")?;
+                    let path_like = PATH_LIKE.import(py, "os", "PathLike")?;
+                    if content.is_instance(promise)? || content.is_instance(path_like)? {
+                        let content = content.str()?;
+                        let template_path = content
+                            .extract()
+                            .expect("PyString should be compatible with Cow<str>");
+                        self.load_template(py, template_path, template, context)
+                    } else {
+                        return Err(invalid_template_name(
+                            py,
+                            &self.template_name,
+                            &format!("{content}"),
+                            template,
+                        ));
+                    }
+                }
+            }
+            _ => unreachable!(),
+        }?)
+    }
+}
+
+impl Render for Extends {
+    fn render<'t>(
+        &self,
+        py: Python,
+        template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> RenderResult<'t> {
+        let parent = self.get_template(py, template, context)?;
+        let block_context = context.blocks.get_or_insert_default();
+        for (name, block) in &self.blocks {
+            block_context.push_front(name, (block, template.to_string().into()));
+        }
+
+        for node in &parent.nodes {
+            match node {
+                TokenTree::Text(_)
+                | TokenTree::TranslatedText(_)
+                | TokenTree::Int(_)
+                | TokenTree::Float(_) => continue,
+                TokenTree::Tag(Tag::Extends(_)) => break,
+                _ => {
+                    for block in parent.nodes.get_blocks() {
+                        block_context.push_front(&block.name, (block, parent.template.clone()));
+                    }
+                    break;
+                }
+            }
+        }
+
+        parent.render(py, context).map(Cow::Owned)
+    }
+}
+
+impl Render for Block {
+    fn render<'t>(
+        &self,
+        py: Python,
+        template: TemplateString<'t>,
+        context: &mut Context,
+    ) -> RenderResult<'t> {
+        if context.blocks.is_none() {
+            context
+                .block
+                .get_or_insert_default()
+                .push((self.clone(), template.to_string().into()));
+            self.nodes.render(py, template, context)
+        } else {
+            let blocks = context.blocks.as_mut().expect("blocks is known to be Some");
+            let (block, block_template) = blocks
+                .pop(&self.name)
+                .expect("this block should be in context.blocks");
+            context
+                .block
+                .get_or_insert_default()
+                .push((block.clone(), block_template.clone()));
+            let result = match block
+                .nodes
+                .render(py, TemplateString(&block_template), context)
+            {
+                Ok(Cow::Owned(result)) => Ok(Cow::Owned(result)),
+                Ok(Cow::Borrowed(result)) => Ok(Cow::Owned(result.to_string())),
+                Err(err) => Err(err),
+            };
+
+            context
+                .block
+                .as_mut()
+                .expect("block should be Some(Vec)")
+                .pop();
+
+            let blocks = context.blocks.as_mut().expect("blocks is known to be Some");
+            blocks.push(&self.name, (&block, block_template));
+            result
         }
     }
 }
