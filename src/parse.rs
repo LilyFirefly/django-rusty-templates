@@ -4,6 +4,7 @@ use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::iter::Peekable;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use either::Either;
 use miette::{Diagnostic, SourceSpan};
@@ -39,7 +40,7 @@ use crate::filters::YesnoFilter;
 use dtl_lexer::common::{LexerError, get_all_at, text_content_at, translated_text_content_at};
 use dtl_lexer::core::{Lexer, TokenType};
 use dtl_lexer::tag::autoescape::{AutoescapeEnabled, AutoescapeError, lex_autoescape_argument};
-use dtl_lexer::tag::common::{TagElementToken, TagElementTokenType};
+use dtl_lexer::tag::common::{TagElementLexer, TagElementToken, TagElementTokenType};
 use dtl_lexer::tag::forloop::{ForLexer, ForLexerError, ForLexerInError, ForTokenType};
 use dtl_lexer::tag::ifcondition::{
     IfConditionAtom, IfConditionLexer, IfConditionOperator, IfConditionTokenType,
@@ -72,6 +73,10 @@ use crate::types::ForVariableName;
 use crate::types::Text;
 use crate::types::TranslatedText;
 use dtl_lexer::types::Variable;
+
+// Assign each compiled cycle node a unique ID so its current position can be
+// stored per render in Context without interfering with other cycle nodes.
+static NEXT_CYCLE_ID: AtomicUsize = AtomicUsize::new(0);
 
 trait Parse<R> {
     fn parse(&self, parser: &Parser) -> Result<R, ParseError>;
@@ -721,6 +726,39 @@ pub struct FirstOf {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct CycleValue {
+    pub value: TagElement,
+    pub at: At,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct SimpleCycle {
+    pub id: CycleId,
+    pub values: Vec<CycleValue>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct NamedCycle {
+    pub cycle: SimpleCycle,
+    pub asvar: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct SilentNamedCycle {
+    pub cycle: NamedCycle,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Cycle {
+    Simple(SimpleCycle),
+    Named(NamedCycle),
+    SilentNamed(SilentNamedCycle),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct CycleId(usize);
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum Tag {
     Autoescape {
         enabled: AutoescapeEnabled,
@@ -743,6 +781,7 @@ pub enum Tag {
     Now(Now),
     FirstOf(FirstOf),
     TemplateTag(TemplateTag),
+    Cycle(Cycle),
 }
 
 #[derive(PartialEq, Eq)]
@@ -860,6 +899,24 @@ pub enum ParseError {
     #[error("Expected an argument")]
     MissingArgument {
         #[label("here")]
+        at: SourceSpan,
+    },
+    #[error("Expected two or more arguments")]
+    MissingCycleArguments {
+        #[label("expected at least two arguments")]
+        at: SourceSpan,
+    },
+    #[error("Named cycle '{name}' does not exist")]
+    #[diagnostic(help("Define the named cycle earlier using the 'as' form."))]
+    UnknownNamedCycle {
+        name: String,
+        #[label("not defined")]
+        at: SourceSpan,
+    },
+    #[error("Only 'silent' flag is allowed after cycle's name, not '{flag}'.")]
+    InvalidCycleFlag {
+        flag: String,
+        #[label("invalid flag")]
         at: SourceSpan,
     },
     #[error(transparent)]
@@ -1195,6 +1252,7 @@ pub struct Parser<'t, 'py> {
     external_tags: HashMap<String, TagContext<'py>>,
     external_filters: HashMap<String, Bound<'py, PyAny>>,
     forloop_depth: usize,
+    named_cycles: HashMap<String, Cycle>,
 }
 
 impl<'t, 'py> Parser<'t, 'py> {
@@ -1213,6 +1271,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             external_tags: HashMap::new(),
             external_filters: HashMap::new(),
             forloop_depth: 0,
+            named_cycles: HashMap::new(),
         }
     }
 
@@ -1231,6 +1290,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             external_tags: HashMap::new(),
             external_filters,
             forloop_depth: 0,
+            named_cycles: HashMap::new(),
         }
     }
 
@@ -1534,6 +1594,90 @@ impl<'t, 'py> Parser<'t, 'py> {
         Ok(TokenTree::Tag(Tag::FirstOf(FirstOf { vars, asvar })))
     }
 
+    fn parse_cycle(&mut self, parts: TagParts) -> Result<Cycle, ParseError> {
+        let at = parts.at;
+        let tokens = TagElementLexer::new(self.template, parts).collect::<Result<Vec<_>, _>>()?;
+
+        let tokens = match tokens.as_slice() {
+            [] => return Err(ParseError::MissingCycleArguments { at: at.into() }),
+
+            [reference] if reference.token_type == TagElementTokenType::Variable => {
+                let name_text = self.template.content(reference.at);
+
+                return self.named_cycles.get(name_text).cloned().ok_or_else(|| {
+                    ParseError::UnknownNamedCycle {
+                        name: name_text.to_string(),
+                        at: reference.at.into(),
+                    }
+                });
+            }
+
+            [argument] => {
+                return Err(ParseError::MissingCycleArguments {
+                    at: argument.at.into(),
+                });
+            }
+
+            tokens => tokens,
+        };
+
+        let (tokens, name_at, silent) = match tokens {
+            [values @ .., as_token, name_token, flag_token]
+                if values.len() >= 2 && self.template.content(as_token.at) == "as" =>
+            {
+                let flag = self.template.content(flag_token.at);
+
+                if flag != "silent" {
+                    return Err(ParseError::InvalidCycleFlag {
+                        flag: flag.to_string(),
+                        at: flag_token.at.into(),
+                    });
+                }
+
+                (values, Some(name_token.at), true)
+            }
+
+            [values @ .., as_token, name_token]
+                if values.len() >= 2 && self.template.content(as_token.at) == "as" =>
+            {
+                (values, Some(name_token.at), false)
+            }
+
+            values => (values, None, false),
+        };
+
+        let values = tokens
+            .iter()
+            .map(|token| {
+                Ok(CycleValue {
+                    value: token.parse(self)?,
+                    at: token.at,
+                })
+            })
+            .collect::<Result<Vec<_>, ParseError>>()?;
+
+        let id = CycleId(NEXT_CYCLE_ID.fetch_add(1, Ordering::Relaxed));
+        let simple_cycle = SimpleCycle { id, values };
+
+        let Some(name_at) = name_at else {
+            return Ok(Cycle::Simple(simple_cycle));
+        };
+        let asvar = self.template.content(name_at).to_string();
+        let named_cycle = NamedCycle {
+            cycle: simple_cycle,
+            asvar: asvar.clone(),
+        };
+        let cycle = if silent {
+            Cycle::SilentNamed(SilentNamedCycle { cycle: named_cycle })
+        } else {
+            Cycle::Named(named_cycle)
+        };
+
+        self.named_cycles.insert(asvar, cycle.clone());
+
+        Ok(cycle)
+    }
+
     fn parse_tag(
         &mut self,
         tag: &'t str,
@@ -1593,6 +1737,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             "templatetag" => Either::Left(TokenTree::Tag(Tag::TemplateTag(
                 lex_templatetag(self.template, tag.parts).map_err(ParseError::from)?,
             ))),
+            "cycle" => Either::Left(TokenTree::Tag(Tag::Cycle(self.parse_cycle(tag.parts)?))),
             tag_name => match self.external_tags.get(tag_name) {
                 Some(TagContext::Simple(context)) => {
                     Either::Left(self.parse_simple_tag(context, at, tag.parts)?)

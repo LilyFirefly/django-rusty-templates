@@ -17,6 +17,7 @@ use pyo3::sync::{MutexExt, PyOnceLock};
 use pyo3::types::{PyBool, PyDict, PyInt, PyString, PyType};
 
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
+use crate::parse::CycleId;
 use crate::template::django_rusty_templates::{Engine, Template, get_template, select_template};
 use crate::utils::PyResultMethods;
 use dtl_lexer::types::{At, TemplateString};
@@ -69,6 +70,7 @@ pub struct Context {
     pub autoescape: bool,
     names: Vec<HashSet<String>>,
     include_cache: HashMap<IncludeTemplateKey, Arc<Template>>,
+    cycle_indices: HashMap<CycleId, usize>,
 }
 
 impl Context {
@@ -85,6 +87,7 @@ impl Context {
             loops: Vec::new(),
             names: Vec::new(),
             include_cache: HashMap::new(),
+            cycle_indices: HashMap::new(),
         }
     }
 
@@ -100,6 +103,7 @@ impl Context {
             loops: self.loops.clone(),
             names: self.names.clone(),
             include_cache: self.include_cache.clone(),
+            cycle_indices: self.cycle_indices.clone(),
         }
     }
 
@@ -293,6 +297,14 @@ impl Context {
                 Ok(entry.insert(Arc::new(include)).clone())
             }
         }
+    }
+
+    pub fn next_cycle_index(&mut self, id: CycleId, length: usize) -> usize {
+        *self
+            .cycle_indices
+            .entry(id)
+            .and_modify(|index| *index = (*index + 1) % length)
+            .or_default()
     }
 }
 
