@@ -65,7 +65,7 @@ jobs:
       uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
 
     - name: Install cargo-binstall
-      uses: cargo-bins/cargo-binstall@b874e25ea559687bec77e281e9b271aa1367b624  # v1.23.0
+      uses: cargo-bins/cargo-binstall@422f3094be6a0843857aa008b499caaf6bce0da8  # v1.24.0
 
     - name: Install cargo-llvm-cov
       run: cargo binstall cargo-llvm-cov
