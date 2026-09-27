@@ -180,6 +180,15 @@ def test_extends_content_outside_blocks(assert_render):
     )
 
 
+def test_extends_include_in_block(assert_render):
+    template = "{% extends 'base.txt' %}{% block body %}{% include 'basic.txt' %}{% endblock body %}"
+    assert_render(
+        template=template,
+        context={"user": "Lily"},
+        expected="# Header\nHello Lily!\n\n",
+    )
+
+
 def test_extends_relative_template_variable_parent(assert_render):
     template = "{% extends 'extends_extends_variable.txt' %}"
     assert_render(
