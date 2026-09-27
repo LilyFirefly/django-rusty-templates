@@ -41,7 +41,29 @@ TEMPLATES = [
 
 Occasionally it is possible to render internal state of the template engine. In these cases, matching Django's rendered output is often prohibitively complicated for little to no benefit. Known cases are listed here:
 
-* `{% block foo %}{{ block }}{% endblock %}`
+### The current block does not override provided context
+
+With the following template:
+
+```
+{% block foo %}{{ block }}{% endblock %}
+```
+
+When passed a context of `{"block": "Block Content"}`, Django will render:
+
+```
+<Block Node: foo. Contents: [<Variable Node: block>]>
+```
+
+because it stores the internal state of the active block in `context["block"]`.
+
+Django Rusty Templates will instead render:
+
+```
+Block Content
+```
+
+because it stores the internal state of the active block elsewhere.
 
 ## Contributing
 
