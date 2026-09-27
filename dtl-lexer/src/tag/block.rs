@@ -25,6 +25,15 @@ pub enum BlockType {
     End,
 }
 
+impl BlockType {
+    fn name(&self) -> &'static str {
+        match self {
+            BlockType::Start => "block",
+            BlockType::End => "endblock",
+        }
+    }
+}
+
 pub fn lex_block(
     template: TemplateString,
     parts: TagParts,
@@ -44,13 +53,9 @@ pub fn lex_block(
         Ok(Some(BlockToken { at }))
     } else {
         let at = (parts.at.0 + len + next, rest.len());
-        let name = match block_type {
-            BlockType::Start => "block",
-            BlockType::End => "endblock",
-        };
         Err(BlockLexerError::UnexpectedArguments {
             at: at.into(),
-            name,
+            name: block_type.name(),
         })
     }
 }
