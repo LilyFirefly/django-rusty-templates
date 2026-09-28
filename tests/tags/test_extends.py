@@ -851,6 +851,31 @@ def test_extends_locmem_loader(engine_class):
     assert template.render({}) == "Parent content. Intermediate content. Child content."
 
 
+def test_include_block_uses_isolated_context(engine_class):
+    loaders = [
+        (
+            "django.template.loaders.locmem.Loader",
+            {
+                "child.html": "{% extends 'base.html' %}",
+                "base.html": (
+                    "{% block body %}{% include 'other_template_content.html' %}{% endblock %}"
+                ),
+                "other_template_content.html": "{% block other_template_content %}other_template_content{% endblock %}",
+            },
+        ),
+    ]
+    config = {
+        "OPTIONS": {"loaders": loaders},
+        "NAME": "locmem",
+        "DIRS": (),
+        "APP_DIRS": False,
+    }
+    engine = engine_class(config)
+
+    template = engine.get_template("child.html")
+    assert template.render({}) == "other_template_content"
+
+
 def test_extends_after_tag_named_template(template_engine):
     with pytest.raises(TemplateSyntaxError) as exc_info:
         template_engine.get_template("extends_after_tag.txt")
