@@ -50,9 +50,9 @@ jobs:
     - name: Install gettext for translation testing (Windows)
       if: runner.os == 'Windows'
       run: |
-        LATEST_URL=$(curl -s "https://api.github.com/repos/mlocati/gettext-iconv-windows/releases/latest" |
+        LATEST_URL=$(curl -s --retry 3 "https://api.github.com/repos/mlocati/gettext-iconv-windows/releases/latest" |
           grep -o 'https://github.com/mlocati/gettext-iconv-windows/releases/download/[^"]*-shared-64\.zip')
-        curl -L "$LATEST_URL" -o "$RUNNER_TEMP/gettext.zip"
+        curl -L "$LATEST_URL" -o "$RUNNER_TEMP/gettext.zip" --retry 3
         unzip "$RUNNER_TEMP/gettext.zip" -d "$RUNNER_TEMP/gettext"
         echo "$RUNNER_TEMP/gettext/bin" >> $GITHUB_PATH
 
