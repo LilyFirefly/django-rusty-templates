@@ -945,6 +945,17 @@ def test_extends_child_block_in_if_tags(assert_render):
     )
 
 
+def test_extends_nested_blocks_in_if_tags(assert_render):
+    template = """{% extends 'extends/intermediate.txt' %}
+    {% block inner %}{{ block.super }} Overridden{% endblock inner %}
+    """
+    assert_render(
+        template=template,
+        context={"show_inner": True},
+        expected="Intermediate Inner Overridden\n",
+    )
+
+
 def test_render_error_in_block(assert_render_error):
     template = "{% extends 'base.txt' %}{% block body %}{{ foo|default:missing }}{% endblock body %}"
     django_message = snapshot(
