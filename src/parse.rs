@@ -2404,8 +2404,10 @@ impl<'t, 'py> Parser<'t, 'py> {
             template_name => template_name,
         };
 
+        let nodes = self.parse()?;
         let mut blocks = HashMap::new();
-        while let Some(block) = self.next_block()? {
+
+        for block in nodes.get_blocks() {
             blocks.insert(block.name.clone(), block.clone());
             for nested in block.nested_blocks() {
                 blocks.insert(nested.name.clone(), nested.clone());
@@ -2419,28 +2421,6 @@ impl<'t, 'py> Parser<'t, 'py> {
             blocks,
         };
         Ok(TokenTree::Tag(Tag::Extends(extends)))
-    }
-
-    fn next_block(&mut self) -> Result<Option<Block>, PyParseError> {
-        while let Some(token) = self.lexer.next() {
-            match token.token_type {
-                TokenType::Text | TokenType::Comment | TokenType::Variable => continue,
-                TokenType::Tag => match self.parse_tag(token.content(self.template), token.at)? {
-                    Either::Left(token_tree) => match token_tree {
-                        TokenTree::Tag(Tag::Block(block)) => return Ok(Some(block)),
-                        _ => continue,
-                    },
-                    Either::Right(end_tag) => {
-                        return Err(ParseError::UnexpectedEndTag {
-                            at: end_tag.at.into(),
-                            unexpected: end_tag.as_cow(),
-                        }
-                        .into());
-                    }
-                },
-            };
-        }
-        Ok(None)
     }
 
     fn parse_block(&mut self, at: At, parts: TagParts) -> Result<TokenTree, PyParseError> {

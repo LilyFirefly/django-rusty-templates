@@ -918,7 +918,7 @@ def test_extends_block_in_for_loop_empty(assert_render):
     )
 
 
-def test_extends_block_in_various_tags(assert_render):
+def test_extends_parent_block_in_various_tags(assert_render):
     template = """{% extends 'extends/blocks.txt' %}
     {% block raw %}{{ html }}{% endblock raw %}
     {% block repeat %}4{% endblock repeat %}
@@ -931,6 +931,17 @@ def test_extends_block_in_various_tags(assert_render):
         template=template,
         context={"html": "<br>", "foo": 1, "y": range(3)},
         expected="\n<br>\n44\nTRUE!\n{% block %}\n\n012\n",
+    )
+
+
+def test_extends_child_block_in_if_tags(assert_render):
+    template = """{% extends 'extends/base.txt' %}
+{% if show_intermediate %}{% block base %}{{ block.super }} Intermediate{% endblock base %}{% endif %}
+    """
+    assert_render(
+        template=template,
+        context={"show_intermediate": False},
+        expected="Base Intermediate\n",
     )
 
 
