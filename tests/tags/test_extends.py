@@ -977,3 +977,12 @@ def test_render_error_in_block(assert_render_error):
         django_message=django_message,
         rusty_message=rusty_message,
     )
+
+
+def test_include_with_block_nested_in_block(assert_render):
+    template = "{% extends 'base.txt' %}{% block body %}Body: {% include 'header.txt' %}{% endblock body %}"
+    assert_render(
+        template=template,
+        context={},
+        expected="# Header\nBody: Included Header\n\n",
+    )
