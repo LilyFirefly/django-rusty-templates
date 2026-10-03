@@ -1011,9 +1011,10 @@ impl Render for Include {
         template: TemplateString<'t>,
         context: &mut Context,
     ) -> RenderResult<'t> {
+        let block_context = context.block_context.take();
         let template_name = resolve_template_name(py, &self.template_name, template, context)?;
         let include = self.get_template(template_name, py, template, context)?;
-        match self.only {
+        let rendered = match self.only {
             false => {
                 let mut names = Vec::new();
                 let mut values = Vec::new();
@@ -1069,7 +1070,9 @@ impl Render for Include {
                     )
                     .map(|content| Cow::Owned(content.into_owned()))
             }
-        }
+        };
+        context.block_context = block_context;
+        rendered
     }
 }
 
