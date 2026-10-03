@@ -867,7 +867,7 @@ impl GetBlocks for Tag {
             Self::Autoescape { nodes, .. } | Self::SimpleBlockTag(SimpleBlockTag { nodes, .. }) => {
                 nodes.get_blocks()
             }
-            Self::Block(block) => Box::new(std::iter::once(block)),
+            Self::Block(block) => Box::new(std::iter::once(block).chain(block.nodes.get_blocks())),
             Self::Extends(_)
             | Self::Include(_)
             | Self::Load

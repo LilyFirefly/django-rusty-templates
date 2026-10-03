@@ -7,7 +7,7 @@ use pyo3::types::PyString;
 
 use dtl_lexer::types::{PartsIterator, TemplateString};
 
-use super::types::{AsBorrowedContent, Content, ContentString, Context};
+use super::types::{AsBorrowedContent, Content, ContentString, Context, IntoOwnedContent};
 use super::{Evaluate, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
 use crate::error::{AnnotatePyErr, RenderError};
 use crate::parse::{TagElement, TokenTree};
@@ -128,17 +128,12 @@ impl Resolve for Variable {
                 }))
             }
             Self::BlockSuper(_) => {
-                let block_vec = context
+                let (block, template) = context
                     .block
-                    .clone()
+                    .take()
                     .expect("Should already have raised if None.");
-                let (block, template) = block_vec
-                    .last()
-                    .expect("Should have pushed at least one block");
-                let rendered = block.render(py, TemplateString(template), context)?;
-                Ok(Some(Content::String(ContentString::String(Cow::Owned(
-                    rendered.to_string(),
-                )))))
+                let rendered = block.render(py, TemplateString(&template), context)?;
+                Ok(Some(rendered.to_string().into_content()))
             }
         }
     }

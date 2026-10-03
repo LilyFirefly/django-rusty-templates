@@ -1194,10 +1194,7 @@ impl Render for Block {
         context: &mut Context,
     ) -> RenderResult<'t> {
         if context.block_context.is_none() {
-            context
-                .block
-                .get_or_insert_default()
-                .push((self.clone(), template.to_string()));
+            context.block = Some((self.clone(), template.to_string()));
             self.nodes.render(py, template, context)
         } else {
             let blocks = context
@@ -1209,21 +1206,15 @@ impl Render for Block {
                 None => (self, template),
                 Some((ref block, ref template)) => (block, TemplateString(template)),
             };
-            context
+            let old_block = context
                 .block
-                .get_or_insert_default()
-                .push((block.clone(), block_template.to_string()));
+                .replace((block.clone(), block_template.to_string()));
             let result = match block.nodes.render(py, block_template, context) {
                 Ok(Cow::Owned(result)) => Ok(Cow::Owned(result)),
                 Ok(Cow::Borrowed(result)) => Ok(Cow::Owned(result.to_string())),
                 Err(err) => Err(err),
             };
-
-            context
-                .block
-                .as_mut()
-                .expect("block should be Some(Vec)")
-                .pop();
+            context.block = old_block;
 
             let blocks = context
                 .block_context
