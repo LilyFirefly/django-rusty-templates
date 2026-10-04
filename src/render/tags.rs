@@ -1032,6 +1032,8 @@ impl Render for Include {
                         None => values.push(PyString::new(py, "").into_any()),
                     }
                 }
+                names.push("forloop");
+                values.push(context.resolve_for_loop(py, 0));
                 for (key, value) in names.iter().zip(values) {
                     context.append(key.to_string(), value);
                 }
