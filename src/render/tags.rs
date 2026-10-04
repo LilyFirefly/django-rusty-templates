@@ -1011,7 +1011,7 @@ impl Render for Include {
         template: TemplateString<'t>,
         context: &mut Context,
     ) -> RenderResult<'t> {
-        let block_context = context.block_context.take();
+        let render_context = std::mem::take(&mut context.render_context);
         let template_name = resolve_template_name(py, &self.template_name, template, context)?;
         let include = self.get_template(template_name, py, template, context)?;
         let rendered = match self.only {
@@ -1071,7 +1071,7 @@ impl Render for Include {
                     .map(|content| Cow::Owned(content.into_owned()))
             }
         };
-        context.block_context = block_context;
+        context.render_context = render_context;
         rendered
     }
 }
@@ -1084,11 +1084,12 @@ impl Extends {
         template: TemplateString<'t>,
         context: &mut Context,
     ) -> Result<Template, PyErr> {
-        if context.seen.is_none() {
-            context.seen = Some(vec![]);
+        if context.render_context.seen.is_none() {
+            context.render_context.seen = Some(vec![]);
         }
 
         let seen = context
+            .render_context
             .seen
             .as_mut()
             .expect("context.seen should be populated");
@@ -1164,7 +1165,7 @@ impl Render for Extends {
         context: &mut Context,
     ) -> RenderResult<'t> {
         let parent = self.get_template(py, template, context)?;
-        let block_context = context.block_context.get_or_insert_default();
+        let block_context = context.render_context.block_context.get_or_insert_default();
         for (name, block) in &self.blocks {
             block_context.push_front(name, (block, template.to_string().into()));
         }
@@ -1196,11 +1197,12 @@ impl Render for Block {
         template: TemplateString<'t>,
         context: &mut Context,
     ) -> RenderResult<'t> {
-        if context.block_context.is_none() {
+        if context.render_context.block_context.is_none() {
             context.block = Some((self.clone(), template.to_string()));
             self.nodes.render(py, template, context)
         } else {
             let blocks = context
+                .render_context
                 .block_context
                 .as_mut()
                 .expect("block_context is known to be Some");
@@ -1220,6 +1222,7 @@ impl Render for Block {
             context.block = old_block;
 
             let blocks = context
+                .render_context
                 .block_context
                 .as_mut()
                 .expect("block_context is known to be Some");
