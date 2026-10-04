@@ -132,8 +132,11 @@ impl Resolve for Variable {
                     .block
                     .take()
                     .expect("Should already have raised if None.");
-                let rendered = block.render(py, TemplateString(&template), context)?;
-                Ok(Some(rendered.to_string().into_content()))
+                let rendered = block
+                    .render(py, TemplateString(&template), context)
+                    .map(|content| content.to_string());
+                context.block = Some((block, template));
+                Ok(Some(rendered?.into_content()))
             }
         }
     }
