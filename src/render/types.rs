@@ -91,6 +91,12 @@ impl BlockContext {
     }
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct RenderContext {
+    pub block_context: Option<BlockContext>,
+    pub seen: Option<Vec<Origin>>,
+}
+
 #[derive(Debug, Default)]
 pub struct Context {
     context: HashMap<String, Vec<Py<PyAny>>>,
@@ -101,8 +107,7 @@ pub struct Context {
     include_cache: HashMap<IncludeTemplateKey, Arc<Template>>,
     cycle_indices: HashMap<CycleId, usize>,
     pub block: Option<(Block, String)>,
-    pub block_context: Option<BlockContext>,
-    pub seen: Option<Vec<Origin>>,
+    pub render_context: RenderContext,
 }
 
 impl Context {
@@ -121,8 +126,7 @@ impl Context {
             include_cache: HashMap::new(),
             cycle_indices: HashMap::new(),
             block: None,
-            block_context: None,
-            seen: None,
+            render_context: RenderContext::default(),
         }
     }
 
@@ -140,8 +144,7 @@ impl Context {
             include_cache: self.include_cache.clone(),
             cycle_indices: self.cycle_indices.clone(),
             block: self.block.clone(),
-            block_context: self.block_context.clone(),
-            seen: self.seen.clone(),
+            render_context: self.render_context.clone(),
         }
     }
 

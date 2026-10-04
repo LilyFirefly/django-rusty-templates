@@ -986,3 +986,12 @@ def test_include_with_block_nested_in_block(assert_render):
         context={},
         expected="# Header\nBody: Included Header\n\n",
     )
+
+
+def test_base_includes_extends(assert_render):
+    template = "{% extends 'base_include.txt' %}"
+    assert_render(
+        template=template,
+        context={},
+        expected="Included\n\n",
+    )
