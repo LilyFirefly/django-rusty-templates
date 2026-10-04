@@ -117,13 +117,7 @@ impl Resolve for Variable {
                     ForVariableName::First => Content::Bool(for_loop.first()),
                     ForVariableName::Last => Content::Bool(for_loop.last()),
                     ForVariableName::Object => {
-                        let content =
-                            Cow::Owned(context.render_for_loop(py, for_variable.parent_count));
-                        let content = match context.autoescape {
-                            false => ContentString::String(content),
-                            true => ContentString::HtmlUnsafe(content),
-                        };
-                        Content::String(content)
+                        Content::Py(context.resolve_for_loop(py, for_variable.parent_count))
                     }
                 }))
             }

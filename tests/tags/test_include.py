@@ -148,6 +148,36 @@ def test_include_fake_template_only(assert_render):
     assert_render(template=template, context=context, expected=expected)
 
 
+def test_include_for_loop_variable(assert_render):
+    template = "{% for n in items %}{{ n }}: {% include 'loopvar.txt' %}{% endfor %}"
+    context = {"items": range(3)}
+    expected = "0: 1\n1: 2\n2: 3\n"
+    assert_render(template=template, context=context, expected=expected)
+
+
+def test_include_for_loop_variable_nested(assert_render):
+    template = "{% for n in items %}{{ n }}: {% include 'loopvar.txt' %}{% endfor %}"
+    context = {"items": range(3), "nested_loop": range(3)}
+    expected = "0: 1112131\n1: 2122232\n2: 3132333\n"
+    assert_render(template=template, context=context, expected=expected)
+
+
+def test_include_for_loop_variable_only(assert_render):
+    template = (
+        "{% for n in items %}{{ n }}: {% include 'loopvar.txt' only %}{% endfor %}"
+    )
+    context = {"items": range(3)}
+    expected = "0: \n1: \n2: \n"
+    assert_render(template=template, context=context, expected=expected)
+
+
+def test_include_for_loop_variable_forloop_only(assert_render):
+    template = "{% for n in items %}{{ n }}: {% include 'loopvar.txt' with forloop=forloop only %}{% endfor %}"
+    context = {"items": range(3)}
+    expected = "0: 1\n1: 2\n2: 3\n"
+    assert_render(template=template, context=context, expected=expected)
+
+
 def test_empty_include(assert_parse_error):
     template = "{% include %}"
     django_message = "'include' tag takes at least one argument: the name of the template to be included."

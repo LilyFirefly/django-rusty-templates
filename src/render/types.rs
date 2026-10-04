@@ -291,8 +291,14 @@ impl Context {
         self.loops.get(index)
     }
 
-    pub fn render_for_loop(&self, py: Python<'_>, depth: usize) -> String {
-        let mut forloop_dict = PyDict::new(py);
+    pub fn resolve_for_loop<'py>(&self, py: Python<'py>, depth: usize) -> Bound<'py, PyAny> {
+        let mut forloop_dict = self
+            .context
+            .get("forloop")
+            .map_or_default(|values| values.last())
+            .map(|dict| dict.bind(py))
+            .cloned()
+            .unwrap_or(PyDict::new(py).into_any());
         for forloop in self.loops.iter().rev().take(self.loops.len() - depth) {
             let dict = PyDict::new(py);
             dict.set_item("parentloop", forloop_dict)
@@ -309,13 +315,10 @@ impl Context {
                 .expect("Can always set a str: bool key/value");
             dict.set_item("last", forloop.last())
                 .expect("Can always set a str: bool key/value");
-            forloop_dict = dict;
+            forloop_dict = dict.into_any();
         }
 
-        let forloop_str = forloop_dict
-            .str()
-            .expect("All elements of the dictionary can be converted to a string");
-        forloop_str.to_string()
+        forloop_dict
     }
 
     pub fn get_or_insert_include(
