@@ -135,7 +135,13 @@ pub struct FilterLexer<'t> {
 
 impl<'t> FilterLexer<'t> {
     fn new(variable: &'t str, start: usize) -> Result<Self, LexerError> {
-        let Some(offset) = variable.find('|') else {
+        let pipe = variable.find('|');
+        let remainder = &variable[..pipe.unwrap_or(variable.len())];
+        if let Some(n) = remainder.find(|c: char| !c.is_whitespace()) {
+            let at = (start + n, remainder.trim().len());
+            return Err(LexerError::InvalidRemainder { at: at.into() });
+        }
+        let Some(offset) = pipe else {
             return Ok(Self {
                 rest: "",
                 byte: start + variable.len(),
