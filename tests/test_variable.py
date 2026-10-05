@@ -63,6 +63,56 @@ def test_render_attribute_negative_int(assert_parse_error):
     )
 
 
+def test_render_variable_remainder(assert_parse_error):
+    template = "{{ a .b }}"
+    django_message = snapshot("Could not parse the remainder: ' .b' from 'a .b'")
+    rusty_message = snapshot("""\
+  × Could not parse the remainder
+   ╭────
+ 1 │ {{ a .b }}
+   ·      ─┬
+   ·       ╰── here
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_render_variable_remainder_before_filter(assert_parse_error):
+    template = "{{ engines[0].name | length }}"
+    django_message = snapshot(
+        "Could not parse some characters: engines|[0].name| | length"
+    )
+    rusty_message = snapshot("""\
+  × Could not parse the remainder
+   ╭────
+ 1 │ {{ engines[0].name | length }}
+   ·           ────┬───
+   ·               ╰── here
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_render_float_exponent_sign(assert_parse_error):
+    template = "{{ 1e+5 }}"
+    django_message = snapshot("Could not parse the remainder: '+5' from '1e+5'")
+    rusty_message = snapshot("""\
+  × Could not parse the remainder
+   ╭────
+ 1 │ {{ 1e+5 }}
+   ·      ─┬
+   ·       ╰── here
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
 def test_render_invalid_variable(assert_parse_error):
     template = "{{ & }}"
     django_message = snapshot("Could not parse the remainder: '&' from '&'")
