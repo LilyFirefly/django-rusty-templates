@@ -264,7 +264,13 @@ impl Render for TokenTree {
             Self::Int(n) => Ok(n.to_string().into()),
             Self::Float(f) => Ok(f.to_string().into()),
             Self::Tag(tag) => tag.render(py, template, context),
-            Self::Variable(variable) => variable.render(py, template, context),
+            Self::Variable(variable) => match variable.render(py, template, context) {
+                Ok(content) => Ok(content),
+                Err(error) => match error.try_into_render_error()? {
+                    RenderError::VariableDoesNotExist { .. } => Ok(Cow::Borrowed("")),
+                    error => Err(error.into()),
+                },
+            },
             Self::Filter(filter) => filter.render(py, template, context),
         }
     }

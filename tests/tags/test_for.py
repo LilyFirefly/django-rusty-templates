@@ -205,6 +205,15 @@ def test_render_for_loop_invalid_forloop_variable(assert_render):
     assert_render(template=template, context={"y": y}, expected=expected)
 
 
+def test_render_for_loop_invalid_forloop_variable_include(assert_render):
+    template = "{% include 'invalid_forloop.txt' %}"
+    nested_loop = ["foo"]
+    expected = "1\n"
+    assert_render(
+        template=template, context={"nested_loop": nested_loop}, expected=expected
+    )
+
+
 def test_render_for_loop_invalid_parentloop_variable(assert_render):
     template = "{% autoescape off %}{% for x in y %}{{ forloop.invalid.parentloop }}{% endfor %}{% endautoescape off %}"
     y = ["foo"]
