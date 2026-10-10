@@ -7,7 +7,7 @@ use pyo3::types::PyString;
 
 use dtl_lexer::types::{PartsIterator, TemplateString};
 
-use super::types::{AsBorrowedContent, Content, ContentString, Context};
+use super::types::{AsBorrowedContent, Content, ContentString, Context, IntoOwnedContent};
 use super::{Evaluate, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
 use crate::error::{AnnotatePyErr, RenderError};
 use crate::parse::{TagElement, TokenTree};
@@ -117,15 +117,20 @@ impl Resolve for Variable {
                     ForVariableName::First => Content::Bool(for_loop.first()),
                     ForVariableName::Last => Content::Bool(for_loop.last()),
                     ForVariableName::Object => {
-                        let content =
-                            Cow::Owned(context.render_for_loop(py, for_variable.parent_count));
-                        let content = match context.autoescape {
-                            false => ContentString::String(content),
-                            true => ContentString::HtmlUnsafe(content),
-                        };
-                        Content::String(content)
+                        Content::Py(context.resolve_for_loop(py, for_variable.parent_count))
                     }
                 }))
+            }
+            Self::BlockSuper(_) => {
+                let (block, template) = context
+                    .block
+                    .take()
+                    .expect("Should already have raised if None.");
+                let rendered = block
+                    .render(py, TemplateString(&template), context)
+                    .map(|content| content.to_string());
+                context.block = Some((block, template));
+                Ok(Some(rendered?.into_content()))
             }
         }
     }
@@ -183,6 +188,9 @@ impl Resolve for Argument {
                     None => {
                         let at = match variable {
                             Variable::Variable(at) => *at,
+                            Variable::BlockSuper(_) => {
+                                unreachable!("A BlockSuper should always resolve.")
+                            }
                             Variable::ForVariable(_) => {
                                 unreachable!("A ForVariable should always resolve.")
                             }
@@ -256,7 +264,13 @@ impl Render for TokenTree {
             Self::Int(n) => Ok(n.to_string().into()),
             Self::Float(f) => Ok(f.to_string().into()),
             Self::Tag(tag) => tag.render(py, template, context),
-            Self::Variable(variable) => variable.render(py, template, context),
+            Self::Variable(variable) => match variable.render(py, template, context) {
+                Ok(content) => Ok(content),
+                Err(error) => match error.try_into_render_error()? {
+                    RenderError::VariableDoesNotExist { .. } => Ok(Cow::Borrowed("")),
+                    error => Err(error.into()),
+                },
+            },
             Self::Filter(filter) => filter.render(py, template, context),
         }
     }

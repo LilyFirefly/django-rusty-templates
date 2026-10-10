@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::collections::VecDeque;
 use std::collections::hash_map::Entry;
 use std::iter::zip;
 use std::sync::{Arc, Mutex};
@@ -17,7 +18,8 @@ use pyo3::sync::{MutexExt, PyOnceLock};
 use pyo3::types::{PyBool, PyDict, PyInt, PyString, PyType};
 
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
-use crate::parse::CycleId;
+use crate::loaders::Origin;
+use crate::parse::{Block, CycleId};
 use crate::template::django_rusty_templates::{Engine, Template, get_template, select_template};
 use crate::utils::PyResultMethods;
 use dtl_lexer::types::{At, TemplateString};
@@ -62,6 +64,39 @@ pub enum IncludeTemplateKey {
     Vec(Vec<String>),
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct BlockContext {
+    pub blocks: HashMap<String, VecDeque<(Block, Arc<String>)>>,
+}
+
+impl BlockContext {
+    pub fn pop(&mut self, name: &str) -> Option<(Block, Arc<String>)> {
+        self.blocks.get_mut(name).map(|blocks| blocks.pop_back())?
+    }
+
+    pub fn push(&mut self, name: &str, block: (&Block, Arc<String>)) {
+        let (block, template) = block;
+        self.blocks
+            .entry(name.to_string())
+            .or_default()
+            .push_back((block.clone(), template));
+    }
+
+    pub fn push_front(&mut self, name: &str, block: (&Block, Arc<String>)) {
+        let (block, template) = block;
+        self.blocks
+            .entry(name.to_string())
+            .or_default()
+            .push_front((block.clone(), template));
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct RenderContext {
+    pub block_context: Option<BlockContext>,
+    pub seen: Option<Vec<Origin>>,
+}
+
 #[derive(Debug, Default)]
 pub struct Context {
     context: HashMap<String, Vec<Py<PyAny>>>,
@@ -71,6 +106,8 @@ pub struct Context {
     names: Vec<HashSet<String>>,
     include_cache: HashMap<IncludeTemplateKey, Arc<Template>>,
     cycle_indices: HashMap<CycleId, usize>,
+    pub block: Option<(Block, String)>,
+    pub render_context: RenderContext,
 }
 
 impl Context {
@@ -88,6 +125,8 @@ impl Context {
             names: Vec::new(),
             include_cache: HashMap::new(),
             cycle_indices: HashMap::new(),
+            block: None,
+            render_context: RenderContext::default(),
         }
     }
 
@@ -104,6 +143,8 @@ impl Context {
             names: self.names.clone(),
             include_cache: self.include_cache.clone(),
             cycle_indices: self.cycle_indices.clone(),
+            block: self.block.clone(),
+            render_context: self.render_context.clone(),
         }
     }
 
@@ -250,8 +291,14 @@ impl Context {
         self.loops.get(index)
     }
 
-    pub fn render_for_loop(&self, py: Python<'_>, depth: usize) -> String {
-        let mut forloop_dict = PyDict::new(py);
+    pub fn resolve_for_loop<'py>(&self, py: Python<'py>, depth: usize) -> Bound<'py, PyAny> {
+        let mut forloop_dict = self
+            .context
+            .get("forloop")
+            .map_or_default(|values| values.last())
+            .map(|dict| dict.bind(py))
+            .cloned()
+            .unwrap_or(PyDict::new(py).into_any());
         for forloop in self.loops.iter().rev().take(self.loops.len() - depth) {
             let dict = PyDict::new(py);
             dict.set_item("parentloop", forloop_dict)
@@ -268,13 +315,10 @@ impl Context {
                 .expect("Can always set a str: bool key/value");
             dict.set_item("last", forloop.last())
                 .expect("Can always set a str: bool key/value");
-            forloop_dict = dict;
+            forloop_dict = dict.into_any();
         }
 
-        let forloop_str = forloop_dict
-            .str()
-            .expect("All elements of the dictionary can be converted to a string");
-        forloop_str.to_string()
+        forloop_dict
     }
 
     pub fn get_or_insert_include(
@@ -286,12 +330,12 @@ impl Context {
         match self.include_cache.entry(key.clone()) {
             Entry::Occupied(entry) => Ok(entry.get().clone()),
             Entry::Vacant(entry) => {
-                let include = match key {
+                let (include, _origin) = match key {
                     IncludeTemplateKey::String(content) => {
-                        get_template(engine.clone(), py, Cow::Borrowed(content))?
+                        get_template(engine.clone(), py, Cow::Borrowed(content), None)?
                     }
                     IncludeTemplateKey::Vec(templates) => {
-                        select_template(engine.clone(), py, templates.clone())?
+                        select_template(engine.clone(), py, templates.clone(), None)?
                     }
                 };
                 Ok(entry.insert(Arc::new(include)).clone())
