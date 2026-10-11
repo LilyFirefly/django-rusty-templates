@@ -1032,8 +1032,6 @@ impl Render for Include {
                         None => values.push(PyString::new(py, "").into_any()),
                     }
                 }
-                names.push("forloop");
-                values.push(context.resolve_for_loop(py, 0));
                 for (key, value) in names.iter().zip(values) {
                     context.append(key.to_string(), value);
                 }
@@ -1062,7 +1060,12 @@ impl Render for Include {
                     .request
                     .as_ref()
                     .map(|request| request.clone_ref(py));
-                let mut new_context = Context::new(inner_context, request, context.autoescape);
+                let loops = match self.forloop {
+                    true => context.loops.clone(),
+                    false => Vec::new(),
+                };
+                let mut new_context =
+                    Context::new(inner_context, request, context.autoescape, loops);
                 include
                     .render(
                         py,
