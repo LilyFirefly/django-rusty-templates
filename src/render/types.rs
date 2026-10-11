@@ -100,7 +100,7 @@ pub struct RenderContext {
 #[derive(Debug, Default)]
 pub struct Context {
     context: HashMap<String, Vec<Py<PyAny>>>,
-    loops: Vec<ForLoop>,
+    pub loops: Vec<ForLoop>,
     pub request: Option<Py<PyAny>>,
     pub autoescape: bool,
     names: Vec<HashSet<String>>,
@@ -115,13 +115,14 @@ impl Context {
         context: HashMap<String, Py<PyAny>>,
         request: Option<Py<PyAny>>,
         autoescape: bool,
+        loops: Vec<ForLoop>,
     ) -> Self {
         let context = context.into_iter().map(|(k, v)| (k, vec![v])).collect();
         Self {
             request,
             context,
             autoescape,
-            loops: Vec::new(),
+            loops,
             names: Vec::new(),
             include_cache: HashMap::new(),
             cycle_indices: HashMap::new(),
