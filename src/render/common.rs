@@ -13,6 +13,7 @@ use crate::error::{AnnotatePyErr, RenderError};
 use crate::parse::{TagElement, TokenTree};
 use crate::types::Argument;
 use crate::types::ArgumentType;
+use crate::types::ForVariable;
 use crate::types::ForVariableName;
 use crate::types::Text;
 use crate::types::TranslatedText;
@@ -107,7 +108,15 @@ impl Resolve for Variable {
             }
             Self::ForVariable(for_variable) => {
                 let Some(for_loop) = context.get_for_loop(for_variable.parent_count) else {
-                    return Ok(Some("{}".as_content()));
+                    match context.loops.is_empty()
+                        || context.loops.len() < for_variable.parent_count
+                    {
+                        true => {
+                            let variable = Self::Variable(for_variable.at);
+                            return variable.resolve(py, template, context, failures);
+                        }
+                        false => return Ok(Some("{}".as_content())),
+                    }
                 };
                 Ok(Some(match for_variable.variant {
                     ForVariableName::Counter => Content::Int(for_loop.counter().into()),
@@ -191,9 +200,7 @@ impl Resolve for Argument {
                             Variable::BlockSuper(_) => {
                                 unreachable!("A BlockSuper should always resolve.")
                             }
-                            Variable::ForVariable(_) => {
-                                unreachable!("A ForVariable should always resolve.")
-                            }
+                            Variable::ForVariable(ForVariable { at, .. }) => *at,
                         };
                         let key = template.content(at).to_string();
                         let object = context.display(py);
@@ -285,7 +292,7 @@ mod tests {
         Python::attach(|py| {
             let name = PyString::new(py, "Lily").into_any();
             let context = HashMap::from([("name".to_string(), name.unbind())]);
-            let mut context = Context::new(context, None, false);
+            let mut context = Context::new(context, None, false, Vec::new());
             let template = TemplateString("{{ name }}");
             let variable = Variable::Variable((3, 4));
 
@@ -303,7 +310,7 @@ mod tests {
             let name = PyString::new(py, "Lily");
             data.set_item("name", name).unwrap();
             let context = HashMap::from([("data".to_string(), data.into_any().unbind())]);
-            let mut context = Context::new(context, None, false);
+            let mut context = Context::new(context, None, false, Vec::new());
             let template = TemplateString("{{ data.name }}");
             let variable = Variable::Variable((3, 9));
 
@@ -320,7 +327,7 @@ mod tests {
             let name = PyString::new(py, "Lily");
             let names = PyList::new(py, [name]).unwrap();
             let context = HashMap::from([("names".to_string(), names.into_any().unbind())]);
-            let mut context = Context::new(context, None, false);
+            let mut context = Context::new(context, None, false, Vec::new());
             let template = TemplateString("{{ names.0 }}");
             let variable = Variable::Variable((3, 7));
 
@@ -349,7 +356,7 @@ user = User('Lily')
             .unwrap();
 
             let context = locals.extract().unwrap();
-            let mut context = Context::new(context, None, false);
+            let mut context = Context::new(context, None, false, Vec::new());
             let template = TemplateString("{{ user.name }}");
             let variable = Variable::Variable((3, 9));
 
@@ -365,7 +372,7 @@ user = User('Lily')
         Python::attach(|py| {
             let html = PyString::new(py, "<p>Hello World!</p>").into_any().unbind();
             let context = HashMap::from([("html".to_string(), html)]);
-            let mut context = Context::new(context, None, true);
+            let mut context = Context::new(context, None, true, Vec::new());
             let template = TemplateString("{{ html }}");
             let html = Variable::Variable((3, 4));
 

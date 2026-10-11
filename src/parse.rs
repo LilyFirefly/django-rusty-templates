@@ -676,6 +676,7 @@ pub struct Include {
     pub engine: Arc<Engine>,
     pub only: bool,
     pub kwargs: Vec<(At, TagElement)>,
+    pub forloop: bool,
 }
 
 impl PartialEq for Include {
@@ -685,6 +686,7 @@ impl PartialEq for Include {
         //
         // We only use `eq` in tests, so this concession is acceptable here.
         self.only == other.only
+            && self.forloop == other.forloop
             && self.origin == other.origin
             && self.template_name.eq(&other.template_name)
             && self.kwargs == other.kwargs
@@ -1412,7 +1414,6 @@ pub struct Parser<'t, 'py> {
     origin: Option<Origin>,
     external_tags: HashMap<String, TagContext<'py>>,
     external_filters: HashMap<String, Bound<'py, PyAny>>,
-    forloop_depth: usize,
     named_cycles: HashMap<String, Cycle>,
     first_tag: Option<At>,
     seen_blocks: HashMap<String, At>,
@@ -1435,7 +1436,6 @@ impl<'t, 'py> Parser<'t, 'py> {
             origin,
             external_tags: HashMap::new(),
             external_filters: HashMap::new(),
-            forloop_depth: 0,
             named_cycles: HashMap::new(),
             first_tag: None,
             seen_blocks: HashMap::new(),
@@ -1458,7 +1458,6 @@ impl<'t, 'py> Parser<'t, 'py> {
             origin: None,
             external_tags: HashMap::new(),
             external_filters,
-            forloop_depth: 0,
             named_cycles: HashMap::new(),
             first_tag: None,
             seen_blocks: HashMap::new(),
@@ -1586,7 +1585,7 @@ impl<'t, 'py> Parser<'t, 'py> {
                 _ => Ok(Variable::Variable(at)),
             };
         }
-        if self.forloop_depth == 0 || first != "forloop" {
+        if first != "forloop" {
             return Ok(Variable::Variable(at));
         }
         let Some(part) = parts.next_back() else {
@@ -1615,9 +1614,6 @@ impl<'t, 'py> Parser<'t, 'py> {
         let mut parent_count = parts.len();
         if variant == ForVariableName::Object {
             parent_count += 1;
-        }
-        if parent_count > self.forloop_depth {
-            return Ok(Variable::Variable(at));
         }
         Ok(Variable::ForVariable(ForVariable {
             variant,
@@ -2496,6 +2492,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             }
             IncludeWithToken::With(at) => with = Some(at),
         }
+        let mut forloop = false;
         if let Some(with_at) = with {
             for token in lexer {
                 match token? {
@@ -2510,11 +2507,14 @@ impl<'t, 'py> Parser<'t, 'py> {
                     },
                     IncludeToken::Kwarg { kwarg_at, token } => {
                         let element = token.parse(self)?;
-                        kwargs.push((kwarg_at, element));
+                        match self.template.content(kwarg_at) {
+                            "forloop" => forloop = true,
+                            _ => kwargs.push((kwarg_at, element)),
+                        };
                     }
                 }
             }
-            if kwargs.is_empty() {
+            if kwargs.is_empty() && !forloop {
                 return Err(ParseError::MissingKeywordArgument { at: with_at.into() });
             }
         }
@@ -2527,6 +2527,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             origin,
             engine: self.engine.clone(),
             kwargs,
+            forloop,
             only: only.is_some(),
         };
         Ok(TokenTree::Tag(Tag::Include(include)))
@@ -2582,14 +2583,12 @@ impl<'t, 'py> Parser<'t, 'py> {
     }
 
     fn parse_for(&mut self, at: At, parts: TagParts) -> Result<TokenTree, PyParseError> {
-        self.forloop_depth += 1;
         let (iterable, variables, reversed) = parse_for_loop(self, parts, at)?;
         let (nodes, end_tag) = self.parse_until(
             vec![EndTagType::Empty, EndTagType::EndFor],
             "for".into(),
             at,
         )?;
-        self.forloop_depth -= 1;
         let empty = match end_tag {
             EndTag {
                 at,
@@ -3569,6 +3568,7 @@ mod tests {
                     template_name: template_name.clone(),
                     origin: None,
                     only: false,
+                    forloop: false,
                     kwargs: Vec::new(),
                     engine: engine.clone(),
                 },
@@ -3576,6 +3576,7 @@ mod tests {
                     template_name,
                     origin: None,
                     only: false,
+                    forloop: false,
                     kwargs: Vec::new(),
                     engine,
                 },
