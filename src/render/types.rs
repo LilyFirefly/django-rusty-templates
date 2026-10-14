@@ -8,7 +8,7 @@ use std::iter::zip;
 use std::sync::{Arc, Mutex};
 
 use html_escape::encode_quoted_attribute;
-use miette::SourceSpan;
+use miette::{NamedSource, SourceSpan};
 use num_bigint::{BigInt, ToBigInt};
 use num_traits::{ToPrimitive, Zero};
 use pyo3::exceptions::{PyAttributeError, PyKeyError, PyTypeError};
@@ -66,28 +66,29 @@ pub enum IncludeTemplateKey {
 
 #[derive(Clone, Debug, Default)]
 pub struct BlockContext {
-    pub blocks: HashMap<String, VecDeque<(Block, Arc<String>)>>,
+    pub blocks: HashMap<String, VecDeque<(Block, Arc<String>, Arc<String>)>>,
 }
 
 impl BlockContext {
-    pub fn pop(&mut self, name: &str) -> Option<(Block, Arc<String>)> {
+    pub fn pop(&mut self, name: &str) -> Option<(Block, Arc<String>, Arc<String>)> {
         self.blocks.get_mut(name).map(|blocks| blocks.pop_back())?
     }
 
-    pub fn push(&mut self, name: &str, block: (&Block, Arc<String>)) {
-        let (block, template) = block;
-        self.blocks
-            .entry(name.to_string())
-            .or_default()
-            .push_back((block.clone(), template));
+    pub fn push(&mut self, name: &str, block: (&Block, Arc<String>, Arc<String>)) {
+        let (block, template, template_name) = block;
+        self.blocks.entry(name.to_string()).or_default().push_back((
+            block.clone(),
+            template,
+            template_name,
+        ));
     }
 
-    pub fn push_front(&mut self, name: &str, block: (&Block, Arc<String>)) {
-        let (block, template) = block;
+    pub fn push_front(&mut self, name: &str, block: (&Block, Arc<String>, Arc<String>)) {
+        let (block, template, template_name) = block;
         self.blocks
             .entry(name.to_string())
             .or_default()
-            .push_front((block.clone(), template));
+            .push_front((block.clone(), template, template_name));
     }
 }
 
@@ -204,6 +205,7 @@ impl Context {
         values_at: At,
         index: usize,
         template: TemplateString<'_>,
+        template_name: &str,
     ) -> Result<(), PyRenderError> {
         let replace = index != 0;
         if !replace {
@@ -228,6 +230,7 @@ impl Context {
                         actual_count: 1,
                         expected_at: names_at.into(),
                         actual_at: values_at.into(),
+                        src: NamedSource::new(template_name, template.to_string()),
                     }
                     .into());
                 }
@@ -246,6 +249,7 @@ impl Context {
                     actual_count: values.len(),
                     expected_at: names_at.into(),
                     actual_at: values_at.into(),
+                    src: NamedSource::new(template_name, template.to_string()),
                 }
                 .into());
             }
@@ -512,7 +516,12 @@ fn resolve_python<'py, 't>(
     )
 }
 
-fn resolve_bigint(bigint: BigInt, at: At) -> Result<usize, PyRenderError> {
+fn resolve_bigint(
+    bigint: BigInt,
+    at: At,
+    template_name: &str,
+    template: &str,
+) -> Result<usize, PyRenderError> {
     match bigint.to_isize() {
         Some(n) => {
             let n = n.max(0);
@@ -523,6 +532,7 @@ fn resolve_bigint(bigint: BigInt, at: At) -> Result<usize, PyRenderError> {
         None => Err(RenderError::OverflowError {
             argument: bigint.to_string(),
             argument_at: at.into(),
+            src: NamedSource::new(template_name, template.to_string()),
         }
         .into()),
     }
@@ -587,13 +597,18 @@ impl<'t, 'py> Content<'t, 'py> {
         template: TemplateString<'t>,
         context: &Context,
         argument_at: SourceSpan,
+        template_name: &str,
     ) -> Result<ContentString<'t>, PyRenderError> {
         match self {
             Self::String(content) => Ok(content),
             Self::Py((content, at)) if content.is_instance_of::<PyString>() => {
                 Ok(resolve_python(py, content, at, template, context)?)
             }
-            _ => Err(RenderError::InvalidArgumentString { argument_at }.into()),
+            _ => Err(RenderError::InvalidArgumentString {
+                argument_at,
+                src: NamedSource::new(template_name, template.to_string()),
+            }
+            .into()),
         }
     }
 
@@ -619,27 +634,34 @@ impl<'t, 'py> Content<'t, 'py> {
     }
 
     /// Convert Content to usize, providing detailed errors if the conversion fails
-    pub fn resolve_usize(self, argument_at: At) -> Result<usize, PyRenderError> {
+    pub fn resolve_usize(
+        self,
+        argument_at: At,
+        template_name: &str,
+        template: &str,
+    ) -> Result<usize, PyRenderError> {
         match self {
-            Self::Int(n) => resolve_bigint(n, argument_at),
+            Self::Int(n) => resolve_bigint(n, argument_at, template_name, template),
             Self::String(s) => match s.as_raw().parse::<BigInt>() {
-                Ok(n) => resolve_bigint(n, argument_at),
+                Ok(n) => resolve_bigint(n, argument_at, template_name, template),
                 Err(_) => Err(RenderError::InvalidArgumentInteger {
                     argument: format!("'{}'", s.as_raw()),
                     argument_at: argument_at.into(),
+                    src: NamedSource::new(template_name, template.to_string()),
                 }
                 .into()),
             },
             Self::Float(f) => match f.trunc().to_bigint() {
-                Some(n) => resolve_bigint(n, argument_at),
+                Some(n) => resolve_bigint(n, argument_at, template_name, template),
                 None => Err(RenderError::InvalidArgumentFloat {
                     argument: f.to_string(),
                     argument_at: argument_at.into(),
+                    src: NamedSource::new(template_name, template.to_string()),
                 }
                 .into()),
             },
             Self::Py((obj, _at)) => match obj.extract::<BigInt>() {
-                Ok(n) => resolve_bigint(n, argument_at),
+                Ok(n) => resolve_bigint(n, argument_at, template_name, template),
                 Err(_) => {
                     let argument = obj.to_string();
                     let argument_at = argument_at.into();
@@ -647,11 +669,13 @@ impl<'t, 'py> Content<'t, 'py> {
                         Ok(_) => Err(RenderError::InvalidArgumentFloat {
                             argument,
                             argument_at,
+                            src: NamedSource::new(template_name, template.to_string()),
                         }
                         .into()),
                         Err(_) => Err(RenderError::InvalidArgumentInteger {
                             argument,
                             argument_at,
+                            src: NamedSource::new(template_name, template.to_string()),
                         }
                         .into()),
                     }

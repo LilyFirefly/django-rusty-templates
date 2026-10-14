@@ -19,7 +19,7 @@ def test_add_no_argument(assert_render_error):
     rusty_message = snapshot("""\
   × Failed lookup for key [bar] in {"False": False, "None": None, "True":
   │ True, "foo": 1}
-   ╭────
+   ╭─[<string template>:1:12]
  1 │ {{ foo|add:bar }}
    ·            ─┬─
    ·             ╰── key

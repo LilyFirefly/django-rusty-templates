@@ -137,7 +137,7 @@ def test_default_if_none_missing_variable_argument(assert_render_error):
     rusty_message = snapshot("""\
   × Failed lookup for key [missing] in {"False": False, "None": None, "True":
   │ True, "value": None}
-   ╭────
+   ╭─[<string template>:1:26]
  1 │ {{ value|default_if_none:missing }}
    ·                          ───┬───
    ·                             ╰── key

@@ -1,10 +1,12 @@
-use miette::{Diagnostic, LabeledSpan, SourceSpan, miette};
-use pyo3::exceptions::PyKeyError;
+use miette::{Diagnostic, LabeledSpan, NamedSource, SourceSpan, miette};
+use pyo3::exceptions::{PyKeyError, PyOverflowError, PyValueError};
 use pyo3::prelude::*;
 use thiserror::Error;
 
 use crate::path::RelativePathError;
-use crate::template::django_rusty_templates::TemplateDoesNotExist;
+use crate::template::django_rusty_templates::{
+    TemplateDoesNotExist, TemplateSyntaxError, VariableDoesNotExist, WithSourceCode,
+};
 use dtl_lexer::types::{At, TemplateString};
 
 #[derive(Error, Debug)]
@@ -34,23 +36,31 @@ pub enum RenderError {
         argument: String,
         #[label("argument")]
         argument_at: SourceSpan,
+        #[source_code]
+        src: NamedSource<String>,
     },
     #[error("Couldn't convert float ({argument}) to integer")]
     InvalidArgumentFloat {
         argument: String,
         #[label("here")]
         argument_at: SourceSpan,
+        #[source_code]
+        src: NamedSource<String>,
     },
     #[error("String argument expected")]
     InvalidArgumentString {
         #[label("here")]
         argument_at: SourceSpan,
+        #[source_code]
+        src: NamedSource<String>,
     },
     #[error("Integer {argument} is too large")]
     OverflowError {
         argument: String,
         #[label("here")]
         argument_at: SourceSpan,
+        #[source_code]
+        src: NamedSource<String>,
     },
     #[error("Failed lookup for key [{key}] in {object}")]
     ArgumentDoesNotExist {
@@ -60,6 +70,8 @@ pub enum RenderError {
         key_at: SourceSpan,
         #[label("{object}")]
         object_at: Option<SourceSpan>,
+        #[source_code]
+        src: NamedSource<String>,
     },
     #[error("Need {expected_count} values to unpack; got {actual_count}.")]
     TupleUnpackError {
@@ -69,6 +81,8 @@ pub enum RenderError {
         expected_at: SourceSpan,
         #[label("from here")]
         actual_at: SourceSpan,
+        #[source_code]
+        src: NamedSource<String>,
     },
     #[error("Failed lookup for key [{key}] in {object}")]
     VariableDoesNotExist {
@@ -78,7 +92,30 @@ pub enum RenderError {
         key_at: SourceSpan,
         #[label("{object}")]
         object_at: Option<SourceSpan>,
+        #[source_code]
+        src: NamedSource<String>,
     },
+}
+
+impl RenderError {
+    pub fn into_pyerr(self, template: impl miette::SourceCode + 'static) -> PyErr {
+        match self {
+            Self::RelativePathError(_) => {
+                TemplateSyntaxError::with_source_code(self.into(), template)
+            }
+            Self::VariableDoesNotExist { .. } | Self::ArgumentDoesNotExist { .. } => {
+                VariableDoesNotExist::with_source_code(self.into(), template)
+            }
+            Self::InvalidArgumentInteger { .. }
+            | Self::InvalidArgumentString { .. }
+            | Self::TupleUnpackError { .. } => {
+                PyValueError::with_source_code(self.into(), template)
+            }
+            Self::OverflowError { .. } | Self::InvalidArgumentFloat { .. } => {
+                PyOverflowError::with_source_code(self.into(), template)
+            }
+        }
+    }
 }
 
 #[pyclass]

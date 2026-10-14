@@ -17,7 +17,7 @@ pub mod django_rusty_templates {
     use pyo3::sync::{MutexExt, PyOnceLock};
     use pyo3::types::{PyBool, PyDict, PyIterator, PyList, PyString, PyTuple};
 
-    use crate::error::{PyRenderError, RenderError};
+    use crate::error::PyRenderError;
     use crate::loaders::{
         AppDirsLoader, CachedLoader, FileSystemLoader, Loader, LocMemLoader, Origin,
     };
@@ -583,8 +583,9 @@ pub mod django_rusty_templates {
         ) -> Result<String, PyRenderError> {
             let mut rendered = String::with_capacity(self.template.len());
             let template = TemplateString(&self.template);
+            let template_name = self.template_name();
             for node in &self.nodes {
-                let content = node.render(py, template, context)?;
+                let content = node.render(py, template, &template_name, context)?;
                 rendered.push_str(&content);
             }
             Ok(rendered)
@@ -593,33 +594,16 @@ pub mod django_rusty_templates {
         fn _render(&self, py: Python<'_>, context: &mut Context) -> PyResult<String> {
             match self.render(py, context) {
                 Ok(content) => Ok(content.to_string()),
-                Err(err) => {
-                    let err = err.try_into_render_error()?;
-                    match err {
-                        RenderError::RelativePathError(_) => {
-                            Err(TemplateSyntaxError::with_source_code(
-                                err.into(),
-                                self.template.clone(),
-                            ))
-                        }
-                        RenderError::VariableDoesNotExist { .. }
-                        | RenderError::ArgumentDoesNotExist { .. } => {
-                            Err(VariableDoesNotExist::with_source_code(
-                                err.into(),
-                                self.template.clone(),
-                            ))
-                        }
-                        RenderError::InvalidArgumentInteger { .. }
-                        | RenderError::InvalidArgumentString { .. }
-                        | RenderError::TupleUnpackError { .. } => Err(
-                            PyValueError::with_source_code(err.into(), self.template.clone()),
-                        ),
-                        RenderError::OverflowError { .. }
-                        | RenderError::InvalidArgumentFloat { .. } => Err(
-                            PyOverflowError::with_source_code(err.into(), self.template.clone()),
-                        ),
-                    }
-                }
+                Err(err) => Err(err
+                    .try_into_render_error()?
+                    .into_pyerr(self.template.clone())),
+            }
+        }
+
+        pub fn template_name(&self) -> Cow<'_, str> {
+            match &self.filename {
+                Some(filename) => filename.to_string_lossy(),
+                None => Cow::Borrowed("<string template>"),
             }
         }
     }

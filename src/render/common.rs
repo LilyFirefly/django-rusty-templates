@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 
+use miette::NamedSource;
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::sync::PyOnceLock;
@@ -53,6 +54,7 @@ impl Resolve for Variable {
         &self,
         py: Python<'py>,
         template: TemplateString<'t>,
+        template_name: &'t str,
         context: &mut Context,
         failures: ResolveFailures,
     ) -> ResolveResult<'t, 'py> {
@@ -83,6 +85,10 @@ impl Resolve for Variable {
                                                 object: variable.str()?.to_string(),
                                                 key_at: key_at.into(),
                                                 object_at: Some(object_at.into()),
+                                                src: NamedSource::new(
+                                                    template_name,
+                                                    template.to_string(),
+                                                ),
                                             }
                                             .into())
                                         }
@@ -113,7 +119,13 @@ impl Resolve for Variable {
                     {
                         true => {
                             let variable = Self::Variable(for_variable.at);
-                            return variable.resolve(py, template, context, failures);
+                            return variable.resolve(
+                                py,
+                                template,
+                                template_name,
+                                context,
+                                failures,
+                            );
                         }
                         false => return Ok(Some("{}".as_content())),
                     }
@@ -137,7 +149,7 @@ impl Resolve for Variable {
                     .take()
                     .expect("Should already have raised if None.");
                 let rendered = block
-                    .render(py, TemplateString(&template), context)
+                    .render(py, TemplateString(&template), template_name, context)
                     .map(|content| content.to_string());
                 let rendered = match rendered {
                     Ok(content) => Ok(content.into_content()),
@@ -160,6 +172,7 @@ impl Resolve for Text {
         &self,
         _py: Python<'py>,
         template: TemplateString<'t>,
+        _template_name: &'t str,
         context: &mut Context,
         _failures: ResolveFailures,
     ) -> ResolveResult<'t, 'py> {
@@ -176,6 +189,7 @@ impl Resolve for TranslatedText {
         &self,
         py: Python<'py>,
         template: TemplateString<'t>,
+        _template_name: &'t str,
         context: &mut Context,
         _failures: ResolveFailures,
     ) -> ResolveResult<'t, 'py> {
@@ -193,16 +207,19 @@ impl Resolve for Argument {
         &self,
         py: Python<'py>,
         template: TemplateString<'t>,
+        template_name: &'t str,
         context: &mut Context,
         failures: ResolveFailures,
     ) -> ResolveResult<'t, 'py> {
         Ok(Some(match &self.argument_type {
-            ArgumentType::Text(text) => return text.resolve(py, template, context, failures),
+            ArgumentType::Text(text) => {
+                return text.resolve(py, template, template_name, context, failures);
+            }
             ArgumentType::TranslatedText(text) => {
-                return text.resolve(py, template, context, failures);
+                return text.resolve(py, template, template_name, context, failures);
             }
             ArgumentType::Variable(variable) => {
-                match variable.resolve(py, template, context, failures)? {
+                match variable.resolve(py, template, template_name, context, failures)? {
                     Some(content) => content,
                     None => {
                         let at = match variable {
@@ -219,6 +236,7 @@ impl Resolve for Argument {
                             object,
                             key_at: at.into(),
                             object_at: None,
+                            src: NamedSource::new(template_name, template.to_string()),
                         }
                         .into());
                     }
@@ -235,15 +253,18 @@ impl Resolve for TagElement {
         &self,
         py: Python<'py>,
         template: TemplateString<'t>,
+        template_name: &'t str,
         context: &mut Context,
         failures: ResolveFailures,
     ) -> ResolveResult<'t, 'py> {
         match self {
             Self::Text(text) | Self::TranslatedText(text) => {
-                text.resolve(py, template, context, failures)
+                text.resolve(py, template, template_name, context, failures)
             }
-            Self::Variable(variable) => variable.resolve(py, template, context, failures),
-            Self::Filter(filter) => filter.resolve(py, template, context, failures),
+            Self::Variable(variable) => {
+                variable.resolve(py, template, template_name, context, failures)
+            }
+            Self::Filter(filter) => filter.resolve(py, template, template_name, context, failures),
             Self::Int(int) => Ok(Some(Content::Int(int.clone()))),
             Self::Float(float) => Ok(Some(Content::Float(*float))),
         }
@@ -255,16 +276,18 @@ impl Evaluate for TagElement {
         &self,
         py: Python<'_>,
         template: TemplateString<'_>,
+        template_name: &str,
         context: &mut Context,
     ) -> Option<bool> {
         self.resolve(
             py,
             template,
+            template_name,
             context,
             ResolveFailures::IgnoreVariableDoesNotExist,
         )
         .ok()?
-        .evaluate(py, template, context)
+        .evaluate(py, template, template_name, context)
     }
 }
 
@@ -273,16 +296,17 @@ impl Render for TokenTree {
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
+        template_name: &'t str,
         context: &mut Context,
     ) -> RenderResult<'t> {
         match self {
-            Self::Text(text) => text.render(py, template, context),
+            Self::Text(text) => text.render(py, template, template_name, context),
             Self::TranslatedText(_text) => todo!(),
             Self::Int(n) => Ok(n.to_string().into()),
             Self::Float(f) => Ok(f.to_string().into()),
-            Self::Tag(tag) => tag.render(py, template, context),
-            Self::Variable(variable) => variable.render(py, template, context),
-            Self::Filter(filter) => filter.render(py, template, context),
+            Self::Tag(tag) => tag.render(py, template, template_name, context),
+            Self::Variable(variable) => variable.render(py, template, template_name, context),
+            Self::Filter(filter) => filter.render(py, template, template_name, context),
         }
     }
 }
@@ -306,7 +330,7 @@ mod tests {
             let template = TemplateString("{{ name }}");
             let variable = Variable::Variable((3, 4));
 
-            let rendered = variable.render(py, template, &mut context).unwrap();
+            let rendered = variable.render(py, template, "", &mut context).unwrap();
             assert_eq!(rendered, "Lily");
         });
     }
@@ -324,7 +348,7 @@ mod tests {
             let template = TemplateString("{{ data.name }}");
             let variable = Variable::Variable((3, 9));
 
-            let rendered = variable.render(py, template, &mut context).unwrap();
+            let rendered = variable.render(py, template, "", &mut context).unwrap();
             assert_eq!(rendered, "Lily");
         });
     }
@@ -341,7 +365,7 @@ mod tests {
             let template = TemplateString("{{ names.0 }}");
             let variable = Variable::Variable((3, 7));
 
-            let rendered = variable.render(py, template, &mut context).unwrap();
+            let rendered = variable.render(py, template, "", &mut context).unwrap();
             assert_eq!(rendered, "Lily");
         });
     }
@@ -370,7 +394,7 @@ user = User('Lily')
             let template = TemplateString("{{ user.name }}");
             let variable = Variable::Variable((3, 9));
 
-            let rendered = variable.render(py, template, &mut context).unwrap();
+            let rendered = variable.render(py, template, "", &mut context).unwrap();
             assert_eq!(rendered, "Lily");
         });
     }
@@ -386,7 +410,7 @@ user = User('Lily')
             let template = TemplateString("{{ html }}");
             let html = Variable::Variable((3, 4));
 
-            let rendered = html.render(py, template, &mut context).unwrap();
+            let rendered = html.render(py, template, "", &mut context).unwrap();
             assert_eq!(rendered, "&lt;p&gt;Hello World!&lt;/p&gt;");
         });
     }

@@ -229,7 +229,7 @@ def test_forloop_argument_no_loop(assert_render_error):
     rusty_message = snapshot("""\
   × Failed lookup for key [forloop] in {"False": False, "None": None, "True":
   │ True}
-   ╭────
+   ╭─[<string template>:1:20]
  1 │ {{ missing|default:forloop }}
    ·                    ───┬───
    ·                       ╰── key
@@ -586,7 +586,7 @@ def test_render_for_loop_unpack_tuple_mismatch(assert_render_error):
     django_message = snapshot("Need 3 values to unpack in for loop; got 2. ")
     rusty_message = snapshot("""\
   × Need 3 values to unpack; got 2.
-   ╭─[1:8]
+   ╭─[<string template>:1:8]
  1 │ {% for x, y, z in l %}{{ x }}-{{ y }}-{{ z }}
    ·        ───┬───    ┬
    ·           │       ╰── from here
@@ -607,7 +607,7 @@ def test_render_for_loop_unpack_tuple_invalid(assert_render_error):
     django_message = snapshot("Need 3 values to unpack in for loop; got 1. ")
     rusty_message = snapshot("""\
   × Need 3 values to unpack; got 1.
-   ╭─[1:8]
+   ╭─[<string template>:1:8]
  1 │ {% for x, y, z in l %}{{ x }}-{{ y }}-{{ z }}
    ·        ───┬───    ┬
    ·           │       ╰── from here
@@ -668,7 +668,7 @@ def test_render_for_loop_unpack_string(assert_render_error):
     django_message = snapshot("Need 2 values to unpack in for loop; got 1. ")
     rusty_message = snapshot("""\
   × Need 2 values to unpack; got 1.
-   ╭────
+   ╭─[<string template>:1:8]
  1 │ {% for x, y in 'foo' %}{{ x }}{{ y }}{% endfor %}
    ·        ──┬─    ──┬──
    ·          │       ╰── from here
@@ -819,7 +819,7 @@ def test_render_for_loop_body_error(assert_render_error):
     rusty_message = snapshot("""\
   × Failed lookup for key [z] in {"False": False, "None": None, "True": True,
   │ "a": [1], "x": 1, "y": 'b'}
-   ╭────
+   ╭─[<string template>:1:44]
  1 │ {% for x in a %}{% for y in 'b' %}{{ x|add:z }}{% endfor %}{% endfor %}
    ·                                            ┬
    ·                                            ╰── key
@@ -840,7 +840,7 @@ def test_render_for_loop_missing(assert_render_error):
     )
     rusty_message = snapshot("""\
   × Failed lookup for key [b] in {"False": False, "None": None, "True": True}
-   ╭────
+   ╭─[<string template>:1:23]
  1 │ {% for x in a|default:b %}{{ x }}{% endfor %}
    ·                       ┬
    ·                       ╰── key
@@ -862,7 +862,7 @@ def test_missing_argument_after_for_loop(assert_render_error):
     rusty_message = snapshot("""\
   × Failed lookup for key [x] in {"False": False, "None": None, "True": True,
   │ "a": 'b'}
-   ╭────
+   ╭─[<string template>:1:49]
  1 │ {% for x in a %}{{ x }}{% endfor %}{{ y|default:x }}
    ·                                                 ┬
    ·                                                 ╰── key

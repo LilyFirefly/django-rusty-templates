@@ -717,7 +717,7 @@ impl PartialEq for Extends {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Block {
-    at: At,
+    pub at: At,
     pub name: String,
     pub nodes: Vec<TokenTree>,
 }
@@ -2375,7 +2375,7 @@ impl<'t, 'py> Parser<'t, 'py> {
                     .origin
                     .as_ref()
                     .map(|origin| origin.template_name.as_str());
-                match construct_relative_path(template_path, origin_name, at)
+                match construct_relative_path(template_path, origin_name, at, self.template.0)
                     .map_err(ParseError::from)?
                 {
                     Some(path) => {
@@ -2461,7 +2461,7 @@ impl<'t, 'py> Parser<'t, 'py> {
                     .origin
                     .as_ref()
                     .map(|origin| origin.template_name.as_str());
-                match construct_relative_path(template_path, origin_name, at)? {
+                match construct_relative_path(template_path, origin_name, at, self.template.0)? {
                     Some(path) => IncludeTemplateName::Relative(RelativePath {
                         path: path.into_owned(),
                         at,

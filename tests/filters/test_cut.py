@@ -149,7 +149,7 @@ def test_cut_error_missing_arg_variable(assert_render_error):
         rusty_message=snapshot("""\
   × Failed lookup for key [arg_var] in {"False": False, "None": None, "True":
   │ True, "var": 'hello'}
-   ╭────
+   ╭─[<string template>:1:12]
  1 │ {{ var|cut:arg_var }}
    ·            ───┬───
    ·               ╰── key
@@ -170,7 +170,7 @@ def test_cut_error_invalid_arg_type(assert_render_error):
         django_message=snapshot("replace() argument 1 must be str, not list"),
         rusty_message=snapshot("""\
   × String argument expected
-   ╭────
+   ╭─[<string template>:1:12]
  1 │ {{ var|cut:bad_arg }}
    ·            ───┬───
    ·               ╰── here

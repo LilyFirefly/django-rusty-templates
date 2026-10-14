@@ -171,7 +171,7 @@ def test_render_url_view_name_error():
 
     expected = """\
   × Failed lookup for key [1b] in 1
-   ╭────
+   ╭─[<string template>:1:8]
  1 │ {% url foo.bar.1b.baz %}
    ·        ───┬─── ─┬
    ·           │     ╰── key

@@ -39,7 +39,7 @@ def test_resolve_filter_arg_error(assert_render_error):
     django_message = snapshot("Failed lookup for key [1b] in 3")
     rusty_message = snapshot("""\
   × Failed lookup for key [1b] in 3
-   ╭─[2:17]
+   ╭─[<string template>:2:17]
  1 │ {% load multiply from custom_filters %}
  2 │ {{ num|multiply:foo.bar.1b.baz }}
    ·                 ───┬─── ─┬

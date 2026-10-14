@@ -140,7 +140,7 @@ def test_yesno_with_wrong_arg_type(assert_render_error):
     django_message = snapshot("'int' object has no attribute 'split'")
     rusty_message = snapshot("""\
   × String argument expected
-   ╭────
+   ╭─[<string template>:1:16]
  1 │ {{ value|yesno:1000 }}
    ·                ──┬─
    ·                  ╰── here

@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 
 import pytest
 from django.template.base import VariableDoesNotExist
@@ -538,24 +537,20 @@ def test_relative_from_string_template_variable(assert_render_error):
 
 def test_relative_outside_file_hierarchy(template_engine):
     template = "nested/outside_hierarchy.txt"
-    absolute_template = (Path("tests/templates") / template).absolute()
 
     with pytest.raises(TemplateSyntaxError) as exc_info:
         template_engine.get_template(template)
 
     django_message = f"The relative path ''../../outside.txt'' points outside the file hierarchy that template '{template}' is in."
-    rusty_message = (
-        """\
+    rusty_message = """\
   × The relative path '../../outside.txt' points outside the file hierarchy
   │ that template 'nested/outside_hierarchy.txt' is in.
-   ╭─[%s:1:13]
- 1 │ {%% include '../../outside.txt' %%}
+   ╭─[nested/outside_hierarchy.txt:1:13]
+ 1 │ {% include '../../outside.txt' %}
    ·             ────────┬────────
    ·                     ╰── relative path
    ╰────
 """
-        % absolute_template
-    )
 
     if template_engine.name == "django":
         assert str(exc_info.value) == django_message
@@ -575,7 +570,7 @@ def test_relative_outside_file_hierarchy_variable(template_engine):
     rusty_message = """\
   × The relative path '../../outside.txt' points outside the file hierarchy
   │ that template 'nested/outside_hierarchy2.txt' is in.
-   ╭────
+   ╭─[nested/outside_hierarchy2.txt:1:12]
  1 │ {% include path %}
    ·            ──┬─
    ·              ╰── relative path
@@ -600,7 +595,7 @@ def test_relative_outside_top_level(template_engine):
     rusty_message = """\
   × The relative path '../outside.txt' points outside the file hierarchy that
   │ template 'outside_hierarchy.txt' is in.
-   ╭────
+   ╭─[outside_hierarchy.txt:1:12]
  1 │ {% include path %}
    ·            ──┬─
    ·              ╰── relative path
@@ -638,7 +633,7 @@ def test_include_missing_attribute(assert_render_error):
     django_message = "No template names provided"
     rusty_message = """\
   × Failed lookup for key [missing] in {}
-   ╭────
+   ╭─[<string template>:1:12]
  1 │ {% include value.missing %}
    ·            ──┬── ───┬───
    ·              │      ╰── key

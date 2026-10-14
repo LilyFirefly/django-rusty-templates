@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
+use miette::NamedSource;
 use num_bigint::{BigInt, Sign};
 use num_traits::cast::ToPrimitive;
 use pyo3::exceptions::{PyAttributeError, PyTypeError};
@@ -66,14 +67,19 @@ impl Resolve for Url {
         &self,
         py: Python<'py>,
         template: TemplateString<'t>,
+        template_name: &'t str,
         context: &mut Context,
         failures: ResolveFailures,
     ) -> ResolveResult<'t, 'py> {
-        let view_name = match self.view_name.resolve(py, template, context, failures)? {
-            Some(view_name) => view_name,
-            None => "".as_content(),
-        }
-        .to_py(py);
+        let view_name =
+            match self
+                .view_name
+                .resolve(py, template, template_name, context, failures)?
+            {
+                Some(view_name) => view_name,
+                None => "".as_content(),
+            }
+            .to_py(py);
         let reverse = REVERSE.import(py, "django.urls", "reverse")?;
 
         let current_app = current_app(py, context.request.as_ref())?;
@@ -81,7 +87,7 @@ impl Resolve for Url {
             let py_args = PyList::empty(py);
             for arg in &self.args {
                 py_args.append(
-                    arg.resolve(py, template, context, failures)?
+                    arg.resolve(py, template, template_name, context, failures)?
                         .unwrap_or("".as_content())
                         .resolve_string(py, template, context)?,
                 )?;
@@ -99,7 +105,7 @@ impl Resolve for Url {
                 kwargs.set_item(
                     key,
                     value
-                        .resolve(py, template, context, failures)?
+                        .resolve(py, template, template_name, context, failures)?
                         .unwrap_or("".as_content())
                         .resolve_string(py, template, context)?,
                 )?;
@@ -127,6 +133,7 @@ impl Evaluate for Content<'_, '_> {
         &self,
         _py: Python<'_>,
         _template: TemplateString<'_>,
+        _template_name: &str,
         _context: &mut Context,
     ) -> Option<bool> {
         Some(match self {
@@ -516,6 +523,7 @@ trait ResolveTuple<'t, 'py> {
         &self,
         py: Python<'py>,
         template: TemplateString<'t>,
+        template_name: &'t str,
         context: &mut Context,
     ) -> Result<(Option<Content<'t, 'py>>, Option<Content<'t, 'py>>), PyRenderError>;
 }
@@ -525,35 +533,36 @@ impl<'t, 'py> ResolveTuple<'t, 'py> for (IfCondition, IfCondition) {
         &self,
         py: Python<'py>,
         template: TemplateString<'t>,
+        template_name: &'t str,
         context: &mut Context,
     ) -> Result<(Option<Content<'t, 'py>>, Option<Content<'t, 'py>>), PyRenderError> {
         const IGNORE: ResolveFailures = ResolveFailures::IgnoreVariableDoesNotExist;
         Ok(match self {
             (IfCondition::Variable(l), IfCondition::Variable(r)) => {
-                let left = l.resolve(py, template, context, IGNORE)?;
-                let right = r.resolve(py, template, context, IGNORE)?;
+                let left = l.resolve(py, template, template_name, context, IGNORE)?;
+                let right = r.resolve(py, template, template_name, context, IGNORE)?;
                 (left, right)
             }
             (IfCondition::Variable(l), r) => {
-                let left = l.resolve(py, template, context, IGNORE)?;
+                let left = l.resolve(py, template, template_name, context, IGNORE)?;
                 let right = r
-                    .evaluate(py, template, context)
+                    .evaluate(py, template, template_name, context)
                     .expect("Right cannot be an expression that evaluates to None");
                 (left, Some(Content::Bool(right)))
             }
             (l, IfCondition::Variable(r)) => {
                 let left = l
-                    .evaluate(py, template, context)
+                    .evaluate(py, template, template_name, context)
                     .expect("Left cannot be an expression that evaluates to None");
-                let right = r.resolve(py, template, context, IGNORE)?;
+                let right = r.resolve(py, template, template_name, context, IGNORE)?;
                 (Some(Content::Bool(left)), right)
             }
             (l, r) => {
                 let left = l
-                    .evaluate(py, template, context)
+                    .evaluate(py, template, template_name, context)
                     .expect("Left cannot be an expression that evaluates to None");
                 let right = r
-                    .evaluate(py, template, context)
+                    .evaluate(py, template, template_name, context)
                     .expect("Right cannot be an expression that evaluates to None");
                 (Some(Content::Bool(left)), Some(Content::Bool(right)))
             }
@@ -567,18 +576,25 @@ impl Evaluate for IfCondition {
         &self,
         py: Python<'_>,
         template: TemplateString<'_>,
+        template_name: &str,
         context: &mut Context,
     ) -> Option<bool> {
         Some(match self {
-            Self::Variable(v) => v.evaluate(py, template, context)?,
+            Self::Variable(v) => v.evaluate(py, template, template_name, context)?,
             Self::And(inner) => {
-                let left = inner.0.evaluate(py, template, context).unwrap_or(false);
-                let right = inner.1.evaluate(py, template, context).unwrap_or(false);
+                let left = inner
+                    .0
+                    .evaluate(py, template, template_name, context)
+                    .unwrap_or(false);
+                let right = inner
+                    .1
+                    .evaluate(py, template, template_name, context)
+                    .unwrap_or(false);
                 if left { right } else { false }
             }
             Self::Or(inner) => {
-                let left = inner.0.evaluate(py, template, context);
-                let right = inner.1.evaluate(py, template, context);
+                let left = inner.0.evaluate(py, template, template_name, context);
+                let right = inner.1.evaluate(py, template, template_name, context);
                 match left {
                     None => false,
                     Some(left) => {
@@ -590,36 +606,39 @@ impl Evaluate for IfCondition {
                     }
                 }
             }
-            Self::Not(inner) => match inner.evaluate(py, template, context) {
+            Self::Not(inner) => match inner.evaluate(py, template, template_name, context) {
                 None | Some(true) => false,
                 Some(false) => true,
             },
-            Self::Equal(inner) => match inner.resolve(py, template, context) {
+            Self::Equal(inner) => match inner.resolve(py, template, template_name, context) {
                 Ok((l, r)) => l.eq(&r),
                 Err(_) => false,
             },
-            Self::NotEqual(inner) => match inner.resolve(py, template, context) {
+            Self::NotEqual(inner) => match inner.resolve(py, template, template_name, context) {
                 Ok((l, r)) => l.ne(&r),
                 Err(_) => false,
             },
-            Self::LessThan(inner) => match inner.resolve(py, template, context) {
+            Self::LessThan(inner) => match inner.resolve(py, template, template_name, context) {
                 Ok((l, r)) => l.lt(&r),
                 Err(_) => false,
             },
-            Self::GreaterThan(inner) => match inner.resolve(py, template, context) {
+            Self::GreaterThan(inner) => match inner.resolve(py, template, template_name, context) {
                 Ok((l, r)) => l.gt(&r),
                 Err(_) => false,
             },
-            Self::LessThanEqual(inner) => match inner.resolve(py, template, context) {
+            Self::LessThanEqual(inner) => match inner.resolve(py, template, template_name, context)
+            {
                 Ok((l, r)) => l.lte(&r),
                 Err(_) => false,
             },
-            Self::GreaterThanEqual(inner) => match inner.resolve(py, template, context) {
-                Ok((l, r)) => l.gte(&r),
-                Err(_) => false,
-            },
+            Self::GreaterThanEqual(inner) => {
+                match inner.resolve(py, template, template_name, context) {
+                    Ok((l, r)) => l.gte(&r),
+                    Err(_) => false,
+                }
+            }
             Self::In(inner) => {
-                let Ok(inner) = inner.resolve(py, template, context) else {
+                let Ok(inner) = inner.resolve(py, template, template_name, context) else {
                     return Some(false);
                 };
                 match inner {
@@ -628,7 +647,7 @@ impl Evaluate for IfCondition {
                 }
             }
             Self::NotIn(inner) => {
-                let Ok(inner) = inner.resolve(py, template, context) else {
+                let Ok(inner) = inner.resolve(py, template, template_name, context) else {
                     return Some(false);
                 };
                 match inner {
@@ -637,7 +656,7 @@ impl Evaluate for IfCondition {
                 }
             }
             Self::Is(inner) => {
-                let Ok(inner) = inner.resolve(py, template, context) else {
+                let Ok(inner) = inner.resolve(py, template, template_name, context) else {
                     return Some(false);
                 };
                 match inner {
@@ -654,7 +673,7 @@ impl Evaluate for IfCondition {
                 }
             }
             Self::IsNot(inner) => {
-                let Ok(inner) = inner.resolve(py, template, context) else {
+                let Ok(inner) = inner.resolve(py, template, template_name, context) else {
                     return Some(false);
                 };
                 match inner {
@@ -683,17 +702,18 @@ impl Render for Tag {
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
+        template_name: &'t str,
         context: &mut Context,
     ) -> RenderResult<'t> {
         Ok(match self {
-            Self::Cycle(cycle) => cycle.render(py, template, context)?,
+            Self::Cycle(cycle) => cycle.render(py, template, template_name, context)?,
             Self::Autoescape { enabled, nodes } => {
                 let autoescape = context.autoescape;
                 context.autoescape = enabled.into();
 
                 let mut rendered = vec![];
                 for node in nodes {
-                    rendered.push(node.render(py, template, context)?);
+                    rendered.push(node.render(py, template, template_name, context)?);
                 }
 
                 context.autoescape = autoescape;
@@ -704,25 +724,38 @@ impl Render for Tag {
                 truthy,
                 falsey,
             } => {
-                if condition.evaluate(py, template, context).unwrap_or(false) {
-                    truthy.render(py, template, context)?
+                if condition
+                    .evaluate(py, template, template_name, context)
+                    .unwrap_or(false)
+                {
+                    truthy.render(py, template, template_name, context)?
                 } else {
-                    falsey.render(py, template, context)?
+                    falsey.render(py, template, template_name, context)?
                 }
             }
-            Self::Block(block_tag) => block_tag.render(py, template, context)?,
-            Self::Extends(extends_tag) => extends_tag.render(py, template, context)?,
-            Self::For(for_tag) => for_tag.render(py, template, context)?,
-            Self::Include(include_tag) => include_tag.render(py, template, context)?,
+            Self::Block(block_tag) => block_tag.render(py, template, template_name, context)?,
+            Self::Extends(extends_tag) => {
+                extends_tag.render(py, template, template_name, context)?
+            }
+            Self::For(for_tag) => for_tag.render(py, template, template_name, context)?,
+            Self::Include(include_tag) => {
+                include_tag.render(py, template, template_name, context)?
+            }
             Self::Load => Cow::Borrowed(""),
-            Self::SimpleTag(simple_tag) => simple_tag.render(py, template, context)?,
-            Self::SimpleBlockTag(simple_tag) => simple_tag.render(py, template, context)?,
-            Self::Url(url) => url.render(py, template, context)?,
-            Self::CsrfToken(csrf_token) => csrf_token.render(py, template, context)?,
-            Self::Lorem(lorem) => lorem.render(py, template, context)?,
+            Self::SimpleTag(simple_tag) => {
+                simple_tag.render(py, template, template_name, context)?
+            }
+            Self::SimpleBlockTag(simple_tag) => {
+                simple_tag.render(py, template, template_name, context)?
+            }
+            Self::Url(url) => url.render(py, template, template_name, context)?,
+            Self::CsrfToken(csrf_token) => {
+                csrf_token.render(py, template, template_name, context)?
+            }
+            Self::Lorem(lorem) => lorem.render(py, template, template_name, context)?,
             Self::Comment(_) => Cow::Borrowed(""),
-            Self::Now(now) => now.render(py, template, context)?,
-            Self::FirstOf(firstof) => firstof.render(py, template, context)?,
+            Self::Now(now) => now.render(py, template, template_name, context)?,
+            Self::FirstOf(firstof) => firstof.render(py, template, template_name, context)?,
             Self::TemplateTag(template_tag) => Cow::Borrowed(template_tag.output()),
         })
     }
@@ -734,6 +767,7 @@ impl For {
         iterable: &Bound<'_, PyAny>,
         py: Python<'_>,
         template: TemplateString<'t>,
+        template_name: &'t str,
         context: &mut Context,
     ) -> RenderResult<'t> {
         let mut list: Vec<_> = match iterable.try_iter() {
@@ -744,7 +778,7 @@ impl For {
             }
         };
         if list.is_empty() {
-            return self.empty.render(py, template, context);
+            return self.empty.render(py, template, template_name, context);
         }
         if self.reversed {
             list.reverse();
@@ -767,8 +801,9 @@ impl For {
                 self.iterable.at,
                 index,
                 template,
+                template_name,
             )?;
-            parts.push(self.body.render(py, template, context)?);
+            parts.push(self.body.render(py, template, template_name, context)?);
             context.increment_for_loop();
         }
         context.pop_variables();
@@ -781,10 +816,11 @@ impl For {
         string: &str,
         py: Python<'_>,
         template: TemplateString<'t>,
+        template_name: &'t str,
         context: &mut Context,
     ) -> RenderResult<'t> {
         if string.is_empty() {
-            return self.empty.render(py, template, context);
+            return self.empty.render(py, template, template_name, context);
         }
         if self.variables.names.len() > 1 {
             return Err(RenderError::TupleUnpackError {
@@ -792,6 +828,7 @@ impl For {
                 actual_count: 1,
                 expected_at: self.variables.at.into(),
                 actual_at: self.iterable.at.into(),
+                src: NamedSource::new(template_name, template.to_string()),
             }
             .into());
         }
@@ -806,7 +843,7 @@ impl For {
         for (index, c) in chars.into_iter().enumerate() {
             let c = PyString::new(py, &c.to_string());
             context.push_variable(variable.clone(), c.into_any(), index);
-            parts.push(self.body.render(py, template, context)?);
+            parts.push(self.body.render(py, template, template_name, context)?);
             context.increment_for_loop();
         }
         context.pop_variables();
@@ -820,18 +857,26 @@ impl Render for For {
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
+        template_name: &'t str,
         context: &mut Context,
     ) -> RenderResult<'t> {
-        let Some(iterable) =
-            self.iterable
-                .iterable
-                .resolve(py, template, context, ResolveFailures::Raise)?
+        let Some(iterable) = self.iterable.iterable.resolve(
+            py,
+            template,
+            template_name,
+            context,
+            ResolveFailures::Raise,
+        )?
         else {
-            return self.empty.render(py, template, context);
+            return self.empty.render(py, template, template_name, context);
         };
         match iterable {
-            Content::Py((iterable, _at)) => self.render_python(&iterable, py, template, context),
-            Content::String(s) => self.render_string(s.as_raw(), py, template, context),
+            Content::Py((iterable, _at)) => {
+                self.render_python(&iterable, py, template, template_name, context)
+            }
+            Content::String(s) => {
+                self.render_string(s.as_raw(), py, template, template_name, context)
+            }
             Content::Float(_) | Content::Int(_) | Content::Bool(_) => {
                 unreachable!("float, int and bool literals are not iterable")
             }
@@ -851,6 +896,7 @@ impl<'t, 'py> IncludeTemplate<'py> {
         context: &mut Context,
         at: At,
         template: TemplateString<'t>,
+        _template_name: &'t str,
     ) -> RenderResult<'t> {
         match self {
             Self::Template(template) => template.render(py, context).map(Cow::Owned),
@@ -882,27 +928,28 @@ fn template_at(template_name: &IncludeTemplateName) -> At {
 
 fn resolve_template_name<'t, 'py>(
     py: Python<'py>,
-    template_name: &'t IncludeTemplateName,
+    included_template_name: &'t IncludeTemplateName,
     template: TemplateString<'t>,
+    template_name: &'t str,
     context: &mut Context,
 ) -> Result<Content<'t, 'py>, PyRenderError> {
-    let resolved_template_name = match template_name {
+    let resolved_template_name = match included_template_name {
         IncludeTemplateName::Text(text) => text
-            .resolve(py, template, context, ResolveFailures::Raise)
+            .resolve(py, template, template_name, context, ResolveFailures::Raise)
             .expect("Text should always be resolvable"),
         IncludeTemplateName::Variable(tag_element) => {
-            tag_element.resolve(py, template, context, ResolveFailures::Raise)?
+            tag_element.resolve(py, template, template_name, context, ResolveFailures::Raise)?
         }
         IncludeTemplateName::Relative(relative) => Some(Content::String(ContentString::String(
             Cow::Borrowed(&relative.path),
         ))),
     };
     match resolved_template_name {
-        Some(template_name) => Ok(template_name),
+        Some(included_template_name) => Ok(included_template_name),
         None => {
             let error = TemplateDoesNotExist::new_err("No template names provided").annotate(
                 py,
-                template_at(template_name),
+                template_at(included_template_name),
                 "This variable is not in the context",
                 template,
             );
@@ -955,6 +1002,7 @@ impl Include {
                         template_path,
                         self.origin.as_deref(),
                         template_at(&self.template_name),
+                        template.0,
                     )
                     .map_err(RenderError::from)?
                     {
@@ -1039,11 +1087,13 @@ impl Render for Include {
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
+        template_name: &'t str,
         context: &mut Context,
     ) -> RenderResult<'t> {
         let render_context = std::mem::take(&mut context.render_context);
-        let template_name = resolve_template_name(py, &self.template_name, template, context)?;
-        let include = self.get_template(template_name, py, template, context)?;
+        let included_template_name =
+            resolve_template_name(py, &self.template_name, template, template_name, context)?;
+        let include = self.get_template(included_template_name, py, template, context)?;
         let rendered = match self.only {
             false => {
                 let mut names = Vec::new();
@@ -1055,6 +1105,7 @@ impl Render for Include {
                     match element.resolve(
                         py,
                         template,
+                        template_name,
                         context,
                         ResolveFailures::IgnoreVariableDoesNotExist,
                     )? {
@@ -1066,7 +1117,13 @@ impl Render for Include {
                     context.append(key.to_string(), value);
                 }
                 let rendered = include
-                    .render(py, context, template_at(&self.template_name), template)
+                    .render(
+                        py,
+                        context,
+                        template_at(&self.template_name),
+                        template,
+                        template_name,
+                    )
                     .map(|content| Cow::Owned(content.into_owned()));
                 for key in names {
                     context.pop_variable(key);
@@ -1080,6 +1137,7 @@ impl Render for Include {
                     if let Some(value) = element.resolve(
                         py,
                         template,
+                        template_name,
                         context,
                         ResolveFailures::IgnoreVariableDoesNotExist,
                     )? {
@@ -1102,6 +1160,7 @@ impl Render for Include {
                         &mut new_context,
                         template_at(&self.template_name),
                         template,
+                        template_name,
                     )
                     .map(|content| Cow::Owned(content.into_owned()))
             }
@@ -1153,9 +1212,11 @@ impl Extends {
         &self,
         py: Python<'py>,
         template: TemplateString<'t>,
+        template_name: &'t str,
         context: &mut Context,
     ) -> Result<Template, PyRenderError> {
-        let template_name = resolve_template_name(py, &self.template_name, template, context)?;
+        let template_name =
+            resolve_template_name(py, &self.template_name, template, template_name, context)?;
         Ok(match template_name {
             Content::String(content) => {
                 self.load_template(py, content.content().to_string(), template, context)
@@ -1197,14 +1258,20 @@ impl Render for Extends {
         &self,
         py: Python,
         template: TemplateString<'t>,
+        template_name: &'t str,
         context: &mut Context,
     ) -> RenderResult<'t> {
-        let parent = self.get_template(py, template, context)?;
+        let parent = self.get_template(py, template, template_name, context)?;
         let block_context = context.render_context.block_context.get_or_insert_default();
+        let template_name = Arc::new(template_name.to_string());
         for (name, block) in &self.blocks {
-            block_context.push_front(name, (block, template.to_string().into()));
+            block_context.push_front(
+                name,
+                (block, template.to_string().into(), template_name.clone()),
+            );
         }
 
+        let parent_template_name = Arc::new(parent.template_name().to_string());
         for node in &parent.nodes {
             match node {
                 TokenTree::Text(_)
@@ -1214,7 +1281,10 @@ impl Render for Extends {
                 TokenTree::Tag(Tag::Extends(_)) => break,
                 _ => {
                     for block in parent.nodes.get_blocks() {
-                        block_context.push_front(&block.name, (block, parent.template.clone()));
+                        block_context.push_front(
+                            &block.name,
+                            (block, parent.template.clone(), parent_template_name.clone()),
+                        );
                     }
                     break;
                 }
@@ -1230,11 +1300,12 @@ impl Render for Block {
         &self,
         py: Python,
         template: TemplateString<'t>,
+        template_name: &'t str,
         context: &mut Context,
     ) -> RenderResult<'t> {
         if context.render_context.block_context.is_none() {
             context.block = Some((self.clone(), template.to_string()));
-            self.nodes.render(py, template, context)
+            self.nodes.render(py, template, template_name, context)
         } else {
             let blocks = context
                 .render_context
@@ -1242,14 +1313,19 @@ impl Render for Block {
                 .as_mut()
                 .expect("block_context is known to be Some");
             let push = blocks.pop(&self.name);
-            let (block, block_template) = match push {
-                None => (self, template),
-                Some((ref block, ref template)) => (block, TemplateString(template)),
+            let (block, block_template, block_template_name) = match push {
+                None => (self, template, Arc::new(template_name.to_string())),
+                Some((ref block, ref template, ref block_template_name)) => {
+                    (block, TemplateString(template), block_template_name.clone())
+                }
             };
             let old_block = context
                 .block
                 .replace((block.clone(), block_template.to_string()));
-            let result = match block.nodes.render(py, block_template, context) {
+            let result = match block
+                .nodes
+                .render(py, block_template, &block_template_name, context)
+            {
                 Ok(Cow::Owned(result)) => Ok(Cow::Owned(result)),
                 Ok(Cow::Borrowed(result)) => Ok(Cow::Owned(result.to_string())),
                 Err(err) => Err(err),
@@ -1261,8 +1337,8 @@ impl Render for Block {
                 .block_context
                 .as_mut()
                 .expect("block_context is known to be Some");
-            if let Some((push, push_template)) = push {
-                blocks.push(&self.name, (&push, push_template));
+            if let Some((push, push_template, push_template_name)) = push {
+                blocks.push(&self.name, (&push, push_template, push_template_name));
             }
             result
         }
@@ -1327,10 +1403,11 @@ fn retrieve_context<'py>(py: Python<'py>, py_context: Bound<'py, PyAny>, context
 fn build_arg<'py>(
     py: Python<'py>,
     template: TemplateString<'_>,
+    template_name: &str,
     context: &mut Context,
     arg: &TagElement,
 ) -> Result<Bound<'py, PyAny>, PyRenderError> {
-    let arg = match arg.resolve(py, template, context, ResolveFailures::Raise)? {
+    let arg = match arg.resolve(py, template, template_name, context, ResolveFailures::Raise)? {
         Some(arg) => arg.to_py(py),
         None => PyString::intern(py, "").into_any(),
     };
@@ -1340,23 +1417,25 @@ fn build_arg<'py>(
 fn build_args<'py>(
     py: Python<'py>,
     template: TemplateString<'_>,
+    template_name: &str,
     context: &mut Context,
     args: &[TagElement],
 ) -> Result<VecDeque<Bound<'py, PyAny>>, PyRenderError> {
     args.iter()
-        .map(|arg| build_arg(py, template, context, arg))
+        .map(|arg| build_arg(py, template, template_name, context, arg))
         .collect()
 }
 
 fn build_kwargs<'py>(
     py: Python<'py>,
     template: TemplateString<'_>,
+    template_name: &str,
     context: &mut Context,
     kwargs: &Vec<(String, TagElement)>,
 ) -> Result<Bound<'py, PyDict>, PyRenderError> {
     let py_kwargs = PyDict::new(py);
     for (key, value) in kwargs {
-        let value = value.resolve(py, template, context, ResolveFailures::Raise)?;
+        let value = value.resolve(py, template, template_name, context, ResolveFailures::Raise)?;
         py_kwargs.set_item(key, value)?;
     }
     Ok(py_kwargs)
@@ -1383,10 +1462,11 @@ impl Render for SimpleTag {
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
+        template_name: &'t str,
         context: &mut Context,
     ) -> RenderResult<'t> {
-        let mut args = build_args(py, template, context, &self.args)?;
-        let kwargs = build_kwargs(py, template, context, &self.kwargs)?;
+        let mut args = build_args(py, template, template_name, context, &self.args)?;
+        let kwargs = build_kwargs(py, template, template_name, context, &self.kwargs)?;
         let content = if self.takes_context {
             let py_context = build_pycontext(py, context)?;
             args.push_front(py_context.clone());
@@ -1415,12 +1495,13 @@ impl Render for SimpleBlockTag {
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
+        template_name: &'t str,
         context: &mut Context,
     ) -> RenderResult<'t> {
-        let mut args = build_args(py, template, context, &self.args)?;
-        let kwargs = build_kwargs(py, template, context, &self.kwargs)?;
+        let mut args = build_args(py, template, template_name, context, &self.args)?;
+        let kwargs = build_kwargs(py, template, template_name, context, &self.kwargs)?;
 
-        let content = self.nodes.render(py, template, context)?;
+        let content = self.nodes.render(py, template, template_name, context)?;
         let content = PyString::new(py, &content).into_any();
         args.push_front(content);
 
@@ -1452,6 +1533,7 @@ impl Render for Now {
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
+        _template_name: &'t str,
         context: &mut Context,
     ) -> RenderResult<'t> {
         let tz_mod = DJANGO_TIMEZONE
@@ -1517,6 +1599,7 @@ impl Render for CsrfToken {
         &self,
         py: Python<'_>,
         _template: TemplateString<'t>,
+        _template_name: &'t str,
         context: &mut Context,
     ) -> RenderResult<'t> {
         match context.get("csrf_token") {
@@ -1556,11 +1639,13 @@ impl Render for Lorem {
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
+        template_name: &'t str,
         context: &mut Context,
     ) -> RenderResult<'t> {
         let count_content = self.count.resolve(
             py,
             template,
+            template_name,
             context,
             ResolveFailures::IgnoreVariableDoesNotExist,
         )?;
@@ -1606,12 +1691,14 @@ impl Render for FirstOf {
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
+        template_name: &'t str,
         context: &mut Context,
     ) -> RenderResult<'t> {
         for var in &self.vars {
             if let Some(content) = var.resolve(
                 py,
                 template,
+                template_name,
                 context,
                 ResolveFailures::IgnoreVariableDoesNotExist,
             )? && content.to_bool().unwrap_or(false)
@@ -1642,11 +1729,13 @@ impl SimpleCycle {
         &self,
         py: Python<'py>,
         template: TemplateString<'t>,
+        template_name: &'t str,
         context: &mut Context,
     ) -> Result<ResolvedCycleValue<'t, 'py>, PyRenderError> {
         let index = context.next_cycle_index(self.id, self.values.len());
         let CycleValue { value, at } = &self.values[index];
-        let content = value.resolve(py, template, context, ResolveFailures::Raise)?;
+        let content =
+            value.resolve(py, template, template_name, context, ResolveFailures::Raise)?;
         Ok(ResolvedCycleValue { at: *at, content })
     }
 }
@@ -1656,9 +1745,12 @@ impl NamedCycle {
         &self,
         py: Python<'py>,
         template: TemplateString<'t>,
+        template_name: &'t str,
         context: &mut Context,
     ) -> Result<ResolvedCycleValue<'t, 'py>, PyRenderError> {
-        let ResolvedCycleValue { at, content } = self.cycle.resolve_next(py, template, context)?;
+        let ResolvedCycleValue { at, content } =
+            self.cycle
+                .resolve_next(py, template, template_name, context)?;
 
         if let Some(content) = &content {
             context.insert(self.asvar.clone(), content.to_py(py));
@@ -1675,9 +1767,11 @@ impl Render for SimpleCycle {
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
+        template_name: &'t str,
         context: &mut Context,
     ) -> RenderResult<'t> {
-        let ResolvedCycleValue { content, .. } = self.resolve_next(py, template, context)?;
+        let ResolvedCycleValue { content, .. } =
+            self.resolve_next(py, template, template_name, context)?;
         let Some(content) = content else {
             return Ok(Cow::Borrowed(""));
         };
@@ -1691,9 +1785,11 @@ impl Render for NamedCycle {
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
+        template_name: &'t str,
         context: &mut Context,
     ) -> RenderResult<'t> {
-        let ResolvedCycleValue { content, .. } = self.resolve_and_store(py, template, context)?;
+        let ResolvedCycleValue { content, .. } =
+            self.resolve_and_store(py, template, template_name, context)?;
         let Some(content) = content else {
             return Ok(Cow::Borrowed(""));
         };
@@ -1707,9 +1803,11 @@ impl Render for SilentNamedCycle {
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
+        template_name: &'t str,
         context: &mut Context,
     ) -> RenderResult<'t> {
-        self.cycle.resolve_and_store(py, template, context)?;
+        self.cycle
+            .resolve_and_store(py, template, template_name, context)?;
         Ok(Cow::Borrowed(""))
     }
 }
@@ -1719,12 +1817,13 @@ impl Render for Cycle {
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
+        template_name: &'t str,
         context: &mut Context,
     ) -> RenderResult<'t> {
         match self {
-            Self::Simple(cycle) => cycle.render(py, template, context),
-            Self::Named(cycle) => cycle.render(py, template, context),
-            Self::SilentNamed(cycle) => cycle.render(py, template, context),
+            Self::Simple(cycle) => cycle.render(py, template, template_name, context),
+            Self::Named(cycle) => cycle.render(py, template, template_name, context),
+            Self::SilentNamed(cycle) => cycle.render(py, template, template_name, context),
         }
     }
 }

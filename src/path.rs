@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
-use miette::{Diagnostic, SourceSpan};
+use miette::{Diagnostic, NamedSource, SourceSpan};
 use sugar_path::SugarPath;
 use thiserror::Error;
 
@@ -17,12 +17,16 @@ pub enum RelativePathError {
         at: SourceSpan,
         origin: PathBuf,
         template_path: String,
+        #[source_code]
+        src: NamedSource<String>,
     },
     #[error("The relative path '{path}' cannot be evaluated due to an unknown template origin.")]
     UnknownOrigin {
         path: String,
         #[label("here")]
         at: SourceSpan,
+        #[source_code]
+        src: String,
     },
 }
 
@@ -30,14 +34,15 @@ pub fn construct_relative_path<'a>(
     path: &'a str,
     origin: Option<&'a str>,
     at: At,
+    src: &str,
 ) -> Result<Option<Cow<'a, str>>, RelativePathError> {
     let adjacent = path.starts_with("./");
     if !adjacent && !path.starts_with("../") {
         return Ok(None);
     }
     match origin {
-        Some(origin) => {
-            let origin = Path::new(origin);
+        Some(origin_str) => {
+            let origin = Path::new(origin_str);
             let path = match origin.parent() {
                 None if adjacent => Path::new(path).normalize().into_owned(),
                 None => {
@@ -45,6 +50,7 @@ pub fn construct_relative_path<'a>(
                         at: at.into(),
                         origin: origin.to_path_buf(),
                         template_path: path.to_string(),
+                        src: NamedSource::new(origin_str, src.to_string()),
                     });
                 }
                 Some(directory) => {
@@ -54,6 +60,7 @@ pub fn construct_relative_path<'a>(
                             at: at.into(),
                             origin: origin.to_path_buf(),
                             template_path: path.to_string(),
+                            src: NamedSource::new(origin_str, src.to_string()),
                         });
                     }
                     new_path
@@ -68,6 +75,7 @@ pub fn construct_relative_path<'a>(
         None => Err(RelativePathError::UnknownOrigin {
             at: at.into(),
             path: path.to_string(),
+            src: src.to_string(),
         }),
     }
 }
@@ -81,8 +89,11 @@ mod tests {
         let path = "./foo.txt";
         let origin = Some("/");
         let at = (0, 8);
+        let src = "abcdefgh";
         assert_eq!(
-            construct_relative_path(path, origin, at).unwrap().unwrap(),
+            construct_relative_path(path, origin, at, src)
+                .unwrap()
+                .unwrap(),
             "foo.txt"
         );
     }
@@ -92,12 +103,14 @@ mod tests {
         let path = "../foo.txt";
         let origin = "/";
         let at = (0, 8);
+        let src = "abcdefgh";
         assert_eq!(
-            construct_relative_path(path, Some(origin), at).unwrap_err(),
+            construct_relative_path(path, Some(origin), at, src).unwrap_err(),
             RelativePathError::Outside {
                 at: at.into(),
                 origin: origin.into(),
                 template_path: path.to_string(),
+                src: NamedSource::new(origin, src.to_string()),
             }
         );
     }
@@ -107,8 +120,11 @@ mod tests {
         let path = "./foo.txt";
         let origin = Some("");
         let at = (0, 8);
+        let src = "abcdefgh";
         assert_eq!(
-            construct_relative_path(path, origin, at).unwrap().unwrap(),
+            construct_relative_path(path, origin, at, src)
+                .unwrap()
+                .unwrap(),
             "foo.txt"
         );
     }
@@ -118,12 +134,14 @@ mod tests {
         let path = "../foo.txt";
         let origin = "";
         let at = (0, 8);
+        let src = "abcdefgh";
         assert_eq!(
-            construct_relative_path(path, Some(origin), at).unwrap_err(),
+            construct_relative_path(path, Some(origin), at, src).unwrap_err(),
             RelativePathError::Outside {
                 at: at.into(),
                 origin: origin.into(),
                 template_path: path.to_string(),
+                src: NamedSource::new(origin, src.to_string()),
             }
         );
     }

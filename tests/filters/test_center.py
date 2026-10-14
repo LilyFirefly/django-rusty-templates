@@ -56,7 +56,7 @@ def test_argument_not_integer(assert_render_error):
     )
     rusty_message = snapshot("""\
   × Couldn't convert argument (not an integer) to integer
-   ╭────
+   ╭─[<string template>:1:15]
  1 │ {{ foo|center:bar }}
    ·               ─┬─
    ·                ╰── argument
@@ -133,7 +133,7 @@ def test_center_argument_is_negative_float_as_string(assert_render_error):
     django_message = snapshot("invalid literal for int() with base 10: '-5.5'")
     rusty_message = snapshot("""\
   × Couldn't convert argument (-5.5) to integer
-   ╭────
+   ╭─[<string template>:1:15]
  1 │ {{ foo|center:bar }}
    ·               ─┬─
    ·                ╰── argument
@@ -152,7 +152,7 @@ def test_center_argument_int_bigger_than_isize_max(assert_render_error):
     django_message = snapshot("Python int too large to convert to C ssize_t")
     rusty_message = snapshot("""\
   × Integer 9223372036854775808 is too large
-   ╭────
+   ╭─[<string template>:1:15]
  1 │ {{ foo|center:9223372036854775808 }}
    ·               ─────────┬─────────
    ·                        ╰── here
@@ -171,7 +171,7 @@ def test_center_argument_int_smaller_than_isize_min(assert_render_error):
     django_message = snapshot("Python int too large to convert to C ssize_t")
     rusty_message = snapshot("""\
   × Integer -9223372036854775809 is too large
-   ╭────
+   ╭─[<string template>:1:15]
  1 │ {{ foo|center:-9223372036854775809 }}
    ·               ──────────┬─────────
    ·                         ╰── here
@@ -190,7 +190,7 @@ def test_center_argument_int_bigger_than_isize_max_string(assert_render_error):
     django_message = snapshot("Python int too large to convert to C ssize_t")
     rusty_message = snapshot("""\
   × Integer 9223372036854775808 is too large
-   ╭────
+   ╭─[<string template>:1:15]
  1 │ {{ foo|center:'9223372036854775808' }}
    ·               ──────────┬──────────
    ·                         ╰── here
@@ -209,7 +209,7 @@ def test_center_argument_int_smaller_than_isize_min_string(assert_render_error):
     django_message = snapshot("Python int too large to convert to C ssize_t")
     rusty_message = snapshot("""\
   × Integer -9223372036854775809 is too large
-   ╭────
+   ╭─[<string template>:1:15]
  1 │ {{ foo|center:'-9223372036854775809' }}
    ·               ───────────┬──────────
    ·                          ╰── here
@@ -228,7 +228,7 @@ def test_center_argument_int_bigger_than_isize_max_python(assert_render_error):
     django_message = snapshot("Python int too large to convert to C ssize_t")
     rusty_message = snapshot("""\
   × Integer 9223372036854775808 is too large
-   ╭────
+   ╭─[<string template>:1:15]
  1 │ {{ foo|center:width }}
    ·               ──┬──
    ·                 ╰── here
@@ -247,7 +247,7 @@ def test_center_argument_int_smaller_than_isize_min_python(assert_render_error):
     django_message = snapshot("Python int too large to convert to C ssize_t")
     rusty_message = snapshot("""\
   × Integer -9223372036854775809 is too large
-   ╭────
+   ╭─[<string template>:1:15]
  1 │ {{ foo|center:width }}
    ·               ──┬──
    ·                 ╰── here
@@ -266,7 +266,7 @@ def test_center_argument_string(assert_render_error):
     django_message = snapshot("invalid literal for int() with base 10: 'foo'")
     rusty_message = snapshot("""\
   × Couldn't convert argument ('foo') to integer
-   ╭────
+   ╭─[<string template>:1:15]
  1 │ {{ foo|center:'foo' }}
    ·               ──┬──
    ·                 ╰── argument
@@ -285,7 +285,7 @@ def test_center_argument_float_bigger_than_isize_max(assert_render_error):
     django_message = snapshot("Python int too large to convert to C ssize_t")
     rusty_message = snapshot("""\
   × Integer 9223372036854775808 is too large
-   ╭────
+   ╭─[<string template>:1:15]
  1 │ {{ foo|center:9223372036854775808.0 }}
    ·               ──────────┬──────────
    ·                         ╰── here
@@ -306,7 +306,7 @@ def test_center_argument_float_smaller_than_isize_min(assert_render_error):
     django_message = snapshot("Python int too large to convert to C ssize_t")
     rusty_message = snapshot("""\
   × Integer -9223372036854777856 is too large
-   ╭────
+   ╭─[<string template>:1:15]
  1 │ {{ foo|center:-9223372036854776833.0 }}
    ·               ───────────┬──────────
    ·                          ╰── here
@@ -325,7 +325,7 @@ def test_center_argument_float_inf(assert_render_error):
     django_message = snapshot("cannot convert float infinity to integer")
     rusty_message = snapshot("""\
   × Couldn't convert float (inf) to integer
-   ╭────
+   ╭─[<string template>:1:15]
  1 │ {{ foo|center:1e310 }}
    ·               ──┬──
    ·                 ╰── here
@@ -344,7 +344,7 @@ def test_center_argument_float_negative_inf(assert_render_error):
     django_message = snapshot("cannot convert float infinity to integer")
     rusty_message = snapshot("""\
   × Couldn't convert float (-inf) to integer
-   ╭────
+   ╭─[<string template>:1:15]
  1 │ {{ foo|center:-1e310 }}
    ·               ───┬──
    ·                  ╰── here
@@ -363,7 +363,7 @@ def test_center_argument_float_inf_python(assert_render_error):
     django_message = snapshot("cannot convert float infinity to integer")
     rusty_message = snapshot("""\
   × Couldn't convert float (inf) to integer
-   ╭────
+   ╭─[<string template>:1:15]
  1 │ {{ foo|center:width }}
    ·               ──┬──
    ·                 ╰── here
@@ -382,7 +382,7 @@ def test_center_argument_float_negative_inf_python(assert_render_error):
     django_message = snapshot("cannot convert float infinity to integer")
     rusty_message = snapshot("""\
   × Couldn't convert float (-inf) to integer
-   ╭────
+   ╭─[<string template>:1:15]
  1 │ {{ foo|center:width }}
    ·               ──┬──
    ·                 ╰── here

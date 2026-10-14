@@ -425,7 +425,6 @@ def test_endblock_wrong_name(assert_parse_error):
 
 
 def test_extends_invalid_relative_path(assert_render_error):
-    absolute_template = Path("tests/templates/extends_invalid.txt").absolute()
     template = "{% extends 'extends_invalid.txt' %}"
 
     django_message = snapshot(
@@ -435,13 +434,12 @@ def test_extends_invalid_relative_path(assert_render_error):
         """\
   × The relative path '../outside.txt' points outside the file hierarchy that
   │ template 'extends_invalid.txt' is in.
-   ╭─[%s:1:13]
- 1 │ {%% extends '../outside.txt' %%}
+   ╭─[extends_invalid.txt:1:13]
+ 1 │ {% extends '../outside.txt' %}
    ·             ───────┬──────
    ·                    ╰── relative path
    ╰────
 """
-        % absolute_template
     )
     assert_render_error(
         template=template,
@@ -691,7 +689,7 @@ def test_block_super_as_argument_no_extends_no_block(assert_render_error):
     rusty_message = snapshot("""\
   × Failed lookup for key [block.super] in {"False": False, "None": None,
   │ "True": True}
-   ╭────
+   ╭─[<string template>:1:20]
  1 │ {{ missing|default:block.super }}
    ·                    ─────┬─────
    ·                         ╰── key
@@ -725,6 +723,32 @@ def test_block_super_py_error_in_parent_block(assert_render_error):
         template=template,
         context={"missing": Broken()},
         exception=TypeError,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
+def test_block_super_render_error_in_parent_block(assert_render_error):
+    template = "{% extends 'broken_base_center.txt' %}{% block broken %}{{ block.super }}{% endblock broken %}"
+    django_message = snapshot(
+        "invalid literal for int() with base 10: 'not an integer'"
+    )
+    absolute_template = Path("tests/templates/broken_base_center.txt").absolute()
+    rusty_message = snapshot(
+        """\
+  × Couldn't convert argument (not an integer) to integer
+   ╭─[%s:1:33]
+ 1 │ {%% block broken %%}{{ foo|center:bar }}{%% endblock broken %%}
+   ·                                 ─┬─
+   ·                                  ╰── argument
+   ╰────
+"""
+        % absolute_template
+    )
+    assert_render_error(
+        template=template,
+        context={"foo": "test", "bar": "not an integer"},
+        exception=ValueError,
         django_message=django_message,
         rusty_message=rusty_message,
     )
@@ -995,7 +1019,7 @@ def test_render_error_in_block(assert_render_error):
     rusty_message = snapshot("""\
   × Failed lookup for key [missing] in {"False": False, "None": None, "True":
   │ True}
-   ╭────
+   ╭─[<string template>:1:56]
  1 │ {% extends 'base.txt' %}{% block body %}{{ foo|default:missing }}{% endblock body %}
    ·                                                        ───┬───
    ·                                                           ╰── key

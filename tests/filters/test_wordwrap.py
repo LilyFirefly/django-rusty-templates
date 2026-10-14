@@ -204,7 +204,7 @@ def test_wordwrap_invalid_width_string(assert_render_error):
         django_message=snapshot("invalid literal for int() with base 10: 'invalid'"),
         rusty_message=snapshot("""\
   × Couldn't convert argument ('invalid') to integer
-   ╭────
+   ╭─[<string template>:1:18]
  1 │ {{ text|wordwrap:'invalid' }}
    ·                  ────┬────
    ·                      ╰── argument
@@ -275,7 +275,7 @@ def test_wordwrap_width_overflow_float(assert_render_error):
         django_message=snapshot("cannot convert float infinity to integer"),
         rusty_message=snapshot("""\
   × Couldn't convert float (inf) to integer
-   ╭────
+   ╭─[<string template>:1:18]
  1 │ {{ text|wordwrap:1e310 }}
    ·                  ──┬──
    ·                    ╰── here
@@ -292,7 +292,7 @@ def test_wordwrap_width_float_overflow(assert_render_error):
         django_message=snapshot("cannot convert float infinity to integer"),
         rusty_message=snapshot("""\
   × Couldn't convert float (inf) to integer
-   ╭────
+   ╭─[<string template>:1:18]
  1 │ {{ text|wordwrap:1e310 }}
    ·                  ──┬──
    ·                    ╰── here
@@ -311,7 +311,7 @@ def test_wordwrap_width_from_python_variable(assert_render_error):
         ),
         rusty_message=snapshot("""\
   × Couldn't convert argument (not a number) to integer
-   ╭────
+   ╭─[<string template>:1:18]
  1 │ {{ text|wordwrap:width }}
    ·                  ──┬──
    ·                    ╰── argument
@@ -327,7 +327,7 @@ def test_wordwrap_missing_width_argument(assert_render_error):
     rusty_message = snapshot("""\
   × Failed lookup for key [width] in {"False": False, "None": None, "True":
   │ True, "text": 'hello'}
-   ╭────
+   ╭─[<string template>:1:18]
  1 │ {{ text|wordwrap:width }}
    ·                  ──┬──
    ·                    ╰── key
