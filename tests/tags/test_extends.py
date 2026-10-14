@@ -706,6 +706,23 @@ def test_block_super_as_argument_no_extends_no_block(assert_render_error):
     )
 
 
+def test_block_super_py_error_in_parent_block(assert_render_error):
+    class Broken:
+        def __str__(self):
+            raise TypeError("Broken __str__")
+
+    template = "{% extends 'broken_base.txt' %}{% block broken %}{{ block.super }}{% endblock broken %}"
+    django_message = snapshot("Broken __str__")
+    rusty_message = snapshot("Broken __str__")
+    assert_render_error(
+        template=template,
+        context={"missing": Broken()},
+        exception=TypeError,
+        django_message=django_message,
+        rusty_message=rusty_message,
+    )
+
+
 def test_block_super_render_error_in_parent_block_variable_does_not_exist(
     assert_render,
 ):
