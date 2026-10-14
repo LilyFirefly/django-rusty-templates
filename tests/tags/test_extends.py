@@ -706,6 +706,13 @@ def test_block_super_as_argument_no_extends_no_block(assert_render_error):
     )
 
 
+def test_block_super_render_error_in_parent_block_variable_does_not_exist(
+    assert_render,
+):
+    template = "{% extends 'broken_base.txt' %}{% block broken %}{{ block.super }}{% endblock broken %}"
+    assert_render(template=template, context={}, expected="\n")
+
+
 def test_extends_variable_bytes(assert_render_error):
     template = "{% extends template_name %}"
     django_message = snapshot("Can't mix strings and bytes in path components")
