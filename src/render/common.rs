@@ -9,7 +9,7 @@ use dtl_lexer::types::{PartsIterator, TemplateString};
 
 use super::types::{AsBorrowedContent, Content, ContentString, Context, IntoOwnedContent};
 use super::{Evaluate, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
-use crate::error::{AnnotatePyErr, RenderError};
+use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
 use crate::parse::{TagElement, TokenTree};
 use crate::types::Argument;
 use crate::types::ArgumentType;
@@ -138,8 +138,17 @@ impl Resolve for Variable {
                 let rendered = block
                     .render(py, TemplateString(&template), context)
                     .map(|content| content.to_string());
+                let rendered = match rendered {
+                    Ok(content) => Ok(content.into_content()),
+                    Err(error) => match error {
+                        PyRenderError::RenderError(RenderError::ArgumentDoesNotExist {
+                            ..
+                        }) => Ok(Cow::Borrowed("").as_content()),
+                        _ => Err(error),
+                    },
+                };
                 context.block = Some((block, template));
-                Ok(Some(rendered?.into_content()))
+                Ok(Some(rendered?))
             }
         }
     }
