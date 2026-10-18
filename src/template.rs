@@ -505,7 +505,7 @@ pub mod django_rusty_templates {
     }
 
     #[derive(Debug, Clone)]
-    #[pyclass(skip_from_py_object)]
+    #[pyclass]
     pub struct Template {
         pub filename: Option<PathBuf>,
         pub template: String,
