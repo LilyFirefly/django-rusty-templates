@@ -1,0 +1,1 @@
+{{ forloop.counter }}{% for v in nested_loop %}{{ forloop.counter }}{{ forloop.parentloop.counter }}{% endfor %}
