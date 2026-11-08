@@ -713,7 +713,14 @@ def test_block_super_py_error_in_parent_block(assert_render_error):
 
     template = "{% extends 'broken_base.txt' %}{% block broken %}{{ block.super }}{% endblock broken %}"
     django_message = snapshot("Broken __str__")
-    rusty_message = snapshot("Broken __str__")
+    rusty_message = snapshot("""\
+  × Broken __str__
+   ╭────
+ 1 │ {% block broken %}{{ missing|default:missing }}{% endblock broken %}
+   ·                      ───┬───
+   ·                         ╰── here
+   ╰────
+""")
     assert_render_error(
         template=template,
         context={"missing": Broken()},

@@ -104,7 +104,7 @@ impl Resolve for Variable {
                     };
                     object_at.1 += key_at.1 + 1;
                 }
-                Ok(Some(Content::Py(variable)))
+                Ok(Some(Content::Py((variable, *at))))
             }
             Self::ForVariable(for_variable) => {
                 let Some(for_loop) = context.get_for_loop(for_variable.parent_count) else {
@@ -125,9 +125,10 @@ impl Resolve for Variable {
                     ForVariableName::RevCounter0 => Content::Int(for_loop.rev_counter0().into()),
                     ForVariableName::First => Content::Bool(for_loop.first()),
                     ForVariableName::Last => Content::Bool(for_loop.last()),
-                    ForVariableName::Object => {
-                        Content::Py(context.resolve_for_loop(py, for_variable.parent_count))
-                    }
+                    ForVariableName::Object => Content::Py((
+                        context.resolve_for_loop(py, for_variable.parent_count),
+                        for_variable.at,
+                    )),
                 }))
             }
             Self::BlockSuper(_) => {

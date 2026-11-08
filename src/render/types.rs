@@ -465,25 +465,49 @@ impl<'t, 'py> ContentString<'t> {
     }
 }
 
-fn resolve_python<'t>(value: Bound<'_, PyAny>, context: &Context) -> PyResult<ContentString<'t>> {
+fn resolve_python<'py, 't>(
+    py: Python<'py>,
+    value: Bound<'_, PyAny>,
+    at: At,
+    template: TemplateString<'t>,
+    context: &Context,
+) -> PyResult<ContentString<'t>> {
     if !context.autoescape {
         return Ok(ContentString::String(
-            value.str()?.extract::<String>()?.into(),
+            value
+                .str()
+                .map_err(|error| error.annotate(py, at, "here", template))?
+                .extract::<String>()?
+                .into(),
         ));
     }
     let py = value.py();
 
     let value = match value.is_instance_of::<PyString>() {
         true => value,
-        false => value.str()?.into_any(),
+        false => value
+            .str()
+            .map_err(|error| error.annotate(py, at, "here", template))?
+            .into_any(),
     };
     Ok(
         match value
             .getattr(intern!(py, "__html__"))
             .ok_or_isinstance_of::<PyAttributeError>(py)?
         {
-            Ok(html) => ContentString::HtmlSafe(html.call0()?.extract::<String>()?.into()),
-            Err(_) => ContentString::HtmlUnsafe(value.str()?.extract::<String>()?.into()),
+            Ok(html) => ContentString::HtmlSafe(
+                html.call0()
+                    .map_err(|error| error.annotate(py, at, "here", template))?
+                    .extract::<String>()?
+                    .into(),
+            ),
+            Err(_) => ContentString::HtmlUnsafe(
+                value
+                    .str()
+                    .map_err(|error| error.annotate(py, at, "here", template))?
+                    .extract::<String>()?
+                    .into(),
+            ),
         },
     )
 }
@@ -506,7 +530,7 @@ fn resolve_bigint(bigint: BigInt, at: At) -> Result<usize, PyRenderError> {
 
 #[derive(Debug, IntoPyObject)]
 pub enum Content<'t, 'py> {
-    Py(Bound<'py, PyAny>),
+    Py((Bound<'py, PyAny>, At)),
     String(ContentString<'t>),
     Float(f64),
     Int(BigInt),
@@ -524,9 +548,14 @@ fn render_value_in_context<'t>(value: ContentString<'t>, context: &Context) -> C
 }
 
 impl<'t, 'py> Content<'t, 'py> {
-    pub fn render(self, context: &Context) -> PyResult<Cow<'t, str>> {
+    pub fn render(
+        self,
+        py: Python<'py>,
+        template: TemplateString<'t>,
+        context: &Context,
+    ) -> PyResult<Cow<'t, str>> {
         let output = match self {
-            Self::Py(content) => resolve_python(content, context)?,
+            Self::Py((content, at)) => resolve_python(py, content, at, template, context)?,
             Self::String(content) => content,
             Self::Float(content) => return Ok(content.to_string().into()),
             Self::Int(content) => return Ok(content.to_string().into()),
@@ -536,12 +565,17 @@ impl<'t, 'py> Content<'t, 'py> {
         Ok(render_value_in_context(output, context))
     }
 
-    pub fn resolve_string(self, context: &Context) -> PyResult<ContentString<'t>> {
+    pub fn resolve_string(
+        self,
+        py: Python<'_>,
+        template: TemplateString<'t>,
+        context: &Context,
+    ) -> PyResult<ContentString<'t>> {
         Ok(match self {
             Self::String(content) => content,
             Self::Float(content) => ContentString::String(content.to_string().into()),
             Self::Int(content) => ContentString::String(content.to_string().into()),
-            Self::Py(content) => return resolve_python(content, context),
+            Self::Py((content, at)) => return resolve_python(py, content, at, template, context),
             Self::Bool(true) => ContentString::String(Cow::Borrowed("True")),
             Self::Bool(false) => ContentString::String(Cow::Borrowed("False")),
         })
@@ -549,13 +583,15 @@ impl<'t, 'py> Content<'t, 'py> {
     /// Resolve to a string, raising an error if the content is not a string or a string-like Python object
     pub fn resolve_string_strict(
         self,
+        py: Python<'_>,
+        template: TemplateString<'t>,
         context: &Context,
         argument_at: SourceSpan,
     ) -> Result<ContentString<'t>, PyRenderError> {
         match self {
             Self::String(content) => Ok(content),
-            Self::Py(content) if content.is_instance_of::<PyString>() => {
-                Ok(resolve_python(content, context)?)
+            Self::Py((content, at)) if content.is_instance_of::<PyString>() => {
+                Ok(resolve_python(py, content, at, template, context)?)
             }
             _ => Err(RenderError::InvalidArgumentString { argument_at }.into()),
         }
@@ -566,7 +602,7 @@ impl<'t, 'py> Content<'t, 'py> {
             Self::Int(left) => Some(left.clone()),
             Self::String(left) => left.as_raw().parse::<BigInt>().ok(),
             Self::Float(left) => left.trunc().to_bigint(),
-            Self::Py(left) => match left.extract::<BigInt>() {
+            Self::Py((left, _at)) => match left.extract::<BigInt>() {
                 Ok(left) => Some(left),
                 Err(_) => {
                     let int = PyType::new::<PyInt>(left.py());
@@ -602,7 +638,7 @@ impl<'t, 'py> Content<'t, 'py> {
                 }
                 .into()),
             },
-            Self::Py(obj) => match obj.extract::<BigInt>() {
+            Self::Py((obj, _at)) => match obj.extract::<BigInt>() {
                 Ok(n) => resolve_bigint(n, argument_at),
                 Err(_) => {
                     let argument = obj.to_string();
@@ -631,13 +667,13 @@ impl<'t, 'py> Content<'t, 'py> {
             Self::Int(n) => !n.is_zero(),
             Self::Float(f) => !f.is_zero(),
             Self::String(s) => !s.as_raw().is_empty(),
-            Self::Py(obj) => obj.is_truthy()?,
+            Self::Py((obj, _at)) => obj.is_truthy()?,
         })
     }
 
     pub fn to_py(&self, py: Python<'py>) -> Bound<'py, PyAny> {
         match self {
-            Self::Py(object) => object.clone(),
+            Self::Py((object, _at)) => object.clone(),
             Self::Int(i) => i
                 .into_pyobject(py)
                 .expect("A BigInt can always be converted to a Python int.")

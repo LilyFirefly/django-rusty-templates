@@ -39,7 +39,14 @@ def test_autoescape_invalid_str_method(assert_render_error):
         context={"broken": broken},
         exception=ZeroDivisionError,
         django_message=snapshot("division by zero"),
-        rusty_message=snapshot("division by zero"),
+        rusty_message=snapshot("""\
+  × division by zero
+   ╭────
+ 1 │ {{ broken }}
+   ·    ───┬──
+   ·       ╰── here
+   ╰────
+"""),
     )
 
 
@@ -54,7 +61,14 @@ def test_autoescape_invalid_html_method(assert_render_error):
         context={"broken": broken},
         exception=ZeroDivisionError,
         django_message=snapshot("division by zero"),
-        rusty_message=snapshot("division by zero"),
+        rusty_message=snapshot("""\
+  × division by zero
+   ╭────
+ 1 │ {{ broken }}
+   ·    ───┬──
+   ·       ╰── here
+   ╰────
+"""),
     )
 
 

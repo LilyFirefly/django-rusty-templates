@@ -72,7 +72,8 @@ impl Resolve for Url {
         let view_name = match self.view_name.resolve(py, template, context, failures)? {
             Some(view_name) => view_name,
             None => "".as_content(),
-        };
+        }
+        .to_py(py);
         let reverse = REVERSE.import(py, "django.urls", "reverse")?;
 
         let current_app = current_app(py, context.request.as_ref())?;
@@ -81,7 +82,8 @@ impl Resolve for Url {
             for arg in &self.args {
                 py_args.append(
                     arg.resolve(py, template, context, failures)?
-                        .unwrap_or("".as_content()),
+                        .unwrap_or("".as_content())
+                        .resolve_string(py, template, context)?,
                 )?;
             }
             reverse.call1((
@@ -94,7 +96,13 @@ impl Resolve for Url {
         } else {
             let kwargs = PyDict::new(py);
             for (key, value) in &self.kwargs {
-                kwargs.set_item(key, value.resolve(py, template, context, failures)?)?;
+                kwargs.set_item(
+                    key,
+                    value
+                        .resolve(py, template, context, failures)?
+                        .unwrap_or("".as_content())
+                        .resolve_string(py, template, context)?,
+                )?;
             }
             reverse.call1((view_name, py.None(), py.None(), kwargs, current_app))
         };
@@ -103,7 +111,7 @@ impl Resolve for Url {
             Err(error) => Err(error.annotate(py, self.at, "here", template)),
         };
         match &self.asvar {
-            None => Ok(Some(Content::Py(url?))),
+            None => Ok(Some(Content::Py((url?, self.at)))),
             Some(variable) => {
                 if let Ok(url) = url.ok_or_isinstance_of::<NoReverseMatch>(py)? {
                     context.insert(variable.clone(), url);
@@ -122,7 +130,7 @@ impl Evaluate for Content<'_, '_> {
         _context: &mut Context,
     ) -> Option<bool> {
         Some(match self {
-            Self::Py(obj) => obj.is_truthy().unwrap_or(false),
+            Self::Py((obj, _at)) => obj.is_truthy().unwrap_or(false),
             Self::String(s) => !s.as_raw().is_empty(),
             Self::Float(f) => *f != 0.0,
             Self::Int(n) => *n != BigInt::ZERO,
@@ -150,15 +158,19 @@ trait PyCmp<T> {
 impl PyCmp<Content<'_, '_>> for Content<'_, '_> {
     fn eq(&self, other: &Content<'_, '_>) -> bool {
         match (self, other) {
-            (Self::Py(obj), Content::Py(other)) => obj.eq(other).unwrap_or(false),
-            (Self::Py(obj), Content::Float(other)) => obj.eq(other).unwrap_or(false),
-            (Self::Py(obj), Content::Int(other)) => obj.eq(other).unwrap_or(false),
-            (Self::Py(obj), Content::Bool(other)) => obj.eq(other).unwrap_or(false),
-            (Self::Py(obj), Content::String(other)) => obj.eq(other.as_raw()).unwrap_or(false),
-            (Self::Float(obj), Content::Py(other)) => other.eq(obj).unwrap_or(false),
-            (Self::Int(obj), Content::Py(other)) => other.eq(obj).unwrap_or(false),
-            (Self::String(obj), Content::Py(other)) => other.eq(obj.as_raw()).unwrap_or(false),
-            (Self::Bool(obj), Content::Py(other)) => other.eq(obj).unwrap_or(false),
+            (Self::Py((obj, _at)), Content::Py((other, _at2))) => obj.eq(other).unwrap_or(false),
+            (Self::Py((obj, _at)), Content::Float(other)) => obj.eq(other).unwrap_or(false),
+            (Self::Py((obj, _at)), Content::Int(other)) => obj.eq(other).unwrap_or(false),
+            (Self::Py((obj, _at)), Content::Bool(other)) => obj.eq(other).unwrap_or(false),
+            (Self::Py((obj, _at)), Content::String(other)) => {
+                obj.eq(other.as_raw()).unwrap_or(false)
+            }
+            (Self::Float(obj), Content::Py((other, _at))) => other.eq(obj).unwrap_or(false),
+            (Self::Int(obj), Content::Py((other, _at))) => other.eq(obj).unwrap_or(false),
+            (Self::String(obj), Content::Py((other, _at))) => {
+                other.eq(obj.as_raw()).unwrap_or(false)
+            }
+            (Self::Bool(obj), Content::Py((other, _at))) => other.eq(obj).unwrap_or(false),
             (Self::Float(obj), Content::Float(other)) => obj == other,
             (Self::Int(obj), Content::Int(other)) => obj == other,
             (Self::Int(obj), Content::Bool(other)) => u8::try_from(obj)
@@ -195,15 +207,19 @@ impl PyCmp<Content<'_, '_>> for Content<'_, '_> {
 
     fn lt(&self, other: &Content<'_, '_>) -> bool {
         match (self, other) {
-            (Self::Py(obj), Content::Py(other)) => obj.lt(other).unwrap_or(false),
-            (Self::Py(obj), Content::Float(other)) => obj.lt(other).unwrap_or(false),
-            (Self::Py(obj), Content::Int(other)) => obj.lt(other).unwrap_or(false),
-            (Self::Py(obj), Content::Bool(other)) => obj.lt(other).unwrap_or(false),
-            (Self::Py(obj), Content::String(other)) => obj.lt(other.as_raw()).unwrap_or(false),
-            (Self::Float(obj), Content::Py(other)) => other.gt(obj).unwrap_or(false),
-            (Self::Int(obj), Content::Py(other)) => other.gt(obj).unwrap_or(false),
-            (Self::String(obj), Content::Py(other)) => other.gt(obj.as_raw()).unwrap_or(false),
-            (Self::Bool(obj), Content::Py(other)) => other.gt(obj).unwrap_or(false),
+            (Self::Py((obj, _at)), Content::Py((other, _at2))) => obj.lt(other).unwrap_or(false),
+            (Self::Py((obj, _at)), Content::Float(other)) => obj.lt(other).unwrap_or(false),
+            (Self::Py((obj, _at)), Content::Int(other)) => obj.lt(other).unwrap_or(false),
+            (Self::Py((obj, _at)), Content::Bool(other)) => obj.lt(other).unwrap_or(false),
+            (Self::Py((obj, _at)), Content::String(other)) => {
+                obj.lt(other.as_raw()).unwrap_or(false)
+            }
+            (Self::Float(obj), Content::Py((other, _at))) => other.gt(obj).unwrap_or(false),
+            (Self::Int(obj), Content::Py((other, _at))) => other.gt(obj).unwrap_or(false),
+            (Self::String(obj), Content::Py((other, _at))) => {
+                other.gt(obj.as_raw()).unwrap_or(false)
+            }
+            (Self::Bool(obj), Content::Py((other, _at))) => other.gt(obj).unwrap_or(false),
             (Self::Float(obj), Content::Float(other)) => obj < other,
             (Self::Int(obj), Content::Int(other)) => obj < other,
             (Self::Int(obj), Content::Bool(other)) => match obj.sign() {
@@ -248,15 +264,19 @@ impl PyCmp<Content<'_, '_>> for Content<'_, '_> {
 
     fn gt(&self, other: &Content<'_, '_>) -> bool {
         match (self, other) {
-            (Self::Py(obj), Content::Py(other)) => obj.gt(other).unwrap_or(false),
-            (Self::Py(obj), Content::Float(other)) => obj.gt(other).unwrap_or(false),
-            (Self::Py(obj), Content::Int(other)) => obj.gt(other).unwrap_or(false),
-            (Self::Py(obj), Content::Bool(other)) => obj.gt(other).unwrap_or(false),
-            (Self::Py(obj), Content::String(other)) => obj.gt(other.as_raw()).unwrap_or(false),
-            (Self::Float(obj), Content::Py(other)) => other.lt(obj).unwrap_or(false),
-            (Self::Int(obj), Content::Py(other)) => other.lt(obj).unwrap_or(false),
-            (Self::String(obj), Content::Py(other)) => other.lt(obj.as_raw()).unwrap_or(false),
-            (Self::Bool(obj), Content::Py(other)) => other.lt(obj).unwrap_or(false),
+            (Self::Py((obj, _at)), Content::Py((other, _at2))) => obj.gt(other).unwrap_or(false),
+            (Self::Py((obj, _at)), Content::Float(other)) => obj.gt(other).unwrap_or(false),
+            (Self::Py((obj, _at)), Content::Int(other)) => obj.gt(other).unwrap_or(false),
+            (Self::Py((obj, _at)), Content::Bool(other)) => obj.gt(other).unwrap_or(false),
+            (Self::Py((obj, _at)), Content::String(other)) => {
+                obj.gt(other.as_raw()).unwrap_or(false)
+            }
+            (Self::Float(obj), Content::Py((other, _at))) => other.lt(obj).unwrap_or(false),
+            (Self::Int(obj), Content::Py((other, _at))) => other.lt(obj).unwrap_or(false),
+            (Self::String(obj), Content::Py((other, _at))) => {
+                other.lt(obj.as_raw()).unwrap_or(false)
+            }
+            (Self::Bool(obj), Content::Py((other, _at))) => other.lt(obj).unwrap_or(false),
             (Self::Float(obj), Content::Float(other)) => obj > other,
             (Self::Int(obj), Content::Int(other)) => obj > other,
             (Self::Int(obj), Content::Bool(other)) => match obj.sign() {
@@ -301,15 +321,19 @@ impl PyCmp<Content<'_, '_>> for Content<'_, '_> {
 
     fn lte(&self, other: &Content<'_, '_>) -> bool {
         match (self, other) {
-            (Self::Py(obj), Content::Py(other)) => obj.le(other).unwrap_or(false),
-            (Self::Py(obj), Content::Float(other)) => obj.le(other).unwrap_or(false),
-            (Self::Py(obj), Content::Int(other)) => obj.le(other).unwrap_or(false),
-            (Self::Py(obj), Content::Bool(other)) => obj.le(other).unwrap_or(false),
-            (Self::Py(obj), Content::String(other)) => obj.le(other.as_raw()).unwrap_or(false),
-            (Self::Float(obj), Content::Py(other)) => other.ge(obj).unwrap_or(false),
-            (Self::Int(obj), Content::Py(other)) => other.ge(obj).unwrap_or(false),
-            (Self::Bool(obj), Content::Py(other)) => other.ge(obj).unwrap_or(false),
-            (Self::String(obj), Content::Py(other)) => other.ge(obj.as_raw()).unwrap_or(false),
+            (Self::Py((obj, _at)), Content::Py((other, _at2))) => obj.le(other).unwrap_or(false),
+            (Self::Py((obj, _at)), Content::Float(other)) => obj.le(other).unwrap_or(false),
+            (Self::Py((obj, _at)), Content::Int(other)) => obj.le(other).unwrap_or(false),
+            (Self::Py((obj, _at)), Content::Bool(other)) => obj.le(other).unwrap_or(false),
+            (Self::Py((obj, _at)), Content::String(other)) => {
+                obj.le(other.as_raw()).unwrap_or(false)
+            }
+            (Self::Float(obj), Content::Py((other, _at))) => other.ge(obj).unwrap_or(false),
+            (Self::Int(obj), Content::Py((other, _at))) => other.ge(obj).unwrap_or(false),
+            (Self::Bool(obj), Content::Py((other, _at))) => other.ge(obj).unwrap_or(false),
+            (Self::String(obj), Content::Py((other, _at))) => {
+                other.ge(obj.as_raw()).unwrap_or(false)
+            }
             (Self::Float(obj), Content::Float(other)) => obj <= other,
             (Self::Int(obj), Content::Int(other)) => obj <= other,
             (Self::Int(obj), Content::Bool(other)) => match obj.sign() {
@@ -354,15 +378,19 @@ impl PyCmp<Content<'_, '_>> for Content<'_, '_> {
 
     fn gte(&self, other: &Content<'_, '_>) -> bool {
         match (self, other) {
-            (Self::Py(obj), Content::Py(other)) => obj.ge(other).unwrap_or(false),
-            (Self::Py(obj), Content::Float(other)) => obj.ge(other).unwrap_or(false),
-            (Self::Py(obj), Content::Int(other)) => obj.ge(other).unwrap_or(false),
-            (Self::Py(obj), Content::Bool(other)) => obj.ge(other).unwrap_or(false),
-            (Self::Py(obj), Content::String(other)) => obj.ge(other.as_raw()).unwrap_or(false),
-            (Self::Float(obj), Content::Py(other)) => other.le(obj).unwrap_or(false),
-            (Self::Int(obj), Content::Py(other)) => other.le(obj).unwrap_or(false),
-            (Self::Bool(obj), Content::Py(other)) => other.le(obj).unwrap_or(false),
-            (Self::String(obj), Content::Py(other)) => other.le(obj.as_raw()).unwrap_or(false),
+            (Self::Py((obj, _at)), Content::Py((other, _at2))) => obj.ge(other).unwrap_or(false),
+            (Self::Py((obj, _at)), Content::Float(other)) => obj.ge(other).unwrap_or(false),
+            (Self::Py((obj, _at)), Content::Int(other)) => obj.ge(other).unwrap_or(false),
+            (Self::Py((obj, _at)), Content::Bool(other)) => obj.ge(other).unwrap_or(false),
+            (Self::Py((obj, _at)), Content::String(other)) => {
+                obj.ge(other.as_raw()).unwrap_or(false)
+            }
+            (Self::Float(obj), Content::Py((other, _at))) => other.le(obj).unwrap_or(false),
+            (Self::Int(obj), Content::Py((other, _at))) => other.le(obj).unwrap_or(false),
+            (Self::Bool(obj), Content::Py((other, _at))) => other.le(obj).unwrap_or(false),
+            (Self::String(obj), Content::Py((other, _at))) => {
+                other.le(obj.as_raw()).unwrap_or(false)
+            }
             (Self::Float(obj), Content::Float(other)) => obj >= other,
             (Self::Int(obj), Content::Int(other)) => obj >= other,
             (Self::Int(obj), Content::Bool(other)) => match obj.sign() {
@@ -412,7 +440,7 @@ impl PyCmp<Self> for Option<Content<'_, '_>> {
             (None, None) => true,
             (Some(obj), Some(other)) => obj.eq(other),
             (Some(obj), None) | (None, Some(obj)) => match obj {
-                Content::Py(obj) => obj.eq(PyNone::get(obj.py())).unwrap_or(false),
+                Content::Py((obj, _at)) => obj.eq(PyNone::get(obj.py())).unwrap_or(false),
                 _ => false,
             },
         }
@@ -455,28 +483,28 @@ impl Contains<Option<Content<'_, '_>>> for Content<'_, '_> {
     fn contains(&self, other: Option<Content<'_, '_>>) -> Option<bool> {
         match other {
             None => match self {
-                Self::Py(obj) => obj.contains(PyNone::get(obj.py())).ok(),
+                Self::Py((obj, _at)) => obj.contains(PyNone::get(obj.py())).ok(),
                 _ => None,
             },
-            Some(Content::Py(other)) => {
+            Some(Content::Py((other, _at))) => {
                 let obj = self.to_py(other.py());
                 obj.contains(other).ok()
             }
             Some(Content::String(other)) => match self {
                 Self::String(obj) => Some(obj.as_raw().contains(other.as_raw().as_ref())),
                 Self::Int(_) | Self::Float(_) | Self::Bool(_) => None,
-                Self::Py(obj) => obj.contains(other).ok(),
+                Self::Py((obj, _at)) => obj.contains(other).ok(),
             },
             Some(Content::Int(n)) => match self {
-                Self::Py(obj) => obj.contains(n).ok(),
+                Self::Py((obj, _at)) => obj.contains(n).ok(),
                 _ => None,
             },
             Some(Content::Float(f)) => match self {
-                Self::Py(obj) => obj.contains(f).ok(),
+                Self::Py((obj, _at)) => obj.contains(f).ok(),
                 _ => None,
             },
             Some(Content::Bool(b)) => match self {
-                Self::Py(obj) => obj.contains(b).ok(),
+                Self::Py((obj, _at)) => obj.contains(b).ok(),
                 _ => None,
             },
         }
@@ -613,11 +641,12 @@ impl Evaluate for IfCondition {
                     return Some(false);
                 };
                 match inner {
-                    (Some(Content::Py(left)), Some(Content::Py(right))) => left.is(&right),
-                    (Some(Content::Py(obj)), None) | (None, Some(Content::Py(obj))) => {
-                        obj.is(PyNone::get(py).as_any())
+                    (Some(Content::Py((left, _at))), Some(Content::Py((right, _at2)))) => {
+                        left.is(&right)
                     }
-                    (Some(Content::Bool(left)), Some(Content::Py(right))) => {
+                    (Some(Content::Py((obj, _at))), None)
+                    | (None, Some(Content::Py((obj, _at)))) => obj.is(PyNone::get(py).as_any()),
+                    (Some(Content::Bool(left)), Some(Content::Py((right, _at)))) => {
                         right.is(PyBool::new(py, left).as_any())
                     }
                     (None, None) => true,
@@ -629,15 +658,16 @@ impl Evaluate for IfCondition {
                     return Some(false);
                 };
                 match inner {
-                    (Some(Content::Py(left)), Some(Content::Py(right))) => !left.is(&right),
-                    (Some(Content::Bool(left)), Some(Content::Bool(right))) => left != right,
-                    (Some(Content::Py(obj)), None) | (None, Some(Content::Py(obj))) => {
-                        !obj.is(PyNone::get(py).as_any())
+                    (Some(Content::Py((left, _at))), Some(Content::Py((right, _at2)))) => {
+                        !left.is(&right)
                     }
-                    (Some(Content::Bool(left)), Some(Content::Py(right))) => {
+                    (Some(Content::Bool(left)), Some(Content::Bool(right))) => left != right,
+                    (Some(Content::Py((obj, _at))), None)
+                    | (None, Some(Content::Py((obj, _at)))) => !obj.is(PyNone::get(py).as_any()),
+                    (Some(Content::Bool(left)), Some(Content::Py((right, _at)))) => {
                         !right.is(PyBool::new(py, left).as_any())
                     }
-                    (Some(Content::Py(left)), Some(Content::Bool(right))) => {
+                    (Some(Content::Py((left, _at))), Some(Content::Bool(right))) => {
                         !left.is(PyBool::new(py, right).as_any())
                     }
                     (None, None) => false,
@@ -800,7 +830,7 @@ impl Render for For {
             return self.empty.render(py, template, context);
         };
         match iterable {
-            Content::Py(iterable) => self.render_python(&iterable, py, template, context),
+            Content::Py((iterable, _at)) => self.render_python(&iterable, py, template, context),
             Content::String(s) => self.render_string(s.as_raw(), py, template, context),
             Content::Float(_) | Content::Int(_) | Content::Bool(_) => {
                 unreachable!("float, int and bool literals are not iterable")
@@ -912,7 +942,7 @@ impl Include {
                     .get_or_insert_include(py, &self.engine, &key)
                     .map(IncludeTemplate::Template)
             }
-            Content::Py(content) => {
+            Content::Py((content, _at)) => {
                 if let Some(render) = content.getattr_opt(intern!(py, "render"))?
                     && render.is_callable()
                 {
@@ -1130,7 +1160,7 @@ impl Extends {
             Content::String(content) => {
                 self.load_template(py, content.content().to_string(), template, context)
             }
-            Content::Py(content) => {
+            Content::Py((content, _at)) => {
                 if let Ok(parent) = content.extract::<Template>() {
                     Ok(parent)
                 } else if let Ok(content) = content.cast::<PyString>() {
@@ -1591,7 +1621,7 @@ impl Render for FirstOf {
                     return Ok(Cow::Borrowed(""));
                 }
 
-                let format = content.render(context)?.to_string();
+                let format = content.render(py, template, context)?.to_string();
                 return Ok(Cow::Owned(format));
             }
         }
@@ -1647,14 +1677,12 @@ impl Render for SimpleCycle {
         template: TemplateString<'t>,
         context: &mut Context,
     ) -> RenderResult<'t> {
-        let ResolvedCycleValue { at, content } = self.resolve_next(py, template, context)?;
+        let ResolvedCycleValue { content, .. } = self.resolve_next(py, template, context)?;
         let Some(content) = content else {
             return Ok(Cow::Borrowed(""));
         };
 
-        Ok(content
-            .render(context)
-            .map_err(|error| error.annotate(py, at, "here", template))?)
+        Ok(content.render(py, template, context)?)
     }
 }
 
@@ -1665,14 +1693,12 @@ impl Render for NamedCycle {
         template: TemplateString<'t>,
         context: &mut Context,
     ) -> RenderResult<'t> {
-        let ResolvedCycleValue { at, content } = self.resolve_and_store(py, template, context)?;
+        let ResolvedCycleValue { content, .. } = self.resolve_and_store(py, template, context)?;
         let Some(content) = content else {
             return Ok(Cow::Borrowed(""));
         };
 
-        Ok(content
-            .render(context)
-            .map_err(|error| error.annotate(py, at, "here", template))?)
+        Ok(content.render(py, template, context)?)
     }
 }
 

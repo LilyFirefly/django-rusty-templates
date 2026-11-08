@@ -180,4 +180,11 @@ def test_yesno_invalid_html_method():
     with pytest.raises(ZeroDivisionError) as exc_info:
         template.render(context=context)
 
-    assert str(exc_info.value) == "division by zero"
+    assert str(exc_info.value) == snapshot("""\
+  × division by zero
+   ╭────
+ 1 │ {{ value|yesno:broken }}
+   ·                ───┬──
+   ·                   ╰── here
+   ╰────
+""")

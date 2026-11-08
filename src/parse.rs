@@ -266,7 +266,7 @@ impl Filter {
                         });
                     }
                 };
-                FilterType::External(ExternalFilter::new(external, right))
+                FilterType::External(ExternalFilter::new(external, right, at))
             }
         };
         Ok(Self {
@@ -2777,6 +2777,7 @@ mod tests {
                 filter: FilterType::External(ExternalFilter {
                     filter: external,
                     argument: None,
+                    at: (7, 3),
                 }),
             }));
             assert_eq!(nodes, vec![bar]);
@@ -2829,6 +2830,7 @@ mod tests {
                 filter: FilterType::External(ExternalFilter {
                     filter: external,
                     argument: None,
+                    at: (7, 3),
                 }),
             }));
             let external = get_external_filter(&nodes[0]);
@@ -2840,6 +2842,7 @@ mod tests {
                 filter: FilterType::External(ExternalFilter {
                     filter: external,
                     argument: None,
+                    at: (7, 3),
                 }),
             }));
             assert_eq!(nodes, vec![baz]);
@@ -2872,6 +2875,7 @@ mod tests {
                         at: (11, 3),
                         argument_type: ArgumentType::Variable(baz),
                     }),
+                    at: (7, 3),
                 }),
             }));
             assert_eq!(nodes, vec![bar]);
@@ -2906,6 +2910,7 @@ mod tests {
                         at: (11, 5),
                         argument_type: ArgumentType::Text(baz),
                     }),
+                    at: (7, 3),
                 }),
             }));
             assert_eq!(nodes, vec![bar]);
@@ -2937,6 +2942,7 @@ mod tests {
                         at: (11, 8),
                         argument_type: ArgumentType::TranslatedText(baz),
                     }),
+                    at: (7, 3),
                 }),
             }));
             assert_eq!(nodes, vec![bar]);
@@ -2968,6 +2974,7 @@ mod tests {
                 filter: FilterType::External(ExternalFilter {
                     filter: external,
                     argument: Some(num),
+                    at: (7, 3),
                 }),
             }));
             assert_eq!(nodes, vec![bar]);
@@ -2998,6 +3005,7 @@ mod tests {
                 filter: FilterType::External(ExternalFilter {
                     filter: external,
                     argument: Some(num),
+                    at: (7, 3),
                 }),
             }));
             assert_eq!(nodes, vec![bar]);
@@ -3028,6 +3036,7 @@ mod tests {
                 filter: FilterType::External(ExternalFilter {
                     filter: external,
                     argument: Some(num),
+                    at: (7, 3),
                 }),
             }));
             assert_eq!(nodes, vec![bar]);
@@ -3480,8 +3489,8 @@ mod tests {
                 FilterType::Lower(LowerFilter)
             );
             assert_ne!(
-                FilterType::External(ExternalFilter::new(py.None(), None)),
-                FilterType::External(ExternalFilter::new(py.None(), None))
+                FilterType::External(ExternalFilter::new(py.None(), None, (0, 3))),
+                FilterType::External(ExternalFilter::new(py.None(), None, (0, 3)))
             );
             assert_ne!(
                 FilterType::Lower(LowerFilter),

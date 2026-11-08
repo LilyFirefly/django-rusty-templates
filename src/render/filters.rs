@@ -77,13 +77,13 @@ impl ResolveFilter for AddSlashesFilter {
     fn resolve<'t, 'py>(
         &self,
         variable: Option<Content<'t, 'py>>,
-        _py: Python<'py>,
-        _template: TemplateString<'t>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
             Some(content) => {
-                let content_string = content.resolve_string(context)?;
+                let content_string = content.resolve_string(py, template, context)?;
                 content_string.map_content(|raw| {
                     Cow::Owned(
                         raw.replace('\\', r"\\")
@@ -118,7 +118,10 @@ impl ResolveFilter for AddFilter {
             _ => {
                 let variable = variable.to_py(py);
                 let right = right.to_py(py);
-                variable.add(right).ok().map(Content::Py)
+                variable
+                    .add(right)
+                    .ok()
+                    .map(|variable| Content::Py((variable, self.argument.at)))
             }
         })
     }
@@ -128,13 +131,13 @@ impl ResolveFilter for CapfirstFilter {
     fn resolve<'t, 'py>(
         &self,
         variable: Option<Content<'t, 'py>>,
-        _py: Python<'py>,
-        _template: TemplateString<'t>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
             Some(content) => {
-                let content_string = content.render(context)?.into_owned();
+                let content_string = content.render(py, template, context)?.into_owned();
                 let mut chars = content_string.chars();
                 let first_char = match chars.next() {
                     Some(c) => c.to_uppercase(),
@@ -160,7 +163,7 @@ impl ResolveFilter for CenterFilter {
         let Some(content) = variable else {
             return Ok(Some("".as_content()));
         };
-        let content = content.render(context)?;
+        let content = content.render(py, template, context)?;
         let arg = self
             .argument
             .resolve(py, template, context, ResolveFailures::Raise)?
@@ -210,10 +213,10 @@ impl ResolveFilter for CutFilter {
             .argument
             .resolve(py, template, context, ResolveFailures::Raise)?
             .expect("missing argument in context should already have raised")
-            .resolve_string_strict(context, self.argument.at.into())?
+            .resolve_string_strict(py, template, context, self.argument.at.into())?
             .into_raw();
 
-        let content_string = variable.resolve_string(context)?;
+        let content_string = variable.resolve_string(py, template, context)?;
         let result = match content_string {
             ContentString::String(s) => ContentString::String(cut(s, &arg).into()),
             ContentString::HtmlSafe(s) => {
@@ -262,7 +265,7 @@ impl ResolveFilter for DefaultIfNoneFilter {
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         match variable {
-            Some(Content::Py(ref value)) if value.is_none() => {
+            Some(Content::Py((ref value, _at))) if value.is_none() => {
                 self.argument
                     .resolve(py, template, context, ResolveFailures::Raise)
             }
@@ -319,7 +322,7 @@ impl ResolveFilter for DateFilter {
             }
         };
 
-        Ok(Some(Content::Py(formatted)))
+        Ok(Some(Content::Py((formatted, self.at))))
     }
 }
 
@@ -342,7 +345,7 @@ impl ResolveFilter for DivisibleByFilter {
             }
         };
 
-        if let Content::Py(ref obj) = variable
+        if let Content::Py((ref obj, _at)) = variable
             && obj.is_none()
         {
             return Err(pyo3::exceptions::PyTypeError::new_err(
@@ -374,7 +377,7 @@ impl ResolveFilter for DivisibleByFilter {
         }
 
         let Some(left_val) = variable.to_bigint() else {
-            let value_str = variable.render(context)?;
+            let value_str = variable.render(py, template, context)?;
             let msg = format!("invalid literal for int() with base 10: '{}'", value_str);
 
             return Err(pyo3::exceptions::PyValueError::new_err(msg)
@@ -390,8 +393,8 @@ impl ResolveFilter for EscapeFilter {
     fn resolve<'t, 'py>(
         &self,
         variable: Option<Content<'t, 'py>>,
-        _py: Python<'py>,
-        _template: TemplateString<'t>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
         _context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         Ok(Some(Content::String(ContentString::HtmlSafe(
@@ -405,8 +408,11 @@ impl ResolveFilter for EscapeFilter {
                     }
                     Content::Int(n) => Cow::Owned(n.to_string()),
                     Content::Float(n) => Cow::Owned(n.to_string()),
-                    Content::Py(object) => {
-                        let content = object.str()?.extract::<String>()?;
+                    Content::Py((object, at)) => {
+                        let content = object
+                            .str()
+                            .map_err(|error| error.annotate(py, at, "here", template))?
+                            .extract::<String>()?;
                         let mut encoded = String::new();
                         encode_quoted_attribute_to_string(&content, &mut encoded);
                         Cow::Owned(encoded)
@@ -454,13 +460,13 @@ impl ResolveFilter for EscapejsFilter {
     fn resolve<'t, 'py>(
         &self,
         variable: Option<Content<'t, 'py>>,
-        _py: Python<'py>,
-        _template: TemplateString<'t>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
             Some(content) => content
-                .resolve_string(context)?
+                .resolve_string(py, template, context)?
                 .map_content(|content| Cow::Owned(escapejs(&content))),
             None => "".as_content(),
         };
@@ -480,12 +486,13 @@ impl ResolveFilter for ExternalFilter {
             Some(arg) => arg.resolve(py, template, context, ResolveFailures::Raise)?,
             None => None,
         };
+        let variable = variable.map(|variable| variable.to_py(py));
         let filter = self.filter.bind(py);
         let value = match arg {
             Some(arg) => filter.call1((variable, arg))?,
             None => filter.call1((variable,))?,
         };
-        Ok(Some(Content::Py(value)))
+        Ok(Some(Content::Py((value, self.at))))
     }
 }
 
@@ -524,7 +531,7 @@ impl ResolveFilter for LastFilter {
         let obj = content.to_py(py);
 
         match obj.get_item(-1) {
-            Ok(last) => Ok(Some(Content::Py(last))),
+            Ok(last) => Ok(Some(Content::Py((last, self.at)))),
             Err(err) => {
                 if err.is_instance_of::<pyo3::exceptions::PyIndexError>(py) {
                     Ok(Some("".as_content()))
@@ -541,13 +548,13 @@ impl ResolveFilter for LowerFilter {
     fn resolve<'t, 'py>(
         &self,
         variable: Option<Content<'t, 'py>>,
-        _py: Python<'py>,
-        _template: TemplateString<'t>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
             Some(content) => content
-                .resolve_string(context)?
+                .resolve_string(py, template, context)?
                 .map_content(|content| Cow::Owned(content.to_lowercase())),
             None => "".as_content(),
         };
@@ -566,7 +573,7 @@ impl ResolveFilter for LengthFilter {
         let len = match variable {
             None => 0,
             Some(Content::String(s)) => s.as_raw().chars().count(),
-            Some(Content::Py(obj)) => obj.len().unwrap_or(0),
+            Some(Content::Py((obj, _at))) => obj.len().unwrap_or(0),
             Some(Content::Int(_) | Content::Float(_) | Content::Bool(_)) => 0,
         };
 
@@ -578,8 +585,8 @@ impl ResolveFilter for SafeFilter {
     fn resolve<'t, 'py>(
         &self,
         variable: Option<Content<'t, 'py>>,
-        _py: Python<'py>,
-        _template: TemplateString<'t>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
         _context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         Ok(Some(Content::String(ContentString::HtmlSafe(
@@ -588,8 +595,11 @@ impl ResolveFilter for SafeFilter {
                     Content::String(content) => content.into_raw(),
                     Content::Int(n) => Cow::Owned(n.to_string()),
                     Content::Float(n) => Cow::Owned(n.to_string()),
-                    Content::Py(object) => {
-                        let content = object.str()?.extract::<String>()?;
+                    Content::Py((object, at)) => {
+                        let content = object
+                            .str()
+                            .map_err(|error| error.annotate(py, at, "here", template))?
+                            .extract::<String>()?;
                         Cow::Owned(content)
                     }
                     Content::Bool(true) => Cow::Borrowed("True"),
@@ -629,16 +639,24 @@ impl ResolveFilter for SlugifyFilter {
         &self,
         variable: Option<Content<'t, 'py>>,
         py: Python<'py>,
-        _template: TemplateString<'t>,
+        template: TemplateString<'t>,
         _context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
             Some(content) => match content {
-                Content::Py(content) => {
-                    let slug = slugify(Cow::Owned(content.str()?.extract::<String>()?));
+                Content::Py((content, at)) => {
+                    let slug = slugify(Cow::Owned(
+                        content
+                            .str()
+                            .map_err(|error| error.annotate(py, at, "here", template))?
+                            .extract::<String>()?,
+                    ));
                     #[allow(non_snake_case)]
                     let SafeData = SAFEDATA.import(py, "django.utils.safestring", "SafeData")?;
-                    match content.is_instance(SafeData)? {
+                    match content
+                        .is_instance(SafeData)
+                        .map_err(|error| error.annotate(py, at, "here", template))?
+                    {
                         true => Content::String(ContentString::HtmlSafe(slug)),
                         false => Content::String(ContentString::HtmlUnsafe(slug)),
                     }
@@ -660,14 +678,14 @@ impl ResolveFilter for TitleFilter {
     fn resolve<'t, 'py>(
         &self,
         variable: Option<Content<'t, 'py>>,
-        _py: Python<'py>,
-        _template: TemplateString<'t>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         let Some(content) = variable else {
             return Ok(Some("".as_content()));
         };
-        let content_string = content.resolve_string(context)?;
+        let content_string = content.resolve_string(py, template, context)?;
 
         Ok(Some(content_string.map_content(|content| {
             let mut result = String::with_capacity(content.len());
@@ -705,13 +723,13 @@ impl ResolveFilter for UpperFilter {
     fn resolve<'t, 'py>(
         &self,
         variable: Option<Content<'t, 'py>>,
-        _py: Python<'py>,
-        _template: TemplateString<'t>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
             Some(content) => {
-                let content = content.resolve_string(context)?;
+                let content = content.resolve_string(py, template, context)?;
                 content.map_content(|content| Cow::Owned(content.to_uppercase()))
             }
             None => "".as_content(),
@@ -724,13 +742,13 @@ impl ResolveFilter for WordcountFilter {
     fn resolve<'t, 'py>(
         &self,
         variable: Option<Content<'t, 'py>>,
-        _py: Python<'py>,
-        _template: TemplateString<'t>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
             Some(content) => {
-                let content_string = content.resolve_string(context)?;
+                let content_string = content.resolve_string(py, template, context)?;
                 let word_count = content_string.as_raw().split_whitespace().count();
                 Content::Int(word_count.into())
             }
@@ -803,7 +821,7 @@ impl ResolveFilter for WordwrapFilter {
             return Ok(Some("".as_content()));
         };
 
-        let text = content.resolve_string(context)?;
+        let text = content.resolve_string(py, template, context)?;
 
         let arg = self
             .argument
@@ -847,7 +865,7 @@ impl ResolveFilter for YesnoFilter {
                     .resolve(py, template, context, ResolveFailures::Raise)?
                     .expect("missing argument in context should already have raised");
                 arg_content
-                    .resolve_string_strict(context, arg.at.into())?
+                    .resolve_string_strict(py, template, context, arg.at.into())?
                     .into_raw()
             }
             None => Cow::Owned(gettext(py, "yes,no,maybe")?),
@@ -862,7 +880,7 @@ impl ResolveFilter for YesnoFilter {
         };
 
         let result = match variable {
-            Some(Content::Py(ref obj)) if obj.is_none() => maybe,
+            Some(Content::Py((ref obj, _at))) if obj.is_none() => maybe,
             Some(content) => match content.to_bool() {
                 Ok(true) => yes,
                 Ok(false) => no,

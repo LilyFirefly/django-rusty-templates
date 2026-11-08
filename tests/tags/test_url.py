@@ -289,7 +289,7 @@ def test_render_url_missing_extra_kwarg(assert_render_error):
     rusty_message = snapshot(
         """\
   × Reverse for 'user' with keyword arguments '{'username': 'Lily', 'other':
-  │ None}' not found. 1 pattern(s) tried: ['users/(?P<username>[^/]+)/\\\\Z']
+  │ ''}' not found. 1 pattern(s) tried: ['users/(?P<username>[^/]+)/\\\\Z']
    ╭────
  1 │ {% url 'users:user' username='Lily' other=missing %}
    · ──────────────────────────┬─────────────────────────

@@ -84,7 +84,7 @@ where
         context: &mut Context,
     ) -> RenderResult<'t> {
         match self.resolve(py, template, context, ResolveFailures::Raise)? {
-            Some(content) => Ok(content.render(context)?),
+            Some(content) => Ok(content.render(py, template, context)?),
             None => Ok(Cow::Borrowed("")),
         }
     }

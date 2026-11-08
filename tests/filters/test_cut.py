@@ -192,5 +192,12 @@ def test_cut_error_variable_conversion(assert_render_error):
         context=context,
         exception=ValueError,
         django_message=snapshot("Custom string conversion error"),
-        rusty_message=snapshot("Custom string conversion error"),
+        rusty_message=snapshot("""\
+  × Custom string conversion error
+   ╭────
+ 1 │ {{ var|cut:'a' }}
+   ·    ─┬─
+   ·     ╰── here
+   ╰────
+"""),
     )
