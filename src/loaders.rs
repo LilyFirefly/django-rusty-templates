@@ -488,11 +488,12 @@ mod tests {
                 |cache: &HashMap<String, Result<(Template, Origin), LoaderError>>,
                  key: &str,
                  expected_path: &Path| {
-                    if let Some(Ok((cached_template, _origin))) = cache.get(key) {
-                        assert_eq!(cached_template.filename.as_ref().unwrap(), expected_path);
-                    } else {
-                        panic!("Expected '{key}' to be in cache.");
-                    }
+                    let (cached_template, _origin) = cache
+                        .get(key)
+                        .expect("Expected '{key}' to be in cache.")
+                        .as_ref()
+                        .unwrap();
+                    assert_eq!(cached_template.filename.as_ref().unwrap(), expected_path);
                 };
 
             let engine = Arc::new(Engine::empty());
