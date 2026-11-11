@@ -30,14 +30,24 @@ def log(header: str):
     print(f"\033[1;32m==> {header}\033[0m\n", flush=True)
 
 
-def patch_django_test_suite():
-    # Check if patch is already applied
-    result = subprocess.run(
-        ["git", "apply", "--check", str(PATCH_FILE)],
-        cwd=DJANGO_REPO_CACHE,
-        capture_output=True,
-    )
-    if result.returncode == 0:
+def patch_django_test_suite(reapply_patch):
+    if reapply_patch:
+        result = subprocess.run(
+            ["git", "reset", "--hard"],
+            cwd=DJANGO_REPO_CACHE,
+            capture_output=True,
+        )
+        apply_patch = True
+    else:
+        # Check if patch is already applied
+        result = subprocess.run(
+            ["git", "apply", "--check", str(PATCH_FILE)],
+            cwd=DJANGO_REPO_CACHE,
+            capture_output=True,
+        )
+        apply_patch = result.returncode == 0
+
+    if apply_patch:
         log("Applying patches to Django repository...")
         subprocess.run(
             ["git", "apply", str(PATCH_FILE)],
@@ -89,6 +99,11 @@ def main():
         help="The file to write parsed output to",
     )
     parser.add_argument(
+        "--reapply-patch",
+        action="store_true",
+        help="Whether to force reapply the patch",
+    )
+    parser.add_argument(
         "tests",
         nargs="*",
         default=["template_tests", "template_loader"],
@@ -117,7 +132,7 @@ def main():
     else:
         log(f"Using existing Django repository at {DJANGO_REPO_CACHE}")
 
-    patch_django_test_suite()
+    patch_django_test_suite(args.reapply_patch)
 
     log("Running Django's template test suite...")
 
