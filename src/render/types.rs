@@ -23,6 +23,7 @@ use crate::error::{
 };
 use crate::loaders::Origin;
 use crate::parse::{Block, CycleId};
+use crate::render::FileName;
 use crate::template::django_rusty_templates::{Engine, Template, get_template, select_template};
 use crate::utils::PyResultMethods;
 use dtl_lexer::types::{At, TemplateString};
@@ -71,7 +72,7 @@ pub enum IncludeTemplateKey {
 pub struct BlockData {
     pub block: Block,
     pub template: Arc<String>,
-    pub template_name: Arc<String>,
+    pub template_name: Arc<FileName>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -213,7 +214,7 @@ impl Context {
         values_at: At,
         index: usize,
         template: TemplateString<'_>,
-        template_name: &str,
+        template_name: &FileName,
     ) -> Result<(), PyRenderError> {
         let replace = index != 0;
         if !replace {
@@ -238,7 +239,7 @@ impl Context {
                         actual_count: 1,
                         expected_at: names_at.into(),
                         actual_at: values_at.into(),
-                        src: NamedSource::new(template_name, template.to_string()),
+                        src: NamedSource::new(template_name.template_name(), template.to_string()),
                     }))
                     .into());
                 }
@@ -257,7 +258,7 @@ impl Context {
                     actual_count: values.len(),
                     expected_at: names_at.into(),
                     actual_at: values_at.into(),
-                    src: NamedSource::new(template_name, template.to_string()),
+                    src: NamedSource::new(template_name.template_name(), template.to_string()),
                 }))
                 .into());
             }
@@ -527,7 +528,7 @@ fn resolve_python<'py, 't>(
 fn resolve_bigint(
     bigint: BigInt,
     at: At,
-    template_name: &str,
+    template_name: &FileName,
     template: &str,
 ) -> Result<usize, PyRenderError> {
     match bigint.to_isize() {
@@ -540,7 +541,7 @@ fn resolve_bigint(
         None => Err(RenderError::OverflowError(Box::new(OverflowError {
             argument: bigint.to_string(),
             argument_at: at.into(),
-            src: NamedSource::new(template_name, template.to_string()),
+            src: NamedSource::new(template_name.template_name(), template.to_string()),
         }))
         .into()),
     }
@@ -605,7 +606,7 @@ impl<'t, 'py> Content<'t, 'py> {
         template: TemplateString<'t>,
         context: &Context,
         argument_at: SourceSpan,
-        template_name: &str,
+        template_name: &FileName,
     ) -> Result<ContentString<'t>, PyRenderError> {
         match self {
             Self::String(content) => Ok(content),
@@ -615,7 +616,7 @@ impl<'t, 'py> Content<'t, 'py> {
             _ => Err(
                 RenderError::InvalidArgumentString(Box::new(InvalidArgumentString {
                     argument_at,
-                    src: NamedSource::new(template_name, template.to_string()),
+                    src: NamedSource::new(template_name.template_name(), template.to_string()),
                 }))
                 .into(),
             ),
@@ -647,7 +648,7 @@ impl<'t, 'py> Content<'t, 'py> {
     pub fn resolve_usize(
         self,
         argument_at: At,
-        template_name: &str,
+        template_name: &FileName,
         template: &str,
     ) -> Result<usize, PyRenderError> {
         match self {
@@ -658,7 +659,7 @@ impl<'t, 'py> Content<'t, 'py> {
                     InvalidArgumentInteger {
                         argument: format!("'{}'", s.as_raw()),
                         argument_at: argument_at.into(),
-                        src: NamedSource::new(template_name, template.to_string()),
+                        src: NamedSource::new(template_name.template_name(), template.to_string()),
                     },
                 ))
                 .into()),
@@ -669,7 +670,7 @@ impl<'t, 'py> Content<'t, 'py> {
                     RenderError::InvalidArgumentFloat(Box::new(InvalidArgumentFloat {
                         argument: f.to_string(),
                         argument_at: argument_at.into(),
-                        src: NamedSource::new(template_name, template.to_string()),
+                        src: NamedSource::new(template_name.template_name(), template.to_string()),
                     }))
                     .into(),
                 ),
@@ -684,7 +685,10 @@ impl<'t, 'py> Content<'t, 'py> {
                             InvalidArgumentFloat {
                                 argument,
                                 argument_at,
-                                src: NamedSource::new(template_name, template.to_string()),
+                                src: NamedSource::new(
+                                    template_name.template_name(),
+                                    template.to_string(),
+                                ),
                             },
                         ))
                         .into()),
@@ -692,7 +696,10 @@ impl<'t, 'py> Content<'t, 'py> {
                             InvalidArgumentInteger {
                                 argument,
                                 argument_at,
-                                src: NamedSource::new(template_name, template.to_string()),
+                                src: NamedSource::new(
+                                    template_name.template_name(),
+                                    template.to_string(),
+                                ),
                             },
                         ))
                         .into()),

@@ -22,8 +22,8 @@ pub mod django_rusty_templates {
         AppDirsLoader, CachedLoader, FileSystemLoader, Loader, LocMemLoader, Origin,
     };
     use crate::parse::{Parser, TokenTree};
-    use crate::render::Render;
     use crate::render::types::{Context, PyContext};
+    use crate::render::{FileName, Render};
     use crate::utils::PyResultMethods;
     use dtl_lexer::types::TemplateString;
 
@@ -522,7 +522,7 @@ pub mod django_rusty_templates {
     #[derive(Debug, Clone)]
     #[pyclass(from_py_object)]
     pub struct Template {
-        pub filename: Option<PathBuf>,
+        pub filename: FileName,
         pub template: Arc<String>,
         pub nodes: Vec<TokenTree>,
         pub engine: Arc<Engine>,
@@ -549,7 +549,7 @@ pub mod django_rusty_templates {
             };
             Ok(Self {
                 template: Arc::new(template.to_string()),
-                filename: Some(filename),
+                filename: FileName(Some(filename)),
                 nodes,
                 engine,
             })
@@ -570,7 +570,7 @@ pub mod django_rusty_templates {
             };
             Ok(Self {
                 template: Arc::new(template),
-                filename: None,
+                filename: FileName(None),
                 nodes,
                 engine,
             })
@@ -583,9 +583,8 @@ pub mod django_rusty_templates {
         ) -> Result<String, PyRenderError> {
             let mut rendered = String::with_capacity(self.template.len());
             let template = TemplateString(&self.template);
-            let template_name = self.template_name();
             for node in &self.nodes {
-                let content = node.render(py, template, &template_name, context)?;
+                let content = node.render(py, template, &self.filename, context)?;
                 rendered.push_str(&content);
             }
             Ok(rendered)
@@ -597,13 +596,6 @@ pub mod django_rusty_templates {
                 Err(err) => Err(err
                     .try_into_render_error()?
                     .into_pyerr(self.template.clone())),
-            }
-        }
-
-        pub fn template_name(&self) -> Cow<'_, str> {
-            match &self.filename {
-                Some(filename) => filename.to_string_lossy(),
-                None => Cow::Borrowed("<string template>"),
             }
         }
     }

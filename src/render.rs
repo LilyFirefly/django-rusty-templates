@@ -5,6 +5,7 @@ pub mod tags;
 pub mod types;
 
 use std::borrow::Cow;
+use std::path::PathBuf;
 
 use pyo3::prelude::*;
 
@@ -15,6 +16,18 @@ use types::{Content, Context};
 
 pub type ResolveResult<'t, 'py> = Result<Option<Content<'t, 'py>>, PyRenderError>;
 pub type RenderResult<'t> = Result<Cow<'t, str>, PyRenderError>;
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct FileName(pub Option<PathBuf>);
+
+impl FileName {
+    pub fn template_name(&self) -> Cow<'_, str> {
+        match &self.0 {
+            Some(filename) => filename.to_string_lossy(),
+            None => Cow::Borrowed("<string template>"),
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ResolveFailures {
@@ -29,7 +42,7 @@ trait Resolve {
         &self,
         py: Python<'py>,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
         failures: ResolveFailures,
     ) -> ResolveResult<'t, 'py>;
@@ -42,7 +55,7 @@ pub trait Render {
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> RenderResult<'t>;
 }
@@ -53,7 +66,7 @@ pub trait Evaluate {
         &self,
         py: Python<'_>,
         template: TemplateString<'_>,
-        template_name: &str,
+        template_name: &FileName,
         context: &mut Context,
     ) -> Option<bool>;
 }
@@ -66,7 +79,7 @@ where
         &self,
         py: Python<'_>,
         template: TemplateString<'_>,
-        template_name: &str,
+        template_name: &FileName,
         context: &mut Context,
     ) -> Option<bool> {
         match self {
@@ -85,7 +98,7 @@ where
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> RenderResult<'t> {
         match self.resolve(py, template, template_name, context, ResolveFailures::Raise)? {
@@ -103,7 +116,7 @@ where
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> RenderResult<'t> {
         match self.len() {
@@ -127,7 +140,7 @@ where
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> RenderResult<'t> {
         Ok(match self {

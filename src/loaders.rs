@@ -413,7 +413,7 @@ mod tests {
             expected.push("tests/templates/basic.txt");
             #[cfg(windows)]
             expected.push("tests\\templates\\basic.txt");
-            assert_eq!(template.0.filename.unwrap(), expected);
+            assert_eq!(template.0.filename.0.unwrap(), expected);
         });
     }
 
@@ -493,7 +493,7 @@ mod tests {
                         .expect("Expected '{key}' to be in cache.")
                         .as_ref()
                         .unwrap();
-                    assert_eq!(cached_template.filename.as_ref().unwrap(), expected_path);
+                    assert_eq!(cached_template.filename.0.as_ref().unwrap(), expected_path);
                 };
 
             let engine = Arc::new(Engine::empty());
@@ -518,7 +518,7 @@ mod tests {
             expected_path.push("tests/templates/basic.txt");
             #[cfg(windows)]
             expected_path.push("tests\\templates\\basic.txt");
-            assert_eq!(template.0.filename.unwrap(), expected_path);
+            assert_eq!(template.0.filename.0.unwrap(), expected_path);
 
             // Verify the cache state after first load
             assert_eq!(cached_loader.cache.len(), 1);
@@ -531,7 +531,7 @@ mod tests {
                 .expect("Template file could not be read");
 
             // Verify the template filename again
-            assert_eq!(template.0.filename.unwrap(), expected_path);
+            assert_eq!(template.0.filename.0.unwrap(), expected_path);
 
             // Verify the cache state remains consistent
             assert_eq!(cached_loader.cache.len(), 1);
@@ -630,7 +630,7 @@ mod tests {
                 .unwrap()
                 .unwrap();
             assert_eq!(template.0.template, "index".to_string().into());
-            assert_eq!(template.0.filename.unwrap(), PathBuf::from("index.html"));
+            assert_eq!(template.0.filename.0.unwrap(), PathBuf::from("index.html"));
         });
     }
 
@@ -683,7 +683,7 @@ mod tests {
             expected.push("tests/templates/basic.txt");
             #[cfg(windows)]
             expected.push("tests\\templates\\basic.txt");
-            assert_eq!(template.0.filename.unwrap(), expected);
+            assert_eq!(template.0.filename.0.unwrap(), expected);
         });
     }
 

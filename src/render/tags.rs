@@ -18,7 +18,7 @@ use dtl_lexer::types::{At, TemplateString};
 use super::types::{
     AsBorrowedContent, BlockData, Content, ContentString, Context, IncludeTemplateKey, PyContext,
 };
-use super::{Evaluate, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
+use super::{Evaluate, FileName, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError, TupleUnpackError};
 use crate::parse::{
     Block, CsrfToken, Cycle, CycleValue, Extends, FirstOf, For, GetBlocks, IfCondition, Include,
@@ -67,7 +67,7 @@ impl Resolve for Url {
         &self,
         py: Python<'py>,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
         failures: ResolveFailures,
     ) -> ResolveResult<'t, 'py> {
@@ -133,7 +133,7 @@ impl Evaluate for Content<'_, '_> {
         &self,
         _py: Python<'_>,
         _template: TemplateString<'_>,
-        _template_name: &str,
+        _template_name: &FileName,
         _context: &mut Context,
     ) -> Option<bool> {
         Some(match self {
@@ -523,7 +523,7 @@ trait ResolveTuple<'t, 'py> {
         &self,
         py: Python<'py>,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> Result<(Option<Content<'t, 'py>>, Option<Content<'t, 'py>>), PyRenderError>;
 }
@@ -533,7 +533,7 @@ impl<'t, 'py> ResolveTuple<'t, 'py> for (IfCondition, IfCondition) {
         &self,
         py: Python<'py>,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> Result<(Option<Content<'t, 'py>>, Option<Content<'t, 'py>>), PyRenderError> {
         const IGNORE: ResolveFailures = ResolveFailures::IgnoreVariableDoesNotExist;
@@ -576,7 +576,7 @@ impl Evaluate for IfCondition {
         &self,
         py: Python<'_>,
         template: TemplateString<'_>,
-        template_name: &str,
+        template_name: &FileName,
         context: &mut Context,
     ) -> Option<bool> {
         Some(match self {
@@ -702,7 +702,7 @@ impl Render for Tag {
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> RenderResult<'t> {
         Ok(match self {
@@ -767,7 +767,7 @@ impl For {
         iterable: &Bound<'_, PyAny>,
         py: Python<'_>,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> RenderResult<'t> {
         let mut list: Vec<_> = match iterable.try_iter() {
@@ -816,7 +816,7 @@ impl For {
         string: &str,
         py: Python<'_>,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> RenderResult<'t> {
         if string.is_empty() {
@@ -828,7 +828,7 @@ impl For {
                 actual_count: 1,
                 expected_at: self.variables.at.into(),
                 actual_at: self.iterable.at.into(),
-                src: NamedSource::new(template_name, template.to_string()),
+                src: NamedSource::new(template_name.template_name(), template.to_string()),
             }))
             .into());
         }
@@ -857,7 +857,7 @@ impl Render for For {
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> RenderResult<'t> {
         let Some(iterable) = self.iterable.iterable.resolve(
@@ -896,7 +896,7 @@ impl<'t, 'py> IncludeTemplate<'py> {
         context: &mut Context,
         at: At,
         template: TemplateString<'t>,
-        _template_name: &'t str,
+        _template_name: &'t FileName,
     ) -> RenderResult<'t> {
         match self {
             Self::Template(template) => template.render(py, context).map(Cow::Owned),
@@ -930,7 +930,7 @@ fn resolve_template_name<'t, 'py>(
     py: Python<'py>,
     included_template_name: &'t IncludeTemplateName,
     template: TemplateString<'t>,
-    template_name: &'t str,
+    template_name: &'t FileName,
     context: &mut Context,
 ) -> Result<Content<'t, 'py>, PyRenderError> {
     let resolved_template_name = match included_template_name {
@@ -1087,7 +1087,7 @@ impl Render for Include {
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> RenderResult<'t> {
         let render_context = std::mem::take(&mut context.render_context);
@@ -1212,7 +1212,7 @@ impl Extends {
         &self,
         py: Python<'py>,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> Result<Template, PyRenderError> {
         let template_name =
@@ -1258,12 +1258,12 @@ impl Render for Extends {
         &self,
         py: Python,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> RenderResult<'t> {
         let parent = self.get_template(py, template, template_name, context)?;
         let block_context = context.render_context.block_context.get_or_insert_default();
-        let template_name = Arc::new(template_name.to_string());
+        let template_name = Arc::new(template_name.clone());
         for (name, block) in &self.blocks {
             block_context.push_front(
                 name,
@@ -1275,7 +1275,7 @@ impl Render for Extends {
             );
         }
 
-        let parent_template_name = Arc::new(parent.template_name().to_string());
+        let parent_template_name = Arc::new(parent.filename.clone());
         for node in &parent.nodes {
             match node {
                 TokenTree::Text(_)
@@ -1308,7 +1308,7 @@ impl Render for Block {
         &self,
         py: Python,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> RenderResult<'t> {
         if context.render_context.block_context.is_none() {
@@ -1322,7 +1322,7 @@ impl Render for Block {
                 .expect("block_context is known to be Some");
             let push = blocks.pop(&self.name);
             let (block, block_template, block_template_name) = match push {
-                None => (self, template, Arc::new(template_name.to_string())),
+                None => (self, template, Arc::new(template_name.clone())),
                 Some(ref block_data) => (
                     &block_data.block,
                     TemplateString(&block_data.template),
@@ -1413,7 +1413,7 @@ fn retrieve_context<'py>(py: Python<'py>, py_context: Bound<'py, PyAny>, context
 fn build_arg<'py>(
     py: Python<'py>,
     template: TemplateString<'_>,
-    template_name: &str,
+    template_name: &FileName,
     context: &mut Context,
     arg: &TagElement,
 ) -> Result<Bound<'py, PyAny>, PyRenderError> {
@@ -1427,7 +1427,7 @@ fn build_arg<'py>(
 fn build_args<'py>(
     py: Python<'py>,
     template: TemplateString<'_>,
-    template_name: &str,
+    template_name: &FileName,
     context: &mut Context,
     args: &[TagElement],
 ) -> Result<VecDeque<Bound<'py, PyAny>>, PyRenderError> {
@@ -1439,7 +1439,7 @@ fn build_args<'py>(
 fn build_kwargs<'py>(
     py: Python<'py>,
     template: TemplateString<'_>,
-    template_name: &str,
+    template_name: &FileName,
     context: &mut Context,
     kwargs: &Vec<(String, TagElement)>,
 ) -> Result<Bound<'py, PyDict>, PyRenderError> {
@@ -1472,7 +1472,7 @@ impl Render for SimpleTag {
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> RenderResult<'t> {
         let mut args = build_args(py, template, template_name, context, &self.args)?;
@@ -1505,7 +1505,7 @@ impl Render for SimpleBlockTag {
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> RenderResult<'t> {
         let mut args = build_args(py, template, template_name, context, &self.args)?;
@@ -1543,7 +1543,7 @@ impl Render for Now {
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
-        _template_name: &'t str,
+        _template_name: &'t FileName,
         context: &mut Context,
     ) -> RenderResult<'t> {
         let tz_mod = DJANGO_TIMEZONE
@@ -1609,7 +1609,7 @@ impl Render for CsrfToken {
         &self,
         py: Python<'_>,
         _template: TemplateString<'t>,
-        _template_name: &'t str,
+        _template_name: &'t FileName,
         context: &mut Context,
     ) -> RenderResult<'t> {
         match context.get("csrf_token") {
@@ -1649,7 +1649,7 @@ impl Render for Lorem {
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> RenderResult<'t> {
         let count_content = self.count.resolve(
@@ -1701,7 +1701,7 @@ impl Render for FirstOf {
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> RenderResult<'t> {
         for var in &self.vars {
@@ -1739,7 +1739,7 @@ impl SimpleCycle {
         &self,
         py: Python<'py>,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> Result<ResolvedCycleValue<'t, 'py>, PyRenderError> {
         let index = context.next_cycle_index(self.id, self.values.len());
@@ -1755,7 +1755,7 @@ impl NamedCycle {
         &self,
         py: Python<'py>,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> Result<ResolvedCycleValue<'t, 'py>, PyRenderError> {
         let ResolvedCycleValue { at, content } =
@@ -1777,7 +1777,7 @@ impl Render for SimpleCycle {
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> RenderResult<'t> {
         let ResolvedCycleValue { content, .. } =
@@ -1795,7 +1795,7 @@ impl Render for NamedCycle {
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> RenderResult<'t> {
         let ResolvedCycleValue { content, .. } =
@@ -1813,7 +1813,7 @@ impl Render for SilentNamedCycle {
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> RenderResult<'t> {
         self.cycle
@@ -1827,7 +1827,7 @@ impl Render for Cycle {
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> RenderResult<'t> {
         match self {

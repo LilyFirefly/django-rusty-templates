@@ -9,7 +9,7 @@ use pyo3::types::PyString;
 use dtl_lexer::types::{PartsIterator, TemplateString};
 
 use super::types::{AsBorrowedContent, Content, ContentString, Context, IntoOwnedContent};
-use super::{Evaluate, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
+use super::{Evaluate, FileName, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
 use crate::error::{
     AnnotatePyErr, ArgumentDoesNotExist, InnerVariableDoesNotExist, PyRenderError, RenderError,
 };
@@ -56,7 +56,7 @@ impl Resolve for Variable {
         &self,
         py: Python<'py>,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
         failures: ResolveFailures,
     ) -> ResolveResult<'t, 'py> {
@@ -89,7 +89,7 @@ impl Resolve for Variable {
                                                     key_at: key_at.into(),
                                                     object_at: Some(object_at.into()),
                                                     src: NamedSource::new(
-                                                        template_name,
+                                                        template_name.template_name(),
                                                         template.to_string(),
                                                     ),
                                                 },
@@ -176,7 +176,7 @@ impl Resolve for Text {
         &self,
         _py: Python<'py>,
         template: TemplateString<'t>,
-        _template_name: &'t str,
+        _template_name: &'t FileName,
         context: &mut Context,
         _failures: ResolveFailures,
     ) -> ResolveResult<'t, 'py> {
@@ -193,7 +193,7 @@ impl Resolve for TranslatedText {
         &self,
         py: Python<'py>,
         template: TemplateString<'t>,
-        _template_name: &'t str,
+        _template_name: &'t FileName,
         context: &mut Context,
         _failures: ResolveFailures,
     ) -> ResolveResult<'t, 'py> {
@@ -211,7 +211,7 @@ impl Resolve for Argument {
         &self,
         py: Python<'py>,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
         failures: ResolveFailures,
     ) -> ResolveResult<'t, 'py> {
@@ -241,7 +241,10 @@ impl Resolve for Argument {
                                 object,
                                 key_at: at.into(),
                                 object_at: None,
-                                src: NamedSource::new(template_name, template.to_string()),
+                                src: NamedSource::new(
+                                    template_name.template_name(),
+                                    template.to_string(),
+                                ),
                             },
                         ))
                         .into());
@@ -259,7 +262,7 @@ impl Resolve for TagElement {
         &self,
         py: Python<'py>,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
         failures: ResolveFailures,
     ) -> ResolveResult<'t, 'py> {
@@ -282,7 +285,7 @@ impl Evaluate for TagElement {
         &self,
         py: Python<'_>,
         template: TemplateString<'_>,
-        template_name: &str,
+        template_name: &FileName,
         context: &mut Context,
     ) -> Option<bool> {
         self.resolve(
@@ -302,7 +305,7 @@ impl Render for TokenTree {
         &self,
         py: Python<'_>,
         template: TemplateString<'t>,
-        template_name: &'t str,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> RenderResult<'t> {
         match self {
@@ -336,7 +339,9 @@ mod tests {
             let template = TemplateString("{{ name }}");
             let variable = Variable::Variable((3, 4));
 
-            let rendered = variable.render(py, template, "", &mut context).unwrap();
+            let rendered = variable
+                .render(py, template, &FileName(None), &mut context)
+                .unwrap();
             assert_eq!(rendered, "Lily");
         });
     }
@@ -354,7 +359,9 @@ mod tests {
             let template = TemplateString("{{ data.name }}");
             let variable = Variable::Variable((3, 9));
 
-            let rendered = variable.render(py, template, "", &mut context).unwrap();
+            let rendered = variable
+                .render(py, template, &FileName(None), &mut context)
+                .unwrap();
             assert_eq!(rendered, "Lily");
         });
     }
@@ -371,7 +378,9 @@ mod tests {
             let template = TemplateString("{{ names.0 }}");
             let variable = Variable::Variable((3, 7));
 
-            let rendered = variable.render(py, template, "", &mut context).unwrap();
+            let rendered = variable
+                .render(py, template, &FileName(None), &mut context)
+                .unwrap();
             assert_eq!(rendered, "Lily");
         });
     }
@@ -400,7 +409,9 @@ user = User('Lily')
             let template = TemplateString("{{ user.name }}");
             let variable = Variable::Variable((3, 9));
 
-            let rendered = variable.render(py, template, "", &mut context).unwrap();
+            let rendered = variable
+                .render(py, template, &FileName(None), &mut context)
+                .unwrap();
             assert_eq!(rendered, "Lily");
         });
     }
@@ -416,7 +427,9 @@ user = User('Lily')
             let template = TemplateString("{{ html }}");
             let html = Variable::Variable((3, 4));
 
-            let rendered = html.render(py, template, "", &mut context).unwrap();
+            let rendered = html
+                .render(py, template, &FileName(None), &mut context)
+                .unwrap();
             assert_eq!(rendered, "&lt;p&gt;Hello World!&lt;/p&gt;");
         });
     }
