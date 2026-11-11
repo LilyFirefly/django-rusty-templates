@@ -17,7 +17,10 @@ use pyo3::prelude::*;
 use pyo3::sync::{MutexExt, PyOnceLock};
 use pyo3::types::{PyBool, PyDict, PyInt, PyString, PyType};
 
-use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
+use crate::error::{
+    AnnotatePyErr, InvalidArgumentFloat, InvalidArgumentInteger, InvalidArgumentString,
+    OverflowError, PyRenderError, RenderError, TupleUnpackError,
+};
 use crate::loaders::Origin;
 use crate::parse::{Block, CycleId};
 use crate::template::django_rusty_templates::{Engine, Template, get_template, select_template};
@@ -225,13 +228,13 @@ impl Context {
                     }
                 },
                 Err(error) if error.is_instance_of::<PyTypeError>(py) => {
-                    return Err(RenderError::TupleUnpackError {
+                    return Err(RenderError::TupleUnpackError(Box::new(TupleUnpackError {
                         expected_count: names.len(),
                         actual_count: 1,
                         expected_at: names_at.into(),
                         actual_at: values_at.into(),
                         src: NamedSource::new(template_name, template.to_string()),
-                    }
+                    }))
                     .into());
                 }
                 Err(error) => {
@@ -244,13 +247,13 @@ impl Context {
                     self._insert(name.clone(), value, replace);
                 }
             } else {
-                return Err(RenderError::TupleUnpackError {
+                return Err(RenderError::TupleUnpackError(Box::new(TupleUnpackError {
                     expected_count: names.len(),
                     actual_count: values.len(),
                     expected_at: names_at.into(),
                     actual_at: values_at.into(),
                     src: NamedSource::new(template_name, template.to_string()),
-                }
+                }))
                 .into());
             }
         }
@@ -529,11 +532,11 @@ fn resolve_bigint(
             let n = n as usize;
             Ok(n)
         }
-        None => Err(RenderError::OverflowError {
+        None => Err(RenderError::OverflowError(Box::new(OverflowError {
             argument: bigint.to_string(),
             argument_at: at.into(),
             src: NamedSource::new(template_name, template.to_string()),
-        }
+        }))
         .into()),
     }
 }
@@ -604,11 +607,13 @@ impl<'t, 'py> Content<'t, 'py> {
             Self::Py((content, at)) if content.is_instance_of::<PyString>() => {
                 Ok(resolve_python(py, content, at, template, context)?)
             }
-            _ => Err(RenderError::InvalidArgumentString {
-                argument_at,
-                src: NamedSource::new(template_name, template.to_string()),
-            }
-            .into()),
+            _ => Err(
+                RenderError::InvalidArgumentString(Box::new(InvalidArgumentString {
+                    argument_at,
+                    src: NamedSource::new(template_name, template.to_string()),
+                }))
+                .into(),
+            ),
         }
     }
 
@@ -644,21 +649,25 @@ impl<'t, 'py> Content<'t, 'py> {
             Self::Int(n) => resolve_bigint(n, argument_at, template_name, template),
             Self::String(s) => match s.as_raw().parse::<BigInt>() {
                 Ok(n) => resolve_bigint(n, argument_at, template_name, template),
-                Err(_) => Err(RenderError::InvalidArgumentInteger {
-                    argument: format!("'{}'", s.as_raw()),
-                    argument_at: argument_at.into(),
-                    src: NamedSource::new(template_name, template.to_string()),
-                }
+                Err(_) => Err(RenderError::InvalidArgumentInteger(Box::new(
+                    InvalidArgumentInteger {
+                        argument: format!("'{}'", s.as_raw()),
+                        argument_at: argument_at.into(),
+                        src: NamedSource::new(template_name, template.to_string()),
+                    },
+                ))
                 .into()),
             },
             Self::Float(f) => match f.trunc().to_bigint() {
                 Some(n) => resolve_bigint(n, argument_at, template_name, template),
-                None => Err(RenderError::InvalidArgumentFloat {
-                    argument: f.to_string(),
-                    argument_at: argument_at.into(),
-                    src: NamedSource::new(template_name, template.to_string()),
-                }
-                .into()),
+                None => Err(
+                    RenderError::InvalidArgumentFloat(Box::new(InvalidArgumentFloat {
+                        argument: f.to_string(),
+                        argument_at: argument_at.into(),
+                        src: NamedSource::new(template_name, template.to_string()),
+                    }))
+                    .into(),
+                ),
             },
             Self::Py((obj, _at)) => match obj.extract::<BigInt>() {
                 Ok(n) => resolve_bigint(n, argument_at, template_name, template),
@@ -666,17 +675,21 @@ impl<'t, 'py> Content<'t, 'py> {
                     let argument = obj.to_string();
                     let argument_at = argument_at.into();
                     match obj.extract::<f64>() {
-                        Ok(_) => Err(RenderError::InvalidArgumentFloat {
-                            argument,
-                            argument_at,
-                            src: NamedSource::new(template_name, template.to_string()),
-                        }
+                        Ok(_) => Err(RenderError::InvalidArgumentFloat(Box::new(
+                            InvalidArgumentFloat {
+                                argument,
+                                argument_at,
+                                src: NamedSource::new(template_name, template.to_string()),
+                            },
+                        ))
                         .into()),
-                        Err(_) => Err(RenderError::InvalidArgumentInteger {
-                            argument,
-                            argument_at,
-                            src: NamedSource::new(template_name, template.to_string()),
-                        }
+                        Err(_) => Err(RenderError::InvalidArgumentInteger(Box::new(
+                            InvalidArgumentInteger {
+                                argument,
+                                argument_at,
+                                src: NamedSource::new(template_name, template.to_string()),
+                            },
+                        ))
                         .into()),
                     }
                 }

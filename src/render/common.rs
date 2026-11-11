@@ -10,7 +10,9 @@ use dtl_lexer::types::{PartsIterator, TemplateString};
 
 use super::types::{AsBorrowedContent, Content, ContentString, Context, IntoOwnedContent};
 use super::{Evaluate, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
-use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
+use crate::error::{
+    AnnotatePyErr, ArgumentDoesNotExist, InnerVariableDoesNotExist, PyRenderError, RenderError,
+};
 use crate::parse::{TagElement, TokenTree};
 use crate::types::Argument;
 use crate::types::ArgumentType;
@@ -80,16 +82,18 @@ impl Resolve for Variable {
                                 let Ok(int) = part.parse::<usize>() else {
                                     return match failures {
                                         ResolveFailures::Raise => {
-                                            Err(RenderError::VariableDoesNotExist {
-                                                key: part.to_string(),
-                                                object: variable.str()?.to_string(),
-                                                key_at: key_at.into(),
-                                                object_at: Some(object_at.into()),
-                                                src: NamedSource::new(
-                                                    template_name,
-                                                    template.to_string(),
-                                                ),
-                                            }
+                                            Err(RenderError::VariableDoesNotExist(Box::new(
+                                                InnerVariableDoesNotExist {
+                                                    key: part.to_string(),
+                                                    object: variable.str()?.to_string(),
+                                                    key_at: key_at.into(),
+                                                    object_at: Some(object_at.into()),
+                                                    src: NamedSource::new(
+                                                        template_name,
+                                                        template.to_string(),
+                                                    ),
+                                                },
+                                            ))
                                             .into())
                                         }
                                         ResolveFailures::IgnoreVariableDoesNotExist => Ok(None),
@@ -154,9 +158,9 @@ impl Resolve for Variable {
                 let rendered = match rendered {
                     Ok(content) => Ok(content.into_content()),
                     Err(error) => match error {
-                        PyRenderError::RenderError(RenderError::ArgumentDoesNotExist {
-                            ..
-                        }) => Ok(Cow::Borrowed("").as_content()),
+                        PyRenderError::RenderError(RenderError::ArgumentDoesNotExist(..)) => {
+                            Ok(Cow::Borrowed("").as_content())
+                        }
                         _ => Err(error),
                     },
                 };
@@ -231,13 +235,15 @@ impl Resolve for Argument {
                         };
                         let key = template.content(at).to_string();
                         let object = context.display(py);
-                        return Err(RenderError::ArgumentDoesNotExist {
-                            key,
-                            object,
-                            key_at: at.into(),
-                            object_at: None,
-                            src: NamedSource::new(template_name, template.to_string()),
-                        }
+                        return Err(RenderError::ArgumentDoesNotExist(Box::new(
+                            ArgumentDoesNotExist {
+                                key,
+                                object,
+                                key_at: at.into(),
+                                object_at: None,
+                                src: NamedSource::new(template_name, template.to_string()),
+                            },
+                        ))
                         .into());
                     }
                 }

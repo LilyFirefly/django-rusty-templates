@@ -19,7 +19,7 @@ use super::types::{
     AsBorrowedContent, Content, ContentString, Context, IncludeTemplateKey, PyContext,
 };
 use super::{Evaluate, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
-use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
+use crate::error::{AnnotatePyErr, PyRenderError, RenderError, TupleUnpackError};
 use crate::parse::{
     Block, CsrfToken, Cycle, CycleValue, Extends, FirstOf, For, GetBlocks, IfCondition, Include,
     IncludeTemplateName, Lorem, NamedCycle, Now, SilentNamedCycle, SimpleBlockTag, SimpleCycle,
@@ -823,13 +823,13 @@ impl For {
             return self.empty.render(py, template, template_name, context);
         }
         if self.variables.names.len() > 1 {
-            return Err(RenderError::TupleUnpackError {
+            return Err(RenderError::TupleUnpackError(Box::new(TupleUnpackError {
                 expected_count: self.variables.names.len(),
                 actual_count: 1,
                 expected_at: self.variables.at.into(),
                 actual_at: self.iterable.at.into(),
                 src: NamedSource::new(template_name, template.to_string()),
-            }
+            }))
             .into());
         }
         let mut parts = Vec::new();
