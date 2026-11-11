@@ -67,31 +67,35 @@ pub enum IncludeTemplateKey {
     Vec(Vec<String>),
 }
 
+#[derive(Clone, Debug)]
+pub struct BlockData {
+    pub block: Block,
+    pub template: Arc<String>,
+    pub template_name: Arc<String>,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct BlockContext {
-    pub blocks: HashMap<String, VecDeque<(Block, Arc<String>, Arc<String>)>>,
+    pub blocks: HashMap<String, VecDeque<BlockData>>,
 }
 
 impl BlockContext {
-    pub fn pop(&mut self, name: &str) -> Option<(Block, Arc<String>, Arc<String>)> {
+    pub fn pop(&mut self, name: &str) -> Option<BlockData> {
         self.blocks.get_mut(name).map(|blocks| blocks.pop_back())?
     }
 
-    pub fn push(&mut self, name: &str, block: (&Block, Arc<String>, Arc<String>)) {
-        let (block, template, template_name) = block;
-        self.blocks.entry(name.to_string()).or_default().push_back((
-            block.clone(),
-            template,
-            template_name,
-        ));
-    }
-
-    pub fn push_front(&mut self, name: &str, block: (&Block, Arc<String>, Arc<String>)) {
-        let (block, template, template_name) = block;
+    pub fn push(&mut self, name: &str, block: BlockData) {
         self.blocks
             .entry(name.to_string())
             .or_default()
-            .push_front((block.clone(), template, template_name));
+            .push_back(block);
+    }
+
+    pub fn push_front(&mut self, name: &str, block: BlockData) {
+        self.blocks
+            .entry(name.to_string())
+            .or_default()
+            .push_front(block);
     }
 }
 

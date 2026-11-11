@@ -16,7 +16,7 @@ use dtl_lexer::tag::lorem::LoremMethod;
 use dtl_lexer::types::{At, TemplateString};
 
 use super::types::{
-    AsBorrowedContent, Content, ContentString, Context, IncludeTemplateKey, PyContext,
+    AsBorrowedContent, BlockData, Content, ContentString, Context, IncludeTemplateKey, PyContext,
 };
 use super::{Evaluate, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError, TupleUnpackError};
@@ -1267,7 +1267,11 @@ impl Render for Extends {
         for (name, block) in &self.blocks {
             block_context.push_front(
                 name,
-                (block, template.to_string().into(), template_name.clone()),
+                BlockData {
+                    block: block.clone(),
+                    template: template.to_string().into(),
+                    template_name: template_name.clone(),
+                },
             );
         }
 
@@ -1283,7 +1287,11 @@ impl Render for Extends {
                     for block in parent.nodes.get_blocks() {
                         block_context.push_front(
                             &block.name,
-                            (block, parent.template.clone(), parent_template_name.clone()),
+                            BlockData {
+                                block: block.clone(),
+                                template: parent.template.clone(),
+                                template_name: parent_template_name.clone(),
+                            },
                         );
                     }
                     break;
@@ -1315,9 +1323,11 @@ impl Render for Block {
             let push = blocks.pop(&self.name);
             let (block, block_template, block_template_name) = match push {
                 None => (self, template, Arc::new(template_name.to_string())),
-                Some((ref block, ref template, ref block_template_name)) => {
-                    (block, TemplateString(template), block_template_name.clone())
-                }
+                Some(ref block_data) => (
+                    &block_data.block,
+                    TemplateString(&block_data.template),
+                    block_data.template_name.clone(),
+                ),
             };
             let old_block = context
                 .block
@@ -1337,8 +1347,8 @@ impl Render for Block {
                 .block_context
                 .as_mut()
                 .expect("block_context is known to be Some");
-            if let Some((push, push_template, push_template_name)) = push {
-                blocks.push(&self.name, (&push, push_template, push_template_name));
+            if let Some(push) = push {
+                blocks.push(&self.name, push);
             }
             result
         }
