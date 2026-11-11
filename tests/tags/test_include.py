@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 
 import pytest
 from django.template.base import VariableDoesNotExist
@@ -145,6 +144,36 @@ def test_include_fake_template_only(assert_render):
     template = "{% include template with foo=bar only %}"
     context = {"template": Template(), "bar": "foo"}
     expected = "foo"
+    assert_render(template=template, context=context, expected=expected)
+
+
+def test_include_for_loop_variable(assert_render):
+    template = "{% for n in items %}{{ n }}: {% include 'loopvar.txt' %}{% endfor %}"
+    context = {"items": range(3)}
+    expected = "0: 1\n1: 2\n2: 3\n"
+    assert_render(template=template, context=context, expected=expected)
+
+
+def test_include_for_loop_variable_nested(assert_render):
+    template = "{% for n in items %}{{ n }}: {% include 'loopvar.txt' %}{% endfor %}"
+    context = {"items": range(3), "nested_loop": range(3)}
+    expected = "0: 1112131\n1: 2122232\n2: 3132333\n"
+    assert_render(template=template, context=context, expected=expected)
+
+
+def test_include_for_loop_variable_only(assert_render):
+    template = (
+        "{% for n in items %}{{ n }}: {% include 'loopvar.txt' only %}{% endfor %}"
+    )
+    context = {"items": range(3)}
+    expected = "0: \n1: \n2: \n"
+    assert_render(template=template, context=context, expected=expected)
+
+
+def test_include_for_loop_variable_forloop_only(assert_render):
+    template = "{% for n in items %}{{ n }}: {% include 'loopvar.txt' with forloop=forloop only %}{% endfor %}"
+    context = {"items": range(3)}
+    expected = "0: 1\n1: 2\n2: 3\n"
     assert_render(template=template, context=context, expected=expected)
 
 
@@ -508,24 +537,20 @@ def test_relative_from_string_template_variable(assert_render_error):
 
 def test_relative_outside_file_hierarchy(template_engine):
     template = "nested/outside_hierarchy.txt"
-    absolute_template = (Path("tests/templates") / template).absolute()
 
     with pytest.raises(TemplateSyntaxError) as exc_info:
         template_engine.get_template(template)
 
     django_message = f"The relative path ''../../outside.txt'' points outside the file hierarchy that template '{template}' is in."
-    rusty_message = (
-        """\
+    rusty_message = """\
   × The relative path '../../outside.txt' points outside the file hierarchy
   │ that template 'nested/outside_hierarchy.txt' is in.
-   ╭─[%s:1:13]
- 1 │ {%% include '../../outside.txt' %%}
+   ╭─[nested/outside_hierarchy.txt:1:13]
+ 1 │ {% include '../../outside.txt' %}
    ·             ────────┬────────
    ·                     ╰── relative path
    ╰────
 """
-        % absolute_template
-    )
 
     if template_engine.name == "django":
         assert str(exc_info.value) == django_message
@@ -545,7 +570,7 @@ def test_relative_outside_file_hierarchy_variable(template_engine):
     rusty_message = """\
   × The relative path '../../outside.txt' points outside the file hierarchy
   │ that template 'nested/outside_hierarchy2.txt' is in.
-   ╭────
+   ╭─[nested/outside_hierarchy2.txt:1:12]
  1 │ {% include path %}
    ·            ──┬─
    ·              ╰── relative path
@@ -570,7 +595,7 @@ def test_relative_outside_top_level(template_engine):
     rusty_message = """\
   × The relative path '../outside.txt' points outside the file hierarchy that
   │ template 'outside_hierarchy.txt' is in.
-   ╭────
+   ╭─[outside_hierarchy.txt:1:12]
  1 │ {% include path %}
    ·            ──┬─
    ·              ╰── relative path
@@ -608,7 +633,7 @@ def test_include_missing_attribute(assert_render_error):
     django_message = "No template names provided"
     rusty_message = """\
   × Failed lookup for key [missing] in {}
-   ╭────
+   ╭─[<string template>:1:12]
  1 │ {% include value.missing %}
    ·            ──┬── ───┬───
    ·              │      ╰── key

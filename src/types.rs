@@ -26,8 +26,10 @@ impl TranslatedText {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Variable {
+    #[expect(clippy::enum_variant_names)]
     Variable(At),
     ForVariable(ForVariable),
+    BlockSuper(At),
 }
 
 #[derive(Clone, Debug, PartialEq)]

@@ -452,7 +452,7 @@ def test_simple_tag_argument_error(assert_render_error):
     rusty_message = snapshot("""\
   × Failed lookup for key [bar] in {"False": False, "None": None, "True":
   │ True}
-   ╭────
+   ╭─[<string template>:1:57]
  1 │ {% load double from custom_tags %}{% double foo|default:bar %}
    ·                                                         ─┬─
    ·                                                          ╰── key
@@ -474,7 +474,7 @@ def test_simple_tag_keyword_argument_error(assert_render_error):
     rusty_message = snapshot("""\
   × Failed lookup for key [bar] in {"False": False, "None": None, "True":
   │ True}
-   ╭────
+   ╭─[<string template>:1:63]
  1 │ {% load double from custom_tags %}{% double value=foo|default:bar %}
    ·                                                               ─┬─
    ·                                                                ╰── key

@@ -196,7 +196,7 @@ def test_divisibleby_error_missing_arg_variable(assert_render_error):
         rusty_message=snapshot("""\
   × Failed lookup for key [arg] in {"False": False, "None": None, "True":
   │ True, "value": 10}
-   ╭────
+   ╭─[<string template>:1:22]
  1 │ {{ value|divisibleby:arg }}
    ·                      ─┬─
    ·                       ╰── key

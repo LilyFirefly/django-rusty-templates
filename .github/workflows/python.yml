@@ -127,7 +127,7 @@ jobs:
       run: uv run maturin develop
 
     - name: Run Django test suite (current branch)
-      run: uv run scripts/run_django_test_suite.py --parsed-output branch_test_output
+      run: uv run scripts/run_django_test_suite.py --parsed-output branch_test_output --reapply-patch
 
     - name: Compare test suites & generate comment
       id: generate-comment

@@ -1,0 +1,7 @@
+{% load repeat from custom_tags %}
+{% autoescape off %}{% block raw %}{% endblock raw %}{% endautoescape %}
+{% repeat 2 %}{% block repeat %}3{% endblock repeat %}{% endrepeat %}
+{% if foo %}{% block truthy %}true{% endblock truthy %}{% else %}{% block falsey %}false{% endblock falsey %}{% endif %}
+{% templatetag openblock %} block {% templatetag closeblock %}
+{% if bar %}{% block truthy2 %}true{% endblock truthy2 %}{% endif %}
+{% for x in y %}{% block loop %}1{% endblock loop %}{% endfor %}

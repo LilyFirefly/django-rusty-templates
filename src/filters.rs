@@ -116,13 +116,15 @@ pub struct EscapejsFilter;
 pub struct ExternalFilter {
     pub filter: Arc<Py<PyAny>>,
     pub argument: Option<Argument>,
+    pub at: At,
 }
 
 impl ExternalFilter {
-    pub fn new(filter: Py<PyAny>, argument: Option<Argument>) -> Self {
+    pub fn new(filter: Py<PyAny>, argument: Option<Argument>, at: At) -> Self {
         Self {
             filter: Arc::new(filter),
             argument,
+            at,
         }
     }
 }

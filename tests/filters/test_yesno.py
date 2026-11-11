@@ -140,7 +140,7 @@ def test_yesno_with_wrong_arg_type(assert_render_error):
     django_message = snapshot("'int' object has no attribute 'split'")
     rusty_message = snapshot("""\
   × String argument expected
-   ╭────
+   ╭─[<string template>:1:16]
  1 │ {{ value|yesno:1000 }}
    ·                ──┬─
    ·                  ╰── here
@@ -180,4 +180,11 @@ def test_yesno_invalid_html_method():
     with pytest.raises(ZeroDivisionError) as exc_info:
         template.render(context=context)
 
-    assert str(exc_info.value) == "division by zero"
+    assert str(exc_info.value) == snapshot("""\
+  × division by zero
+   ╭────
+ 1 │ {{ value|yesno:broken }}
+   ·                ───┬──
+   ·                   ╰── here
+   ╰────
+""")

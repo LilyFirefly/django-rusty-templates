@@ -16,8 +16,11 @@ use crate::filters::{
     YesnoFilter,
 };
 use crate::parse::Filter;
+use crate::render::FileName;
 use crate::render::common::gettext;
-use crate::render::types::{AsBorrowedContent, Content, ContentString, Context, IntoOwnedContent};
+use crate::render::types::{
+    AsBorrowedContent, Content, ContentString, Context, IntoOwnedContent, PyContent,
+};
 use crate::render::{Resolve, ResolveFailures, ResolveResult};
 use dtl_lexer::types::TemplateString;
 use unicode_normalization::UnicodeNormalization;
@@ -31,34 +34,65 @@ impl Resolve for Filter {
         &self,
         py: Python<'py>,
         template: TemplateString<'t>,
+        template_name: &'t FileName,
         context: &mut Context,
         failures: ResolveFailures,
     ) -> ResolveResult<'t, 'py> {
-        let left = self.left.resolve(py, template, context, failures)?;
+        let left = self
+            .left
+            .resolve(py, template, template_name, context, failures)?;
         match &self.filter {
-            FilterType::Add(filter) => filter.resolve(left, py, template, context),
-            FilterType::AddSlashes(filter) => filter.resolve(left, py, template, context),
-            FilterType::Capfirst(filter) => filter.resolve(left, py, template, context),
-            FilterType::Center(filter) => filter.resolve(left, py, template, context),
-            FilterType::Cut(filter) => filter.resolve(left, py, template, context),
-            FilterType::Default(filter) => filter.resolve(left, py, template, context),
-            FilterType::DefaultIfNone(filter) => filter.resolve(left, py, template, context),
-            FilterType::DivisibleBy(filter) => filter.resolve(left, py, template, context),
-            FilterType::Date(filter) => filter.resolve(left, py, template, context),
-            FilterType::Escape(filter) => filter.resolve(left, py, template, context),
-            FilterType::Escapejs(filter) => filter.resolve(left, py, template, context),
-            FilterType::External(filter) => filter.resolve(left, py, template, context),
-            FilterType::ForceEscape(filter) => filter.resolve(left, py, template, context),
-            FilterType::Last(filter) => filter.resolve(left, py, template, context),
-            FilterType::Lower(filter) => filter.resolve(left, py, template, context),
-            FilterType::Length(filter) => filter.resolve(left, py, template, context),
-            FilterType::Safe(filter) => filter.resolve(left, py, template, context),
-            FilterType::Slugify(filter) => filter.resolve(left, py, template, context),
-            FilterType::Title(filter) => filter.resolve(left, py, template, context),
-            FilterType::Upper(filter) => filter.resolve(left, py, template, context),
-            FilterType::Wordcount(filter) => filter.resolve(left, py, template, context),
-            FilterType::Wordwrap(filter) => filter.resolve(left, py, template, context),
-            FilterType::Yesno(filter) => filter.resolve(left, py, template, context),
+            FilterType::Add(filter) => filter.resolve(left, py, template, template_name, context),
+            FilterType::AddSlashes(filter) => {
+                filter.resolve(left, py, template, template_name, context)
+            }
+            FilterType::Capfirst(filter) => {
+                filter.resolve(left, py, template, template_name, context)
+            }
+            FilterType::Center(filter) => {
+                filter.resolve(left, py, template, template_name, context)
+            }
+            FilterType::Cut(filter) => filter.resolve(left, py, template, template_name, context),
+            FilterType::Default(filter) => {
+                filter.resolve(left, py, template, template_name, context)
+            }
+            FilterType::DefaultIfNone(filter) => {
+                filter.resolve(left, py, template, template_name, context)
+            }
+            FilterType::DivisibleBy(filter) => {
+                filter.resolve(left, py, template, template_name, context)
+            }
+            FilterType::Date(filter) => filter.resolve(left, py, template, template_name, context),
+            FilterType::Escape(filter) => {
+                filter.resolve(left, py, template, template_name, context)
+            }
+            FilterType::Escapejs(filter) => {
+                filter.resolve(left, py, template, template_name, context)
+            }
+            FilterType::External(filter) => {
+                filter.resolve(left, py, template, template_name, context)
+            }
+            FilterType::ForceEscape(filter) => {
+                filter.resolve(left, py, template, template_name, context)
+            }
+            FilterType::Last(filter) => filter.resolve(left, py, template, template_name, context),
+            FilterType::Lower(filter) => filter.resolve(left, py, template, template_name, context),
+            FilterType::Length(filter) => {
+                filter.resolve(left, py, template, template_name, context)
+            }
+            FilterType::Safe(filter) => filter.resolve(left, py, template, template_name, context),
+            FilterType::Slugify(filter) => {
+                filter.resolve(left, py, template, template_name, context)
+            }
+            FilterType::Title(filter) => filter.resolve(left, py, template, template_name, context),
+            FilterType::Upper(filter) => filter.resolve(left, py, template, template_name, context),
+            FilterType::Wordcount(filter) => {
+                filter.resolve(left, py, template, template_name, context)
+            }
+            FilterType::Wordwrap(filter) => {
+                filter.resolve(left, py, template, template_name, context)
+            }
+            FilterType::Yesno(filter) => filter.resolve(left, py, template, template_name, context),
         }
     }
 }
@@ -69,6 +103,7 @@ pub trait ResolveFilter {
         variable: Option<Content<'t, 'py>>,
         py: Python<'py>,
         template: TemplateString<'t>,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py>;
 }
@@ -77,13 +112,14 @@ impl ResolveFilter for AddSlashesFilter {
     fn resolve<'t, 'py>(
         &self,
         variable: Option<Content<'t, 'py>>,
-        _py: Python<'py>,
-        _template: TemplateString<'t>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
+        _template_name: &'t FileName,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
             Some(content) => {
-                let content_string = content.resolve_string(context)?;
+                let content_string = content.resolve_string(py, template, context)?;
                 content_string.map_content(|raw| {
                     Cow::Owned(
                         raw.replace('\\', r"\\")
@@ -104,6 +140,7 @@ impl ResolveFilter for AddFilter {
         variable: Option<Content<'t, 'py>>,
         py: Python<'py>,
         template: TemplateString<'t>,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         let Some(variable) = variable else {
@@ -111,14 +148,19 @@ impl ResolveFilter for AddFilter {
         };
         let right = self
             .argument
-            .resolve(py, template, context, ResolveFailures::Raise)?
+            .resolve(py, template, template_name, context, ResolveFailures::Raise)?
             .expect("missing argument in context should already have raised");
         Ok(match (variable.to_bigint(), right.to_bigint()) {
             (Some(variable), Some(right)) => Some(Content::Int(variable + right)),
             _ => {
                 let variable = variable.to_py(py);
                 let right = right.to_py(py);
-                variable.add(right).ok().map(Content::Py)
+                variable.add(right).ok().map(|variable| {
+                    Content::Py(PyContent {
+                        content: variable,
+                        at: self.argument.at,
+                    })
+                })
             }
         })
     }
@@ -128,13 +170,14 @@ impl ResolveFilter for CapfirstFilter {
     fn resolve<'t, 'py>(
         &self,
         variable: Option<Content<'t, 'py>>,
-        _py: Python<'py>,
-        _template: TemplateString<'t>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
+        _template_name: &'t FileName,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
             Some(content) => {
-                let content_string = content.render(context)?.into_owned();
+                let content_string = content.render(py, template, context)?.into_owned();
                 let mut chars = content_string.chars();
                 let first_char = match chars.next() {
                     Some(c) => c.to_uppercase(),
@@ -155,18 +198,19 @@ impl ResolveFilter for CenterFilter {
         variable: Option<Content<'t, 'py>>,
         py: Python<'py>,
         template: TemplateString<'t>,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         let Some(content) = variable else {
             return Ok(Some("".as_content()));
         };
-        let content = content.render(context)?;
+        let content = content.render(py, template, context)?;
         let arg = self
             .argument
-            .resolve(py, template, context, ResolveFailures::Raise)?
+            .resolve(py, template, template_name, context, ResolveFailures::Raise)?
             .expect("missing argument in context should already have raised");
 
-        let size = arg.resolve_usize(self.argument.at)?;
+        let size = arg.resolve_usize(self.argument.at, template_name, template.0)?;
 
         if size <= content.len() {
             return Ok(Some(content.into_content()));
@@ -200,6 +244,7 @@ impl ResolveFilter for CutFilter {
         variable: Option<Content<'t, 'py>>,
         py: Python<'py>,
         template: TemplateString<'t>,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         let Some(variable) = variable else {
@@ -208,12 +253,18 @@ impl ResolveFilter for CutFilter {
 
         let arg = self
             .argument
-            .resolve(py, template, context, ResolveFailures::Raise)?
+            .resolve(py, template, template_name, context, ResolveFailures::Raise)?
             .expect("missing argument in context should already have raised")
-            .resolve_string_strict(context, self.argument.at.into())?
+            .resolve_string_strict(
+                py,
+                template,
+                context,
+                self.argument.at.into(),
+                template_name,
+            )?
             .into_raw();
 
-        let content_string = variable.resolve_string(context)?;
+        let content_string = variable.resolve_string(py, template, context)?;
         let result = match content_string {
             ContentString::String(s) => ContentString::String(cut(s, &arg).into()),
             ContentString::HtmlSafe(s) => {
@@ -236,6 +287,7 @@ impl ResolveFilter for DefaultFilter {
         variable: Option<Content<'t, 'py>>,
         py: Python<'py>,
         template: TemplateString<'t>,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         match variable {
@@ -246,9 +298,10 @@ impl ResolveFilter for DefaultFilter {
             {
                 Ok(Some(left))
             }
-            None | Some(_) => self
-                .argument
-                .resolve(py, template, context, ResolveFailures::Raise),
+            None | Some(_) => {
+                self.argument
+                    .resolve(py, template, template_name, context, ResolveFailures::Raise)
+            }
         }
     }
 }
@@ -259,12 +312,15 @@ impl ResolveFilter for DefaultIfNoneFilter {
         variable: Option<Content<'t, 'py>>,
         py: Python<'py>,
         template: TemplateString<'t>,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         match variable {
-            Some(Content::Py(ref value)) if value.is_none() => {
+            Some(Content::Py(PyContent {
+                content: ref value, ..
+            })) if value.is_none() => {
                 self.argument
-                    .resolve(py, template, context, ResolveFailures::Raise)
+                    .resolve(py, template, template_name, context, ResolveFailures::Raise)
             }
             Some(left) => Ok(Some(left)),
             None => Ok(Some("".as_content())),
@@ -278,6 +334,7 @@ impl ResolveFilter for DateFilter {
         variable: Option<Content<'t, 'py>>,
         py: Python<'py>,
         template: TemplateString<'t>,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         let Some(value) = variable else {
@@ -286,7 +343,7 @@ impl ResolveFilter for DateFilter {
 
         let fmt = match &self.argument {
             Some(arg) => arg
-                .resolve(py, template, context, ResolveFailures::Raise)?
+                .resolve(py, template, template_name, context, ResolveFailures::Raise)?
                 .expect("missing argument in context should already have raised")
                 .to_py(py),
             None => {
@@ -319,7 +376,10 @@ impl ResolveFilter for DateFilter {
             }
         };
 
-        Ok(Some(Content::Py(formatted)))
+        Ok(Some(Content::Py(PyContent {
+            content: formatted,
+            at: self.at,
+        })))
     }
 }
 
@@ -329,6 +389,7 @@ impl ResolveFilter for DivisibleByFilter {
         variable: Option<Content<'t, 'py>>,
         py: Python<'py>,
         template: TemplateString<'t>,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         let variable = match variable {
@@ -342,7 +403,9 @@ impl ResolveFilter for DivisibleByFilter {
             }
         };
 
-        if let Content::Py(ref obj) = variable
+        if let Content::Py(PyContent {
+            content: ref obj, ..
+        }) = variable
             && obj.is_none()
         {
             return Err(pyo3::exceptions::PyTypeError::new_err(
@@ -354,7 +417,7 @@ impl ResolveFilter for DivisibleByFilter {
 
         let right = self
             .argument
-            .resolve(py, template, context, ResolveFailures::Raise)?
+            .resolve(py, template, template_name, context, ResolveFailures::Raise)?
             .expect("missing argument in context should already have raised");
 
         let Some(right_val) = right.to_bigint() else {
@@ -374,7 +437,7 @@ impl ResolveFilter for DivisibleByFilter {
         }
 
         let Some(left_val) = variable.to_bigint() else {
-            let value_str = variable.render(context)?;
+            let value_str = variable.render(py, template, context)?;
             let msg = format!("invalid literal for int() with base 10: '{}'", value_str);
 
             return Err(pyo3::exceptions::PyValueError::new_err(msg)
@@ -390,8 +453,9 @@ impl ResolveFilter for EscapeFilter {
     fn resolve<'t, 'py>(
         &self,
         variable: Option<Content<'t, 'py>>,
-        _py: Python<'py>,
-        _template: TemplateString<'t>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
+        _template_name: &'t FileName,
         _context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         Ok(Some(Content::String(ContentString::HtmlSafe(
@@ -405,8 +469,14 @@ impl ResolveFilter for EscapeFilter {
                     }
                     Content::Int(n) => Cow::Owned(n.to_string()),
                     Content::Float(n) => Cow::Owned(n.to_string()),
-                    Content::Py(object) => {
-                        let content = object.str()?.extract::<String>()?;
+                    Content::Py(PyContent {
+                        content: object,
+                        at,
+                    }) => {
+                        let content = object
+                            .str()
+                            .map_err(|error| error.annotate(py, at, "here", template))?
+                            .extract::<String>()?;
                         let mut encoded = String::new();
                         encode_quoted_attribute_to_string(&content, &mut encoded);
                         Cow::Owned(encoded)
@@ -454,13 +524,14 @@ impl ResolveFilter for EscapejsFilter {
     fn resolve<'t, 'py>(
         &self,
         variable: Option<Content<'t, 'py>>,
-        _py: Python<'py>,
-        _template: TemplateString<'t>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
+        _template_name: &'t FileName,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
             Some(content) => content
-                .resolve_string(context)?
+                .resolve_string(py, template, context)?
                 .map_content(|content| Cow::Owned(escapejs(&content))),
             None => "".as_content(),
         };
@@ -474,10 +545,13 @@ impl ResolveFilter for ExternalFilter {
         variable: Option<Content<'t, 'py>>,
         py: Python<'py>,
         template: TemplateString<'t>,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         let arg = match &self.argument {
-            Some(arg) => arg.resolve(py, template, context, ResolveFailures::Raise)?,
+            Some(arg) => {
+                arg.resolve(py, template, template_name, context, ResolveFailures::Raise)?
+            }
             None => None,
         };
         let filter = self.filter.bind(py);
@@ -485,7 +559,10 @@ impl ResolveFilter for ExternalFilter {
             Some(arg) => filter.call1((variable, arg))?,
             None => filter.call1((variable,))?,
         };
-        Ok(Some(Content::Py(value)))
+        Ok(Some(Content::Py(PyContent {
+            content: value,
+            at: self.at,
+        })))
     }
 }
 
@@ -495,6 +572,7 @@ impl ResolveFilter for ForceEscapeFilter {
         variable: Option<Content<'t, 'py>>,
         py: Python<'py>,
         template: TemplateString<'t>,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         let variable = match variable {
@@ -504,7 +582,7 @@ impl ResolveFilter for ForceEscapeFilter {
             }
             other => other,
         };
-        EscapeFilter.resolve(variable, py, template, context)
+        EscapeFilter.resolve(variable, py, template, template_name, context)
     }
 }
 
@@ -514,6 +592,7 @@ impl ResolveFilter for LastFilter {
         variable: Option<Content<'t, 'py>>,
         py: Python<'py>,
         template: TemplateString<'t>,
+        _template_name: &'t FileName,
         _context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
@@ -524,7 +603,10 @@ impl ResolveFilter for LastFilter {
         let obj = content.to_py(py);
 
         match obj.get_item(-1) {
-            Ok(last) => Ok(Some(Content::Py(last))),
+            Ok(last) => Ok(Some(Content::Py(PyContent {
+                content: last,
+                at: self.at,
+            }))),
             Err(err) => {
                 if err.is_instance_of::<pyo3::exceptions::PyIndexError>(py) {
                     Ok(Some("".as_content()))
@@ -541,13 +623,14 @@ impl ResolveFilter for LowerFilter {
     fn resolve<'t, 'py>(
         &self,
         variable: Option<Content<'t, 'py>>,
-        _py: Python<'py>,
-        _template: TemplateString<'t>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
+        _template_name: &'t FileName,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
             Some(content) => content
-                .resolve_string(context)?
+                .resolve_string(py, template, context)?
                 .map_content(|content| Cow::Owned(content.to_lowercase())),
             None => "".as_content(),
         };
@@ -561,12 +644,13 @@ impl ResolveFilter for LengthFilter {
         variable: Option<Content<'t, 'py>>,
         _py: Python<'py>,
         _template: TemplateString<'t>,
+        _template_name: &'t FileName,
         _context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         let len = match variable {
             None => 0,
             Some(Content::String(s)) => s.as_raw().chars().count(),
-            Some(Content::Py(obj)) => obj.len().unwrap_or(0),
+            Some(Content::Py(PyContent { content: obj, .. })) => obj.len().unwrap_or(0),
             Some(Content::Int(_) | Content::Float(_) | Content::Bool(_)) => 0,
         };
 
@@ -578,8 +662,9 @@ impl ResolveFilter for SafeFilter {
     fn resolve<'t, 'py>(
         &self,
         variable: Option<Content<'t, 'py>>,
-        _py: Python<'py>,
-        _template: TemplateString<'t>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
+        _template_name: &'t FileName,
         _context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         Ok(Some(Content::String(ContentString::HtmlSafe(
@@ -588,8 +673,14 @@ impl ResolveFilter for SafeFilter {
                     Content::String(content) => content.into_raw(),
                     Content::Int(n) => Cow::Owned(n.to_string()),
                     Content::Float(n) => Cow::Owned(n.to_string()),
-                    Content::Py(object) => {
-                        let content = object.str()?.extract::<String>()?;
+                    Content::Py(PyContent {
+                        content: object,
+                        at,
+                    }) => {
+                        let content = object
+                            .str()
+                            .map_err(|error| error.annotate(py, at, "here", template))?
+                            .extract::<String>()?;
                         Cow::Owned(content)
                     }
                     Content::Bool(true) => Cow::Borrowed("True"),
@@ -629,16 +720,25 @@ impl ResolveFilter for SlugifyFilter {
         &self,
         variable: Option<Content<'t, 'py>>,
         py: Python<'py>,
-        _template: TemplateString<'t>,
+        template: TemplateString<'t>,
+        _template_name: &'t FileName,
         _context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
             Some(content) => match content {
-                Content::Py(content) => {
-                    let slug = slugify(Cow::Owned(content.str()?.extract::<String>()?));
+                Content::Py(PyContent { content, at }) => {
+                    let slug = slugify(Cow::Owned(
+                        content
+                            .str()
+                            .map_err(|error| error.annotate(py, at, "here", template))?
+                            .extract::<String>()?,
+                    ));
                     #[allow(non_snake_case)]
                     let SafeData = SAFEDATA.import(py, "django.utils.safestring", "SafeData")?;
-                    match content.is_instance(SafeData)? {
+                    match content
+                        .is_instance(SafeData)
+                        .map_err(|error| error.annotate(py, at, "here", template))?
+                    {
                         true => Content::String(ContentString::HtmlSafe(slug)),
                         false => Content::String(ContentString::HtmlUnsafe(slug)),
                     }
@@ -660,14 +760,15 @@ impl ResolveFilter for TitleFilter {
     fn resolve<'t, 'py>(
         &self,
         variable: Option<Content<'t, 'py>>,
-        _py: Python<'py>,
-        _template: TemplateString<'t>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
+        _template_name: &'t FileName,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         let Some(content) = variable else {
             return Ok(Some("".as_content()));
         };
-        let content_string = content.resolve_string(context)?;
+        let content_string = content.resolve_string(py, template, context)?;
 
         Ok(Some(content_string.map_content(|content| {
             let mut result = String::with_capacity(content.len());
@@ -705,13 +806,14 @@ impl ResolveFilter for UpperFilter {
     fn resolve<'t, 'py>(
         &self,
         variable: Option<Content<'t, 'py>>,
-        _py: Python<'py>,
-        _template: TemplateString<'t>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
+        _template_name: &'t FileName,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
             Some(content) => {
-                let content = content.resolve_string(context)?;
+                let content = content.resolve_string(py, template, context)?;
                 content.map_content(|content| Cow::Owned(content.to_uppercase()))
             }
             None => "".as_content(),
@@ -724,13 +826,14 @@ impl ResolveFilter for WordcountFilter {
     fn resolve<'t, 'py>(
         &self,
         variable: Option<Content<'t, 'py>>,
-        _py: Python<'py>,
-        _template: TemplateString<'t>,
+        py: Python<'py>,
+        template: TemplateString<'t>,
+        _template_name: &'t FileName,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
             Some(content) => {
-                let content_string = content.resolve_string(context)?;
+                let content_string = content.resolve_string(py, template, context)?;
                 let word_count = content_string.as_raw().split_whitespace().count();
                 Content::Int(word_count.into())
             }
@@ -797,17 +900,18 @@ impl ResolveFilter for WordwrapFilter {
         variable: Option<Content<'t, 'py>>,
         py: Python<'py>,
         template: TemplateString<'t>,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         let Some(content) = variable else {
             return Ok(Some("".as_content()));
         };
 
-        let text = content.resolve_string(context)?;
+        let text = content.resolve_string(py, template, context)?;
 
         let arg = self
             .argument
-            .resolve(py, template, context, ResolveFailures::Raise)?
+            .resolve(py, template, template_name, context, ResolveFailures::Raise)?
             .expect("missing argument in context should already have raised");
 
         // Check for negative values before converting to usize
@@ -822,7 +926,7 @@ impl ResolveFilter for WordwrapFilter {
             .into());
         }
 
-        let width = match arg.resolve_usize(self.argument.at) {
+        let width = match arg.resolve_usize(self.argument.at, template_name, template.0) {
             Ok(w) => w,
             Err(PyRenderError::RenderError(RenderError::OverflowError { .. })) => usize::MAX,
             Err(e) => return Err(e),
@@ -839,15 +943,16 @@ impl ResolveFilter for YesnoFilter {
         variable: Option<Content<'t, 'py>>,
         py: Python<'py>,
         template: TemplateString<'t>,
+        template_name: &'t FileName,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         let arg_string = match &self.argument {
             Some(arg) => {
                 let arg_content = arg
-                    .resolve(py, template, context, ResolveFailures::Raise)?
+                    .resolve(py, template, template_name, context, ResolveFailures::Raise)?
                     .expect("missing argument in context should already have raised");
                 arg_content
-                    .resolve_string_strict(context, arg.at.into())?
+                    .resolve_string_strict(py, template, context, arg.at.into(), template_name)?
                     .into_raw()
             }
             None => Cow::Owned(gettext(py, "yes,no,maybe")?),
@@ -862,7 +967,9 @@ impl ResolveFilter for YesnoFilter {
         };
 
         let result = match variable {
-            Some(Content::Py(ref obj)) if obj.is_none() => maybe,
+            Some(Content::Py(PyContent {
+                content: ref obj, ..
+            })) if obj.is_none() => maybe,
             Some(content) => match content.to_bool() {
                 Ok(true) => yes,
                 Ok(false) => no,
@@ -915,7 +1022,7 @@ mod tests {
         Python::attach(|py| {
             let name = PyString::new(py, "Lily").into_any();
             let context = HashMap::from([("name".to_string(), name.unbind())]);
-            let mut context = Context::new(context, None, false);
+            let mut context = Context::new(context, None, false, Vec::new());
             let template = TemplateString("{{ name|default:'Bryony' }}");
             let variable = Variable::Variable((3, 4));
             let filter = Filter {
@@ -931,7 +1038,9 @@ mod tests {
                 )),
             };
 
-            let rendered = filter.render(py, template, &mut context).unwrap();
+            let rendered = filter
+                .render(py, template, &FileName(None), &mut context)
+                .unwrap();
             assert_eq!(rendered, "Lily");
         });
     }
@@ -1133,7 +1242,7 @@ mod tests {
         Python::attach(|py| {
             let name = PyString::new(py, "'hello'").into_any();
             let context = HashMap::from([("quotes".to_string(), name.unbind())]);
-            let mut context = Context::new(context, None, false);
+            let mut context = Context::new(context, None, false, Vec::new());
             let template = TemplateString("{{ quotes|addslashes }}");
             let variable = Variable::Variable((3, 6));
             let filter = Filter {
@@ -1143,7 +1252,9 @@ mod tests {
                 filter: FilterType::AddSlashes(AddSlashesFilter),
             };
 
-            let rendered = filter.render(py, template, &mut context).unwrap();
+            let rendered = filter
+                .render(py, template, &FileName(None), &mut context)
+                .unwrap();
             assert_eq!(rendered, r"\'hello\'");
         });
     }
@@ -1286,7 +1397,7 @@ mod tests {
 
         Python::attach(|py| {
             let context = HashMap::new();
-            let mut context = Context::new(context, None, false);
+            let mut context = Context::new(context, None, false, Vec::new());
             let template = TemplateString("{{ name|default:'Bryony' }}");
             let variable = Variable::Variable((3, 4));
             let filter = Filter {
@@ -1302,7 +1413,9 @@ mod tests {
                 )),
             };
 
-            let rendered = filter.render(py, template, &mut context).unwrap();
+            let rendered = filter
+                .render(py, template, &FileName(None), &mut context)
+                .unwrap();
             assert_eq!(rendered, "Bryony");
         });
     }
@@ -1313,7 +1426,7 @@ mod tests {
 
         Python::attach(|py| {
             let context = HashMap::new();
-            let mut context = Context::new(context, None, false);
+            let mut context = Context::new(context, None, false, Vec::new());
             let template = TemplateString("{{ count|default:12}}");
             let variable = Variable::Variable((3, 5));
             let filter = Filter {
@@ -1329,7 +1442,9 @@ mod tests {
                 )),
             };
 
-            let rendered = filter.render(py, template, &mut context).unwrap();
+            let rendered = filter
+                .render(py, template, &FileName(None), &mut context)
+                .unwrap();
             assert_eq!(rendered, "12");
         });
     }
@@ -1340,7 +1455,7 @@ mod tests {
 
         Python::attach(|py| {
             let context = HashMap::new();
-            let mut context = Context::new(context, None, false);
+            let mut context = Context::new(context, None, false, Vec::new());
             let template = TemplateString("{{ count|default:3.5}}");
             let variable = Variable::Variable((3, 5));
             let filter = Filter {
@@ -1356,7 +1471,9 @@ mod tests {
                 )),
             };
 
-            let rendered = filter.render(py, template, &mut context).unwrap();
+            let rendered = filter
+                .render(py, template, &FileName(None), &mut context)
+                .unwrap();
             assert_eq!(rendered, "3.5");
         });
     }
@@ -1368,7 +1485,7 @@ mod tests {
         Python::attach(|py| {
             let me = PyString::new(py, "Lily").into_any();
             let context = HashMap::from([("me".to_string(), me.unbind())]);
-            let mut context = Context::new(context, None, false);
+            let mut context = Context::new(context, None, false, Vec::new());
             let template = TemplateString("{{ name|default:me}}");
             let variable = Variable::Variable((3, 4));
             let filter = Filter {
@@ -1384,7 +1501,9 @@ mod tests {
                 )),
             };
 
-            let rendered = filter.render(py, template, &mut context).unwrap();
+            let rendered = filter
+                .render(py, template, &FileName(None), &mut context)
+                .unwrap();
             assert_eq!(rendered, "Lily");
         });
     }
@@ -1396,7 +1515,7 @@ mod tests {
         Python::attach(|py| {
             let name = PyString::new(py, "Lily").into_any();
             let context = HashMap::from([("name".to_string(), name.unbind())]);
-            let mut context = Context::new(context, None, false);
+            let mut context = Context::new(context, None, false, Vec::new());
             let template = TemplateString("{{ name|lower }}");
             let variable = Variable::Variable((3, 4));
             let filter = Filter {
@@ -1406,7 +1525,9 @@ mod tests {
                 filter: FilterType::Lower(LowerFilter),
             };
 
-            let rendered = filter.render(py, template, &mut context).unwrap();
+            let rendered = filter
+                .render(py, template, &FileName(None), &mut context)
+                .unwrap();
             assert_eq!(rendered, "lily");
         });
     }
@@ -1417,7 +1538,7 @@ mod tests {
 
         Python::attach(|py| {
             let context = HashMap::new();
-            let mut context = Context::new(context, None, false);
+            let mut context = Context::new(context, None, false, Vec::new());
             let template = TemplateString("{{ name|lower }}");
             let variable = Variable::Variable((3, 4));
             let filter = Filter {
@@ -1427,7 +1548,9 @@ mod tests {
                 filter: FilterType::Lower(LowerFilter),
             };
 
-            let rendered = filter.render(py, template, &mut context).unwrap();
+            let rendered = filter
+                .render(py, template, &FileName(None), &mut context)
+                .unwrap();
             assert_eq!(rendered, "");
         });
     }
@@ -1438,7 +1561,7 @@ mod tests {
 
         Python::attach(|py| {
             let context = HashMap::new();
-            let mut context = Context::new(context, None, false);
+            let mut context = Context::new(context, None, false, Vec::new());
             let template = TemplateString("{{ name|default:'Bryony'|lower }}");
             let variable = Variable::Variable((3, 4));
             let default = Filter {
@@ -1460,7 +1583,9 @@ mod tests {
                 filter: FilterType::Lower(LowerFilter),
             };
 
-            let rendered = lower.render(py, template, &mut context).unwrap();
+            let rendered = lower
+                .render(py, template, &FileName(None), &mut context)
+                .unwrap();
             assert_eq!(rendered, "bryony");
         });
     }
@@ -1472,7 +1597,7 @@ mod tests {
         Python::attach(|py| {
             let name = PyString::new(py, "Foo").into_any();
             let context = HashMap::from([("name".to_string(), name.unbind())]);
-            let mut context = Context::new(context, None, false);
+            let mut context = Context::new(context, None, false, Vec::new());
             let template = TemplateString("{{ name|upper }}");
             let variable = Variable::Variable((3, 4));
             let filter = Filter {
@@ -1482,7 +1607,9 @@ mod tests {
                 filter: FilterType::Upper(UpperFilter),
             };
 
-            let rendered = filter.render(py, template, &mut context).unwrap();
+            let rendered = filter
+                .render(py, template, &FileName(None), &mut context)
+                .unwrap();
             assert_eq!(rendered, "FOO");
         });
     }
@@ -1493,7 +1620,7 @@ mod tests {
 
         Python::attach(|py| {
             let context = HashMap::new();
-            let mut context = Context::new(context, None, false);
+            let mut context = Context::new(context, None, false, Vec::new());
             let template = TemplateString("{{ name|upper }}");
             let variable = Variable::Variable((3, 4));
             let filter = Filter {
@@ -1503,7 +1630,9 @@ mod tests {
                 filter: FilterType::Upper(UpperFilter),
             };
 
-            let rendered = filter.render(py, template, &mut context).unwrap();
+            let rendered = filter
+                .render(py, template, &FileName(None), &mut context)
+                .unwrap();
             assert_eq!(rendered, "");
         });
     }

@@ -2,12 +2,13 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::collections::VecDeque;
 use std::collections::hash_map::Entry;
 use std::iter::zip;
 use std::sync::{Arc, Mutex};
 
 use html_escape::encode_quoted_attribute;
-use miette::SourceSpan;
+use miette::{NamedSource, SourceSpan};
 use num_bigint::{BigInt, ToBigInt};
 use num_traits::{ToPrimitive, Zero};
 use pyo3::exceptions::{PyAttributeError, PyKeyError, PyTypeError};
@@ -16,8 +17,13 @@ use pyo3::prelude::*;
 use pyo3::sync::{MutexExt, PyOnceLock};
 use pyo3::types::{PyBool, PyDict, PyInt, PyString, PyType};
 
-use crate::error::{AnnotatePyErr, PyRenderError, RenderError};
-use crate::parse::CycleId;
+use crate::error::{
+    AnnotatePyErr, InvalidArgumentFloat, InvalidArgumentInteger, InvalidArgumentString,
+    OverflowError, PyRenderError, RenderError, TupleUnpackError,
+};
+use crate::loaders::Origin;
+use crate::parse::{Block, CycleId};
+use crate::render::FileName;
 use crate::template::django_rusty_templates::{Engine, Template, get_template, select_template};
 use crate::utils::PyResultMethods;
 use dtl_lexer::types::{At, TemplateString};
@@ -62,15 +68,55 @@ pub enum IncludeTemplateKey {
     Vec(Vec<String>),
 }
 
+#[derive(Clone, Debug)]
+pub struct BlockData {
+    pub block: Block,
+    pub template: Arc<String>,
+    pub template_name: Arc<FileName>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct BlockContext {
+    pub blocks: HashMap<String, VecDeque<BlockData>>,
+}
+
+impl BlockContext {
+    pub fn pop(&mut self, name: &str) -> Option<BlockData> {
+        self.blocks.get_mut(name).map(|blocks| blocks.pop_back())?
+    }
+
+    pub fn push(&mut self, name: &str, block: BlockData) {
+        self.blocks
+            .entry(name.to_string())
+            .or_default()
+            .push_back(block);
+    }
+
+    pub fn push_front(&mut self, name: &str, block: BlockData) {
+        self.blocks
+            .entry(name.to_string())
+            .or_default()
+            .push_front(block);
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct RenderContext {
+    pub block_context: Option<BlockContext>,
+    pub seen: Option<Vec<Origin>>,
+}
+
 #[derive(Debug, Default)]
 pub struct Context {
     context: HashMap<String, Vec<Py<PyAny>>>,
-    loops: Vec<ForLoop>,
+    pub loops: Vec<ForLoop>,
     pub request: Option<Py<PyAny>>,
     pub autoescape: bool,
     names: Vec<HashSet<String>>,
     include_cache: HashMap<IncludeTemplateKey, Arc<Template>>,
     cycle_indices: HashMap<CycleId, usize>,
+    pub block: Option<(Block, String)>,
+    pub render_context: RenderContext,
 }
 
 impl Context {
@@ -78,16 +124,19 @@ impl Context {
         context: HashMap<String, Py<PyAny>>,
         request: Option<Py<PyAny>>,
         autoescape: bool,
+        loops: Vec<ForLoop>,
     ) -> Self {
         let context = context.into_iter().map(|(k, v)| (k, vec![v])).collect();
         Self {
             request,
             context,
             autoescape,
-            loops: Vec::new(),
+            loops,
             names: Vec::new(),
             include_cache: HashMap::new(),
             cycle_indices: HashMap::new(),
+            block: None,
+            render_context: RenderContext::default(),
         }
     }
 
@@ -104,6 +153,8 @@ impl Context {
             names: self.names.clone(),
             include_cache: self.include_cache.clone(),
             cycle_indices: self.cycle_indices.clone(),
+            block: self.block.clone(),
+            render_context: self.render_context.clone(),
         }
     }
 
@@ -154,6 +205,7 @@ impl Context {
         self._insert(name, value, replace);
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn push_variables(
         &mut self,
         names: &Vec<String>,
@@ -162,6 +214,7 @@ impl Context {
         values_at: At,
         index: usize,
         template: TemplateString<'_>,
+        template_name: &FileName,
     ) -> Result<(), PyRenderError> {
         let replace = index != 0;
         if !replace {
@@ -181,12 +234,13 @@ impl Context {
                     }
                 },
                 Err(error) if error.is_instance_of::<PyTypeError>(py) => {
-                    return Err(RenderError::TupleUnpackError {
+                    return Err(RenderError::TupleUnpackError(Box::new(TupleUnpackError {
                         expected_count: names.len(),
                         actual_count: 1,
                         expected_at: names_at.into(),
                         actual_at: values_at.into(),
-                    }
+                        src: NamedSource::new(template_name.template_name(), template.to_string()),
+                    }))
                     .into());
                 }
                 Err(error) => {
@@ -199,12 +253,13 @@ impl Context {
                     self._insert(name.clone(), value, replace);
                 }
             } else {
-                return Err(RenderError::TupleUnpackError {
+                return Err(RenderError::TupleUnpackError(Box::new(TupleUnpackError {
                     expected_count: names.len(),
                     actual_count: values.len(),
                     expected_at: names_at.into(),
                     actual_at: values_at.into(),
-                }
+                    src: NamedSource::new(template_name.template_name(), template.to_string()),
+                }))
                 .into());
             }
         }
@@ -250,8 +305,14 @@ impl Context {
         self.loops.get(index)
     }
 
-    pub fn render_for_loop(&self, py: Python<'_>, depth: usize) -> String {
-        let mut forloop_dict = PyDict::new(py);
+    pub fn resolve_for_loop<'py>(&self, py: Python<'py>, depth: usize) -> Bound<'py, PyAny> {
+        let mut forloop_dict = self
+            .context
+            .get("forloop")
+            .map_or_default(|values| values.last())
+            .map(|dict| dict.bind(py))
+            .cloned()
+            .unwrap_or(PyDict::new(py).into_any());
         for forloop in self.loops.iter().rev().take(self.loops.len() - depth) {
             let dict = PyDict::new(py);
             dict.set_item("parentloop", forloop_dict)
@@ -268,13 +329,10 @@ impl Context {
                 .expect("Can always set a str: bool key/value");
             dict.set_item("last", forloop.last())
                 .expect("Can always set a str: bool key/value");
-            forloop_dict = dict;
+            forloop_dict = dict.into_any();
         }
 
-        let forloop_str = forloop_dict
-            .str()
-            .expect("All elements of the dictionary can be converted to a string");
-        forloop_str.to_string()
+        forloop_dict
     }
 
     pub fn get_or_insert_include(
@@ -286,12 +344,12 @@ impl Context {
         match self.include_cache.entry(key.clone()) {
             Entry::Occupied(entry) => Ok(entry.get().clone()),
             Entry::Vacant(entry) => {
-                let include = match key {
+                let (include, _origin) = match key {
                     IncludeTemplateKey::String(content) => {
-                        get_template(engine.clone(), py, Cow::Borrowed(content))?
+                        get_template(engine.clone(), py, Cow::Borrowed(content), None)?
                     }
                     IncludeTemplateKey::Vec(templates) => {
-                        select_template(engine.clone(), py, templates.clone())?
+                        select_template(engine.clone(), py, templates.clone(), None)?
                     }
                 };
                 Ok(entry.insert(Arc::new(include)).clone())
@@ -420,30 +478,59 @@ impl<'t, 'py> ContentString<'t> {
     }
 }
 
-fn resolve_python<'t>(value: Bound<'_, PyAny>, context: &Context) -> PyResult<ContentString<'t>> {
+fn resolve_python<'py, 't>(
+    py: Python<'py>,
+    value: Bound<'_, PyAny>,
+    at: At,
+    template: TemplateString<'t>,
+    context: &Context,
+) -> PyResult<ContentString<'t>> {
     if !context.autoescape {
         return Ok(ContentString::String(
-            value.str()?.extract::<String>()?.into(),
+            value
+                .str()
+                .map_err(|error| error.annotate(py, at, "here", template))?
+                .extract::<String>()?
+                .into(),
         ));
     }
     let py = value.py();
 
     let value = match value.is_instance_of::<PyString>() {
         true => value,
-        false => value.str()?.into_any(),
+        false => value
+            .str()
+            .map_err(|error| error.annotate(py, at, "here", template))?
+            .into_any(),
     };
     Ok(
         match value
             .getattr(intern!(py, "__html__"))
             .ok_or_isinstance_of::<PyAttributeError>(py)?
         {
-            Ok(html) => ContentString::HtmlSafe(html.call0()?.extract::<String>()?.into()),
-            Err(_) => ContentString::HtmlUnsafe(value.str()?.extract::<String>()?.into()),
+            Ok(html) => ContentString::HtmlSafe(
+                html.call0()
+                    .map_err(|error| error.annotate(py, at, "here", template))?
+                    .extract::<String>()?
+                    .into(),
+            ),
+            Err(_) => ContentString::HtmlUnsafe(
+                value
+                    .str()
+                    .map_err(|error| error.annotate(py, at, "here", template))?
+                    .extract::<String>()?
+                    .into(),
+            ),
         },
     )
 }
 
-fn resolve_bigint(bigint: BigInt, at: At) -> Result<usize, PyRenderError> {
+fn resolve_bigint(
+    bigint: BigInt,
+    at: At,
+    template_name: &FileName,
+    template: &str,
+) -> Result<usize, PyRenderError> {
     match bigint.to_isize() {
         Some(n) => {
             let n = n.max(0);
@@ -451,17 +538,34 @@ fn resolve_bigint(bigint: BigInt, at: At) -> Result<usize, PyRenderError> {
             let n = n as usize;
             Ok(n)
         }
-        None => Err(RenderError::OverflowError {
+        None => Err(RenderError::OverflowError(Box::new(OverflowError {
             argument: bigint.to_string(),
             argument_at: at.into(),
-        }
+            src: NamedSource::new(template_name.template_name(), template.to_string()),
+        }))
         .into()),
+    }
+}
+
+#[derive(Debug)]
+pub struct PyContent<'py> {
+    pub content: Bound<'py, PyAny>,
+    pub at: At,
+}
+
+impl<'py> IntoPyObject<'py> for PyContent<'py> {
+    type Target = PyAny;
+    type Output = Bound<'py, PyAny>;
+    type Error = std::convert::Infallible;
+
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        self.content.into_pyobject(py)
     }
 }
 
 #[derive(Debug, IntoPyObject)]
 pub enum Content<'t, 'py> {
-    Py(Bound<'py, PyAny>),
+    Py(PyContent<'py>),
     String(ContentString<'t>),
     Float(f64),
     Int(BigInt),
@@ -479,9 +583,16 @@ fn render_value_in_context<'t>(value: ContentString<'t>, context: &Context) -> C
 }
 
 impl<'t, 'py> Content<'t, 'py> {
-    pub fn render(self, context: &Context) -> PyResult<Cow<'t, str>> {
+    pub fn render(
+        self,
+        py: Python<'py>,
+        template: TemplateString<'t>,
+        context: &Context,
+    ) -> PyResult<Cow<'t, str>> {
         let output = match self {
-            Self::Py(content) => resolve_python(content, context)?,
+            Self::Py(PyContent { content, at }) => {
+                resolve_python(py, content, at, template, context)?
+            }
             Self::String(content) => content,
             Self::Float(content) => return Ok(content.to_string().into()),
             Self::Int(content) => return Ok(content.to_string().into()),
@@ -491,12 +602,19 @@ impl<'t, 'py> Content<'t, 'py> {
         Ok(render_value_in_context(output, context))
     }
 
-    pub fn resolve_string(self, context: &Context) -> PyResult<ContentString<'t>> {
+    pub fn resolve_string(
+        self,
+        py: Python<'_>,
+        template: TemplateString<'t>,
+        context: &Context,
+    ) -> PyResult<ContentString<'t>> {
         Ok(match self {
             Self::String(content) => content,
             Self::Float(content) => ContentString::String(content.to_string().into()),
             Self::Int(content) => ContentString::String(content.to_string().into()),
-            Self::Py(content) => return resolve_python(content, context),
+            Self::Py(PyContent { content, at }) => {
+                return resolve_python(py, content, at, template, context);
+            }
             Self::Bool(true) => ContentString::String(Cow::Borrowed("True")),
             Self::Bool(false) => ContentString::String(Cow::Borrowed("False")),
         })
@@ -504,15 +622,24 @@ impl<'t, 'py> Content<'t, 'py> {
     /// Resolve to a string, raising an error if the content is not a string or a string-like Python object
     pub fn resolve_string_strict(
         self,
+        py: Python<'_>,
+        template: TemplateString<'t>,
         context: &Context,
         argument_at: SourceSpan,
+        template_name: &FileName,
     ) -> Result<ContentString<'t>, PyRenderError> {
         match self {
             Self::String(content) => Ok(content),
-            Self::Py(content) if content.is_instance_of::<PyString>() => {
-                Ok(resolve_python(content, context)?)
+            Self::Py(PyContent { content, at }) if content.is_instance_of::<PyString>() => {
+                Ok(resolve_python(py, content, at, template, context)?)
             }
-            _ => Err(RenderError::InvalidArgumentString { argument_at }.into()),
+            _ => Err(
+                RenderError::InvalidArgumentString(Box::new(InvalidArgumentString {
+                    argument_at,
+                    src: NamedSource::new(template_name.template_name(), template.to_string()),
+                }))
+                .into(),
+            ),
         }
     }
 
@@ -521,7 +648,7 @@ impl<'t, 'py> Content<'t, 'py> {
             Self::Int(left) => Some(left.clone()),
             Self::String(left) => left.as_raw().parse::<BigInt>().ok(),
             Self::Float(left) => left.trunc().to_bigint(),
-            Self::Py(left) => match left.extract::<BigInt>() {
+            Self::Py(PyContent { content: left, .. }) => match left.extract::<BigInt>() {
                 Ok(left) => Some(left),
                 Err(_) => {
                     let int = PyType::new::<PyInt>(left.py());
@@ -538,40 +665,63 @@ impl<'t, 'py> Content<'t, 'py> {
     }
 
     /// Convert Content to usize, providing detailed errors if the conversion fails
-    pub fn resolve_usize(self, argument_at: At) -> Result<usize, PyRenderError> {
+    pub fn resolve_usize(
+        self,
+        argument_at: At,
+        template_name: &FileName,
+        template: &str,
+    ) -> Result<usize, PyRenderError> {
         match self {
-            Self::Int(n) => resolve_bigint(n, argument_at),
+            Self::Int(n) => resolve_bigint(n, argument_at, template_name, template),
             Self::String(s) => match s.as_raw().parse::<BigInt>() {
-                Ok(n) => resolve_bigint(n, argument_at),
-                Err(_) => Err(RenderError::InvalidArgumentInteger {
-                    argument: format!("'{}'", s.as_raw()),
-                    argument_at: argument_at.into(),
-                }
+                Ok(n) => resolve_bigint(n, argument_at, template_name, template),
+                Err(_) => Err(RenderError::InvalidArgumentInteger(Box::new(
+                    InvalidArgumentInteger {
+                        argument: format!("'{}'", s.as_raw()),
+                        argument_at: argument_at.into(),
+                        src: NamedSource::new(template_name.template_name(), template.to_string()),
+                    },
+                ))
                 .into()),
             },
             Self::Float(f) => match f.trunc().to_bigint() {
-                Some(n) => resolve_bigint(n, argument_at),
-                None => Err(RenderError::InvalidArgumentFloat {
-                    argument: f.to_string(),
-                    argument_at: argument_at.into(),
-                }
-                .into()),
+                Some(n) => resolve_bigint(n, argument_at, template_name, template),
+                None => Err(
+                    RenderError::InvalidArgumentFloat(Box::new(InvalidArgumentFloat {
+                        argument: f.to_string(),
+                        argument_at: argument_at.into(),
+                        src: NamedSource::new(template_name.template_name(), template.to_string()),
+                    }))
+                    .into(),
+                ),
             },
-            Self::Py(obj) => match obj.extract::<BigInt>() {
-                Ok(n) => resolve_bigint(n, argument_at),
+            Self::Py(PyContent { content: obj, .. }) => match obj.extract::<BigInt>() {
+                Ok(n) => resolve_bigint(n, argument_at, template_name, template),
                 Err(_) => {
                     let argument = obj.to_string();
                     let argument_at = argument_at.into();
                     match obj.extract::<f64>() {
-                        Ok(_) => Err(RenderError::InvalidArgumentFloat {
-                            argument,
-                            argument_at,
-                        }
+                        Ok(_) => Err(RenderError::InvalidArgumentFloat(Box::new(
+                            InvalidArgumentFloat {
+                                argument,
+                                argument_at,
+                                src: NamedSource::new(
+                                    template_name.template_name(),
+                                    template.to_string(),
+                                ),
+                            },
+                        ))
                         .into()),
-                        Err(_) => Err(RenderError::InvalidArgumentInteger {
-                            argument,
-                            argument_at,
-                        }
+                        Err(_) => Err(RenderError::InvalidArgumentInteger(Box::new(
+                            InvalidArgumentInteger {
+                                argument,
+                                argument_at,
+                                src: NamedSource::new(
+                                    template_name.template_name(),
+                                    template.to_string(),
+                                ),
+                            },
+                        ))
                         .into()),
                     }
                 }
@@ -586,13 +736,15 @@ impl<'t, 'py> Content<'t, 'py> {
             Self::Int(n) => !n.is_zero(),
             Self::Float(f) => !f.is_zero(),
             Self::String(s) => !s.as_raw().is_empty(),
-            Self::Py(obj) => obj.is_truthy()?,
+            Self::Py(PyContent { content: obj, .. }) => obj.is_truthy()?,
         })
     }
 
     pub fn to_py(&self, py: Python<'py>) -> Bound<'py, PyAny> {
         match self {
-            Self::Py(object) => object.clone(),
+            Self::Py(PyContent {
+                content: object, ..
+            }) => object.clone(),
             Self::Int(i) => i
                 .into_pyobject(py)
                 .expect("A BigInt can always be converted to a Python int.")
