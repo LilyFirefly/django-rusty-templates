@@ -46,6 +46,7 @@ def patch_django_test_suite():
         )
     else:
         log("Patches already applied or not applicable.")
+        log(result.stderr.decode("utf8"))
 
 
 def _format_summary(summary: Counter[str]) -> str:
