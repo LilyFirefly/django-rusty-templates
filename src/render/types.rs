@@ -204,6 +204,7 @@ impl Context {
         self._insert(name, value, replace);
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn push_variables(
         &mut self,
         names: &Vec<String>,
