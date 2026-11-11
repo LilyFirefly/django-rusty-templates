@@ -18,7 +18,9 @@ use crate::filters::{
 use crate::parse::Filter;
 use crate::render::FileName;
 use crate::render::common::gettext;
-use crate::render::types::{AsBorrowedContent, Content, ContentString, Context, IntoOwnedContent};
+use crate::render::types::{
+    AsBorrowedContent, Content, ContentString, Context, IntoOwnedContent, PyContent,
+};
 use crate::render::{Resolve, ResolveFailures, ResolveResult};
 use dtl_lexer::types::TemplateString;
 use unicode_normalization::UnicodeNormalization;
@@ -153,10 +155,12 @@ impl ResolveFilter for AddFilter {
             _ => {
                 let variable = variable.to_py(py);
                 let right = right.to_py(py);
-                variable
-                    .add(right)
-                    .ok()
-                    .map(|variable| Content::Py((variable, self.argument.at)))
+                variable.add(right).ok().map(|variable| {
+                    Content::Py(PyContent {
+                        content: variable,
+                        at: self.argument.at,
+                    })
+                })
             }
         })
     }
@@ -312,7 +316,9 @@ impl ResolveFilter for DefaultIfNoneFilter {
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
         match variable {
-            Some(Content::Py((ref value, _at))) if value.is_none() => {
+            Some(Content::Py(PyContent {
+                content: ref value, ..
+            })) if value.is_none() => {
                 self.argument
                     .resolve(py, template, template_name, context, ResolveFailures::Raise)
             }
@@ -370,7 +376,10 @@ impl ResolveFilter for DateFilter {
             }
         };
 
-        Ok(Some(Content::Py((formatted, self.at))))
+        Ok(Some(Content::Py(PyContent {
+            content: formatted,
+            at: self.at,
+        })))
     }
 }
 
@@ -394,7 +403,9 @@ impl ResolveFilter for DivisibleByFilter {
             }
         };
 
-        if let Content::Py((ref obj, _at)) = variable
+        if let Content::Py(PyContent {
+            content: ref obj, ..
+        }) = variable
             && obj.is_none()
         {
             return Err(pyo3::exceptions::PyTypeError::new_err(
@@ -458,7 +469,10 @@ impl ResolveFilter for EscapeFilter {
                     }
                     Content::Int(n) => Cow::Owned(n.to_string()),
                     Content::Float(n) => Cow::Owned(n.to_string()),
-                    Content::Py((object, at)) => {
+                    Content::Py(PyContent {
+                        content: object,
+                        at,
+                    }) => {
                         let content = object
                             .str()
                             .map_err(|error| error.annotate(py, at, "here", template))?
@@ -540,13 +554,15 @@ impl ResolveFilter for ExternalFilter {
             }
             None => None,
         };
-        let variable = variable.map(|variable| variable.to_py(py));
         let filter = self.filter.bind(py);
         let value = match arg {
             Some(arg) => filter.call1((variable, arg))?,
             None => filter.call1((variable,))?,
         };
-        Ok(Some(Content::Py((value, self.at))))
+        Ok(Some(Content::Py(PyContent {
+            content: value,
+            at: self.at,
+        })))
     }
 }
 
@@ -587,7 +603,10 @@ impl ResolveFilter for LastFilter {
         let obj = content.to_py(py);
 
         match obj.get_item(-1) {
-            Ok(last) => Ok(Some(Content::Py((last, self.at)))),
+            Ok(last) => Ok(Some(Content::Py(PyContent {
+                content: last,
+                at: self.at,
+            }))),
             Err(err) => {
                 if err.is_instance_of::<pyo3::exceptions::PyIndexError>(py) {
                     Ok(Some("".as_content()))
@@ -631,7 +650,7 @@ impl ResolveFilter for LengthFilter {
         let len = match variable {
             None => 0,
             Some(Content::String(s)) => s.as_raw().chars().count(),
-            Some(Content::Py((obj, _at))) => obj.len().unwrap_or(0),
+            Some(Content::Py(PyContent { content: obj, .. })) => obj.len().unwrap_or(0),
             Some(Content::Int(_) | Content::Float(_) | Content::Bool(_)) => 0,
         };
 
@@ -654,7 +673,10 @@ impl ResolveFilter for SafeFilter {
                     Content::String(content) => content.into_raw(),
                     Content::Int(n) => Cow::Owned(n.to_string()),
                     Content::Float(n) => Cow::Owned(n.to_string()),
-                    Content::Py((object, at)) => {
+                    Content::Py(PyContent {
+                        content: object,
+                        at,
+                    }) => {
                         let content = object
                             .str()
                             .map_err(|error| error.annotate(py, at, "here", template))?
@@ -704,7 +726,7 @@ impl ResolveFilter for SlugifyFilter {
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
             Some(content) => match content {
-                Content::Py((content, at)) => {
+                Content::Py(PyContent { content, at }) => {
                     let slug = slugify(Cow::Owned(
                         content
                             .str()
@@ -945,7 +967,9 @@ impl ResolveFilter for YesnoFilter {
         };
 
         let result = match variable {
-            Some(Content::Py((ref obj, _at))) if obj.is_none() => maybe,
+            Some(Content::Py(PyContent {
+                content: ref obj, ..
+            })) if obj.is_none() => maybe,
             Some(content) => match content.to_bool() {
                 Ok(true) => yes,
                 Ok(false) => no,

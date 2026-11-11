@@ -8,7 +8,9 @@ use pyo3::types::PyString;
 
 use dtl_lexer::types::{PartsIterator, TemplateString};
 
-use super::types::{AsBorrowedContent, Content, ContentString, Context, IntoOwnedContent};
+use super::types::{
+    AsBorrowedContent, Content, ContentString, Context, IntoOwnedContent, PyContent,
+};
 use super::{Evaluate, FileName, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
 use crate::error::{
     AnnotatePyErr, ArgumentDoesNotExist, InnerVariableDoesNotExist, PyRenderError, RenderError,
@@ -114,7 +116,10 @@ impl Resolve for Variable {
                     };
                     object_at.1 += key_at.1 + 1;
                 }
-                Ok(Some(Content::Py((variable, *at))))
+                Ok(Some(Content::Py(PyContent {
+                    content: variable,
+                    at: *at,
+                })))
             }
             Self::ForVariable(for_variable) => {
                 let Some(for_loop) = context.get_for_loop(for_variable.parent_count) else {
@@ -141,10 +146,10 @@ impl Resolve for Variable {
                     ForVariableName::RevCounter0 => Content::Int(for_loop.rev_counter0().into()),
                     ForVariableName::First => Content::Bool(for_loop.first()),
                     ForVariableName::Last => Content::Bool(for_loop.last()),
-                    ForVariableName::Object => Content::Py((
-                        context.resolve_for_loop(py, for_variable.parent_count),
-                        for_variable.at,
-                    )),
+                    ForVariableName::Object => Content::Py(PyContent {
+                        content: context.resolve_for_loop(py, for_variable.parent_count),
+                        at: for_variable.at,
+                    }),
                 }))
             }
             Self::BlockSuper(_) => {

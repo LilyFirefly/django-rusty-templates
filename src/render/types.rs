@@ -547,9 +547,25 @@ fn resolve_bigint(
     }
 }
 
+#[derive(Debug)]
+pub struct PyContent<'py> {
+    pub content: Bound<'py, PyAny>,
+    pub at: At,
+}
+
+impl<'py> IntoPyObject<'py> for PyContent<'py> {
+    type Target = PyAny;
+    type Output = Bound<'py, PyAny>;
+    type Error = std::convert::Infallible;
+
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        self.content.into_pyobject(py)
+    }
+}
+
 #[derive(Debug, IntoPyObject)]
 pub enum Content<'t, 'py> {
-    Py((Bound<'py, PyAny>, At)),
+    Py(PyContent<'py>),
     String(ContentString<'t>),
     Float(f64),
     Int(BigInt),
@@ -574,7 +590,9 @@ impl<'t, 'py> Content<'t, 'py> {
         context: &Context,
     ) -> PyResult<Cow<'t, str>> {
         let output = match self {
-            Self::Py((content, at)) => resolve_python(py, content, at, template, context)?,
+            Self::Py(PyContent { content, at }) => {
+                resolve_python(py, content, at, template, context)?
+            }
             Self::String(content) => content,
             Self::Float(content) => return Ok(content.to_string().into()),
             Self::Int(content) => return Ok(content.to_string().into()),
@@ -594,7 +612,9 @@ impl<'t, 'py> Content<'t, 'py> {
             Self::String(content) => content,
             Self::Float(content) => ContentString::String(content.to_string().into()),
             Self::Int(content) => ContentString::String(content.to_string().into()),
-            Self::Py((content, at)) => return resolve_python(py, content, at, template, context),
+            Self::Py(PyContent { content, at }) => {
+                return resolve_python(py, content, at, template, context);
+            }
             Self::Bool(true) => ContentString::String(Cow::Borrowed("True")),
             Self::Bool(false) => ContentString::String(Cow::Borrowed("False")),
         })
@@ -610,7 +630,7 @@ impl<'t, 'py> Content<'t, 'py> {
     ) -> Result<ContentString<'t>, PyRenderError> {
         match self {
             Self::String(content) => Ok(content),
-            Self::Py((content, at)) if content.is_instance_of::<PyString>() => {
+            Self::Py(PyContent { content, at }) if content.is_instance_of::<PyString>() => {
                 Ok(resolve_python(py, content, at, template, context)?)
             }
             _ => Err(
@@ -628,7 +648,7 @@ impl<'t, 'py> Content<'t, 'py> {
             Self::Int(left) => Some(left.clone()),
             Self::String(left) => left.as_raw().parse::<BigInt>().ok(),
             Self::Float(left) => left.trunc().to_bigint(),
-            Self::Py((left, _at)) => match left.extract::<BigInt>() {
+            Self::Py(PyContent { content: left, .. }) => match left.extract::<BigInt>() {
                 Ok(left) => Some(left),
                 Err(_) => {
                     let int = PyType::new::<PyInt>(left.py());
@@ -675,7 +695,7 @@ impl<'t, 'py> Content<'t, 'py> {
                     .into(),
                 ),
             },
-            Self::Py((obj, _at)) => match obj.extract::<BigInt>() {
+            Self::Py(PyContent { content: obj, .. }) => match obj.extract::<BigInt>() {
                 Ok(n) => resolve_bigint(n, argument_at, template_name, template),
                 Err(_) => {
                     let argument = obj.to_string();
@@ -716,13 +736,15 @@ impl<'t, 'py> Content<'t, 'py> {
             Self::Int(n) => !n.is_zero(),
             Self::Float(f) => !f.is_zero(),
             Self::String(s) => !s.as_raw().is_empty(),
-            Self::Py((obj, _at)) => obj.is_truthy()?,
+            Self::Py(PyContent { content: obj, .. }) => obj.is_truthy()?,
         })
     }
 
     pub fn to_py(&self, py: Python<'py>) -> Bound<'py, PyAny> {
         match self {
-            Self::Py((object, _at)) => object.clone(),
+            Self::Py(PyContent {
+                content: object, ..
+            }) => object.clone(),
             Self::Int(i) => i
                 .into_pyobject(py)
                 .expect("A BigInt can always be converted to a Python int.")
