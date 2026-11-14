@@ -16,12 +16,12 @@ use crate::filters::{
     YesnoFilter,
 };
 use crate::parse::Filter;
-use crate::render::FileName;
 use crate::render::common::gettext;
 use crate::render::types::{
     AsBorrowedContent, Content, ContentString, Context, IntoOwnedContent, PyContent,
 };
-use crate::render::{Resolve, ResolveFailures, ResolveResult};
+use crate::render::{FileName, StringIfInvalid};
+use crate::render::{Resolve, ResolveContent, ResolveFailures, ResolveResult};
 use dtl_lexer::types::TemplateString;
 use unicode_normalization::UnicodeNormalization;
 
@@ -38,7 +38,7 @@ impl Resolve for Filter {
         template_name: &'t FileName,
         context: &mut Context,
         failures: ResolveFailures,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let left = self.left.resolve(
             py,
@@ -240,27 +240,27 @@ impl Resolve for Filter {
 pub trait ResolveFilter {
     fn resolve<'t, 'py>(
         &self,
-        variable: Option<Content<'t, 'py>>,
+        variable: ResolveContent<'t, 'py>,
         py: Python<'py>,
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py>;
 }
 
 impl ResolveFilter for AddSlashesFilter {
     fn resolve<'t, 'py>(
         &self,
-        variable: Option<Content<'t, 'py>>,
+        variable: ResolveContent<'t, 'py>,
         py: Python<'py>,
         template: TemplateString<'t>,
         _template_name: &'t FileName,
         context: &mut Context,
-        _string_if_invalid: &'t str,
+        _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
-            Some(content) => {
+            ResolveContent::Content(content) => {
                 let content_string = content.resolve_string(py, template, context)?;
                 content_string.map_content(|raw| {
                     Cow::Owned(
@@ -270,113 +270,118 @@ impl ResolveFilter for AddSlashesFilter {
                     )
                 })
             }
-            None => "".as_content(),
+            ResolveContent::Missing(_) => "".as_content(),
         };
-        Ok(Some(content))
+        Ok(ResolveContent::Content(content))
     }
 }
 
 impl ResolveFilter for AddFilter {
     fn resolve<'t, 'py>(
         &self,
-        variable: Option<Content<'t, 'py>>,
+        variable: ResolveContent<'t, 'py>,
         py: Python<'py>,
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
-        let Some(variable) = variable else {
-            return Ok(None);
+        let variable = match variable {
+            ResolveContent::Content(content) => content,
+            ResolveContent::Missing(missing) => return Ok(ResolveContent::Missing(missing)),
         };
-        let right = self
-            .argument
-            .resolve(
-                py,
-                template,
-                template_name,
-                context,
-                ResolveFailures::Raise,
-                string_if_invalid,
-            )?
-            .expect("missing argument in context should already have raised");
-        Ok(Some(match (variable.to_bigint(), right.to_bigint()) {
-            (Some(variable), Some(right)) => Content::Int(variable + right),
-            _ => {
-                let variable = variable.to_py(py);
-                let right = right.to_py(py);
-                match variable.add(right) {
-                    Ok(variable) => Content::Py(PyContent {
-                        content: variable,
-                        at: self.argument.at,
-                    }),
-                    Err(_) => "".as_content(),
-                }
+        let right = match self.argument.resolve(
+            py,
+            template,
+            template_name,
+            context,
+            ResolveFailures::Raise,
+            string_if_invalid,
+        )? {
+            ResolveContent::Content(content) => content,
+            ResolveContent::Missing(_) => {
+                unreachable!("missing argument in context should already have raised")
             }
-        }))
+        };
+        Ok(ResolveContent::Content(
+            match (variable.to_bigint(), right.to_bigint()) {
+                (Some(variable), Some(right)) => Content::Int(variable + right),
+                _ => {
+                    let variable = variable.to_py(py);
+                    let right = right.to_py(py);
+                    match variable.add(right) {
+                        Ok(variable) => Content::Py(PyContent {
+                            content: variable,
+                            at: self.argument.at,
+                        }),
+                        Err(_) => "".as_content(),
+                    }
+                }
+            },
+        ))
     }
 }
 
 impl ResolveFilter for CapfirstFilter {
     fn resolve<'t, 'py>(
         &self,
-        variable: Option<Content<'t, 'py>>,
+        variable: ResolveContent<'t, 'py>,
         py: Python<'py>,
         template: TemplateString<'t>,
         _template_name: &'t FileName,
         context: &mut Context,
-        _string_if_invalid: &'t str,
+        _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
-            Some(content) => {
-                content
-                    .resolve_string(py, template, context)?
-                    .map_content(|content| {
-                        let mut chars = content.chars();
-                        match chars.next() {
-                            Some(first) => Cow::Owned(first.to_uppercase().chain(chars).collect()),
-                            None => content,
-                        }
-                    })
-            }
-            None => "".as_content(),
+            ResolveContent::Content(content) => content
+                .resolve_string(py, template, context)?
+                .map_content(|content| {
+                    let mut chars = content.chars();
+                    match chars.next() {
+                        Some(first) => Cow::Owned(first.to_uppercase().chain(chars).collect()),
+                        None => content,
+                    }
+                }),
+            ResolveContent::Missing(_) => "".as_content(),
         };
-        Ok(Some(content))
+        Ok(ResolveContent::Content(content))
     }
 }
 
 impl ResolveFilter for CenterFilter {
     fn resolve<'t, 'py>(
         &self,
-        variable: Option<Content<'t, 'py>>,
+        variable: ResolveContent<'t, 'py>,
         py: Python<'py>,
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
-        let Some(content) = variable else {
-            return Ok(Some("".as_content()));
+        let ResolveContent::Content(content) = variable else {
+            return Ok(ResolveContent::Content("".as_content()));
         };
         let content = content.resolve_string(py, template, context)?;
-        let arg = self
-            .argument
-            .resolve(
-                py,
-                template,
-                template_name,
-                context,
-                ResolveFailures::Raise,
-                string_if_invalid,
-            )?
-            .expect("missing argument in context should already have raised");
+        let arg = match self.argument.resolve(
+            py,
+            template,
+            template_name,
+            context,
+            ResolveFailures::Raise,
+            string_if_invalid,
+        )? {
+            ResolveContent::Content(content) => content,
+            ResolveContent::Missing(_) => {
+                unreachable!("missing argument in context should already have raised")
+            }
+        };
 
         let size = arg.resolve_usize(self.argument.at, template_name, template.0)?;
 
         // Python's `str.center` counts characters, not bytes.
         let length = content.as_raw().chars().count();
         if size <= length {
-            return Ok(Some(Content::String(content)));
+            return Ok(ResolveContent::Content(Content::String(content)));
         }
         let round_up = size % 2 == 0 && length % 2 != 0;
         let right = if round_up {
@@ -387,7 +392,7 @@ impl ResolveFilter for CenterFilter {
         };
         let left = size - length - right;
 
-        Ok(Some(content.map_content(|content| {
+        Ok(ResolveContent::Content(content.map_content(|content| {
             let mut centered = String::with_capacity(content.len() + left + right);
 
             centered.push_str(&" ".repeat(left));
@@ -406,36 +411,38 @@ fn cut(source: Cow<'_, str>, value: &str) -> String {
 impl ResolveFilter for CutFilter {
     fn resolve<'t, 'py>(
         &self,
-        variable: Option<Content<'t, 'py>>,
+        variable: ResolveContent<'t, 'py>,
         py: Python<'py>,
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
-        let Some(variable) = variable else {
-            return Ok(Some("".as_content()));
+        let ResolveContent::Content(variable) = variable else {
+            return Ok(ResolveContent::Content("".as_content()));
         };
 
-        let arg = self
-            .argument
-            .resolve(
-                py,
-                template,
-                template_name,
-                context,
-                ResolveFailures::Raise,
-                string_if_invalid,
-            )?
-            .expect("missing argument in context should already have raised")
-            .resolve_string_strict(
-                py,
-                template,
-                context,
-                self.argument.at.into(),
-                template_name,
-            )?
-            .into_raw();
+        let arg = match self.argument.resolve(
+            py,
+            template,
+            template_name,
+            context,
+            ResolveFailures::Raise,
+            string_if_invalid,
+        )? {
+            ResolveContent::Content(content) => content,
+            ResolveContent::Missing(_) => {
+                unreachable!("missing argument in context should already have raised")
+            }
+        }
+        .resolve_string_strict(
+            py,
+            template,
+            context,
+            self.argument.at.into(),
+            template_name,
+        )?
+        .into_raw();
 
         let content_string = variable.resolve_string(py, template, context)?;
         let result = match content_string {
@@ -450,29 +457,29 @@ impl ResolveFilter for CutFilter {
             ContentString::HtmlUnsafe(s) => ContentString::HtmlUnsafe(cut(s, &arg).into()),
         };
 
-        Ok(Some(Content::String(result)))
+        Ok(ResolveContent::Content(Content::String(result)))
     }
 }
 
 impl ResolveFilter for DefaultFilter {
     fn resolve<'t, 'py>(
         &self,
-        variable: Option<Content<'t, 'py>>,
+        variable: ResolveContent<'t, 'py>,
         py: Python<'py>,
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         match variable {
-            Some(left)
+            ResolveContent::Content(left)
                 if left
                     .to_bool()
                     .map_err(|err| err.annotate(py, self.at, "here", template))? =>
             {
-                Ok(Some(left))
+                Ok(ResolveContent::Content(left))
             }
-            None | Some(_) => self.argument.resolve(
+            ResolveContent::Missing(_) | ResolveContent::Content(_) => self.argument.resolve(
                 py,
                 template,
                 template_name,
@@ -487,15 +494,15 @@ impl ResolveFilter for DefaultFilter {
 impl ResolveFilter for DefaultIfNoneFilter {
     fn resolve<'t, 'py>(
         &self,
-        variable: Option<Content<'t, 'py>>,
+        variable: ResolveContent<'t, 'py>,
         py: Python<'py>,
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         match variable {
-            Some(Content::Py(PyContent {
+            ResolveContent::Content(Content::Py(PyContent {
                 content: ref value, ..
             })) if value.is_none() => self.argument.resolve(
                 py,
@@ -505,8 +512,8 @@ impl ResolveFilter for DefaultIfNoneFilter {
                 ResolveFailures::Raise,
                 string_if_invalid,
             ),
-            Some(left) => Ok(Some(left)),
-            None => Ok(Some("".as_content())),
+            ResolveContent::Content(left) => Ok(ResolveContent::Content(left)),
+            ResolveContent::Missing(_) => Ok(ResolveContent::Content("".as_content())),
         }
     }
 }
@@ -514,29 +521,32 @@ impl ResolveFilter for DefaultIfNoneFilter {
 impl ResolveFilter for DateFilter {
     fn resolve<'t, 'py>(
         &self,
-        variable: Option<Content<'t, 'py>>,
+        variable: ResolveContent<'t, 'py>,
         py: Python<'py>,
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
-        let Some(value) = variable else {
-            return Ok(Some("".as_content()));
+        let ResolveContent::Content(value) = variable else {
+            return Ok(ResolveContent::Content("".as_content()));
         };
 
         let fmt = match &self.argument {
-            Some(arg) => arg
-                .resolve(
-                    py,
-                    template,
-                    template_name,
-                    context,
-                    ResolveFailures::Raise,
-                    string_if_invalid,
-                )?
-                .expect("missing argument in context should already have raised")
-                .to_py(py),
+            Some(arg) => match arg.resolve(
+                py,
+                template,
+                template_name,
+                context,
+                ResolveFailures::Raise,
+                string_if_invalid,
+            )? {
+                ResolveContent::Content(content) => content,
+                ResolveContent::Missing(_) => {
+                    unreachable!("missing argument in context should already have raised")
+                }
+            }
+            .to_py(py),
             None => {
                 let get_format = GET_FORMAT.import(py, "django.utils.formats", "get_format")?;
                 get_format.call1(("DATE_FORMAT",))?
@@ -550,7 +560,7 @@ impl ResolveFilter for DateFilter {
             || value.is_instance_of::<PyDateTime>();
 
         if !is_valid {
-            return Ok(Some("".as_content()));
+            return Ok(ResolveContent::Content("".as_content()));
         }
 
         let date_format_fn = DATE_FORMAT.import(py, "django.utils.dateformat", "format")?;
@@ -559,7 +569,7 @@ impl ResolveFilter for DateFilter {
             Ok(res) => res,
             Err(e) => {
                 if e.is_instance_of::<pyo3::exceptions::PyAttributeError>(py) {
-                    return Ok(Some("".as_content()));
+                    return Ok(ResolveContent::Content("".as_content()));
                 }
                 return Err(PyRenderError::PyErr(
                     e.annotate(py, self.at, "here", template),
@@ -567,7 +577,7 @@ impl ResolveFilter for DateFilter {
             }
         };
 
-        Ok(Some(Content::Py(PyContent {
+        Ok(ResolveContent::Content(Content::Py(PyContent {
             content: formatted,
             at: self.at,
         })))
@@ -577,14 +587,14 @@ impl ResolveFilter for DateFilter {
 impl ResolveFilter for DivisibleByFilter {
     fn resolve<'t, 'py>(
         &self,
-        variable: Option<Content<'t, 'py>>,
+        variable: ResolveContent<'t, 'py>,
         py: Python<'py>,
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
-        let Some(variable) = variable else {
+        let ResolveContent::Content(variable) = variable else {
             return Err(pyo3::exceptions::PyValueError::new_err(
                 "invalid literal for int() with base 10: 'None'",
             )
@@ -604,17 +614,19 @@ impl ResolveFilter for DivisibleByFilter {
                 .into());
         }
 
-        let right = self
-            .argument
-            .resolve(
-                py,
-                template,
-                template_name,
-                context,
-                ResolveFailures::Raise,
-                string_if_invalid,
-            )?
-            .expect("missing argument in context should already have raised");
+        let right = match self.argument.resolve(
+            py,
+            template,
+            template_name,
+            context,
+            ResolveFailures::Raise,
+            string_if_invalid,
+        )? {
+            ResolveContent::Content(content) => content,
+            ResolveContent::Missing(_) => {
+                unreachable!("missing argument in context should already have raised")
+            }
+        };
 
         let Some(right_val) = right.to_bigint() else {
             return Err(
@@ -641,23 +653,25 @@ impl ResolveFilter for DivisibleByFilter {
                 .into());
         };
 
-        Ok(Some(Content::Bool((left_val % right_val).is_zero())))
+        Ok(ResolveContent::Content(Content::Bool(
+            (left_val % right_val).is_zero(),
+        )))
     }
 }
 
 impl ResolveFilter for EscapeFilter {
     fn resolve<'t, 'py>(
         &self,
-        variable: Option<Content<'t, 'py>>,
+        variable: ResolveContent<'t, 'py>,
         py: Python<'py>,
         template: TemplateString<'t>,
         _template_name: &'t FileName,
         _context: &mut Context,
-        _string_if_invalid: &'t str,
+        _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
-        Ok(Some(Content::String(ContentString::HtmlSafe(
-            match variable {
-                Some(content) => match content {
+        Ok(ResolveContent::Content(Content::String(
+            ContentString::HtmlSafe(match variable {
+                ResolveContent::Content(content) => match content {
                     Content::String(ContentString::HtmlSafe(content)) => content,
                     Content::String(content) => {
                         let mut encoded = String::new();
@@ -692,9 +706,9 @@ impl ResolveFilter for EscapeFilter {
                     Content::Bool(true) => Cow::Borrowed("True"),
                     Content::Bool(false) => Cow::Borrowed("False"),
                 },
-                None => Cow::Borrowed(""),
-            },
-        ))))
+                ResolveContent::Missing(_) => Cow::Borrowed(""),
+            }),
+        )))
     }
 }
 
@@ -731,50 +745,52 @@ fn escapejs(value: &str) -> String {
 impl ResolveFilter for EscapejsFilter {
     fn resolve<'t, 'py>(
         &self,
-        variable: Option<Content<'t, 'py>>,
+        variable: ResolveContent<'t, 'py>,
         py: Python<'py>,
         template: TemplateString<'t>,
         _template_name: &'t FileName,
         context: &mut Context,
-        _string_if_invalid: &'t str,
+        _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
-            Some(content) => content
+            ResolveContent::Content(content) => content
                 .resolve_string(py, template, context)?
                 .map_content(|content| Cow::Owned(escapejs(&content))),
-            None => "".as_content(),
+            ResolveContent::Missing(_) => "".as_content(),
         };
-        Ok(Some(content))
+        Ok(ResolveContent::Content(content))
     }
 }
 
 impl ResolveFilter for ExternalFilter {
     fn resolve<'t, 'py>(
         &self,
-        variable: Option<Content<'t, 'py>>,
+        variable: ResolveContent<'t, 'py>,
         py: Python<'py>,
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let arg = match &self.argument {
-            Some(arg) => arg.resolve(
-                py,
-                template,
-                template_name,
-                context,
-                ResolveFailures::Raise,
-                string_if_invalid,
-            )?,
+            Some(arg) => arg
+                .resolve(
+                    py,
+                    template,
+                    template_name,
+                    context,
+                    ResolveFailures::Raise,
+                    string_if_invalid,
+                )?
+                .maybe_content(),
             None => None,
         };
         let filter = self.filter.bind(py);
         let value = match arg {
-            Some(arg) => filter.call1((variable, arg))?,
-            None => filter.call1((variable,))?,
+            Some(arg) => filter.call1((variable.maybe_content(), arg))?,
+            None => filter.call1((variable.maybe_content(),))?,
         };
-        Ok(Some(Content::Py(PyContent {
+        Ok(ResolveContent::Content(Content::Py(PyContent {
             content: value,
             at: self.at,
         })))
@@ -784,17 +800,17 @@ impl ResolveFilter for ExternalFilter {
 impl ResolveFilter for ForceEscapeFilter {
     fn resolve<'t, 'py>(
         &self,
-        variable: Option<Content<'t, 'py>>,
+        variable: ResolveContent<'t, 'py>,
         py: Python<'py>,
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let variable = match variable {
             // We want to re-run the escape filter even if the content has already been resolved to safe HTML
-            Some(Content::String(ContentString::HtmlSafe(c))) => {
-                Some(Content::String(ContentString::String(c)))
+            ResolveContent::Content(Content::String(ContentString::HtmlSafe(c))) => {
+                ResolveContent::Content(Content::String(ContentString::String(c)))
             }
             other => other,
         };
@@ -812,27 +828,27 @@ impl ResolveFilter for ForceEscapeFilter {
 impl ResolveFilter for LastFilter {
     fn resolve<'t, 'py>(
         &self,
-        variable: Option<Content<'t, 'py>>,
+        variable: ResolveContent<'t, 'py>,
         py: Python<'py>,
         template: TemplateString<'t>,
         _template_name: &'t FileName,
         _context: &mut Context,
-        _string_if_invalid: &'t str,
+        _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
-        let Some(content) = variable else {
-            return Ok(Some("".as_content()));
+        let ResolveContent::Content(content) = variable else {
+            return Ok(ResolveContent::Content("".as_content()));
         };
 
         let obj = content.to_py(py);
 
         match obj.get_item(-1) {
-            Ok(last) => Ok(Some(Content::Py(PyContent {
+            Ok(last) => Ok(ResolveContent::Content(Content::Py(PyContent {
                 content: last,
                 at: self.at,
             }))),
             Err(err) => {
                 if err.is_instance_of::<pyo3::exceptions::PyIndexError>(py) {
-                    Ok(Some("".as_content()))
+                    Ok(ResolveContent::Content("".as_content()))
                 } else {
                     let error = err.annotate(py, self.at, "here", template);
                     Err(error.into())
@@ -845,57 +861,61 @@ impl ResolveFilter for LastFilter {
 impl ResolveFilter for LowerFilter {
     fn resolve<'t, 'py>(
         &self,
-        variable: Option<Content<'t, 'py>>,
+        variable: ResolveContent<'t, 'py>,
         py: Python<'py>,
         template: TemplateString<'t>,
         _template_name: &'t FileName,
         context: &mut Context,
-        _string_if_invalid: &'t str,
+        _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
-            Some(content) => content
+            ResolveContent::Content(content) => content
                 .resolve_string(py, template, context)?
                 .map_content(|content| Cow::Owned(content.to_lowercase())),
-            None => "".as_content(),
+            ResolveContent::Missing(_) => "".as_content(),
         };
-        Ok(Some(content))
+        Ok(ResolveContent::Content(content))
     }
 }
 
 impl ResolveFilter for LengthFilter {
     fn resolve<'t, 'py>(
         &self,
-        variable: Option<Content<'t, 'py>>,
+        variable: ResolveContent<'t, 'py>,
         _py: Python<'py>,
         _template: TemplateString<'t>,
         _template_name: &'t FileName,
         _context: &mut Context,
-        _string_if_invalid: &'t str,
+        _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let len = match variable {
-            None => 0,
-            Some(Content::String(s)) => s.as_raw().chars().count(),
-            Some(Content::Py(PyContent { content: obj, .. })) => obj.len().unwrap_or(0),
-            Some(Content::Int(_) | Content::Float(_) | Content::Bool(_)) => 0,
+            ResolveContent::Missing(_) => 0,
+            ResolveContent::Content(Content::String(s)) => s.as_raw().chars().count(),
+            ResolveContent::Content(Content::Py(PyContent { content: obj, .. })) => {
+                obj.len().unwrap_or(0)
+            }
+            ResolveContent::Content(Content::Int(_) | Content::Float(_) | Content::Bool(_)) => 0,
         };
 
-        Ok(Some(Content::Int(num_bigint::BigInt::from(len))))
+        Ok(ResolveContent::Content(Content::Int(
+            num_bigint::BigInt::from(len),
+        )))
     }
 }
 
 impl ResolveFilter for SafeFilter {
     fn resolve<'t, 'py>(
         &self,
-        variable: Option<Content<'t, 'py>>,
+        variable: ResolveContent<'t, 'py>,
         py: Python<'py>,
         template: TemplateString<'t>,
         _template_name: &'t FileName,
         _context: &mut Context,
-        _string_if_invalid: &'t str,
+        _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
-        Ok(Some(Content::String(ContentString::HtmlSafe(
-            match variable {
-                Some(content) => match content {
+        Ok(ResolveContent::Content(Content::String(
+            ContentString::HtmlSafe(match variable {
+                ResolveContent::Content(content) => match content {
                     Content::String(content) => content.into_raw(),
                     Content::Int(n) => Cow::Owned(n.to_string()),
                     Content::Float(n) => Cow::Owned(n.to_string()),
@@ -912,9 +932,9 @@ impl ResolveFilter for SafeFilter {
                     Content::Bool(true) => Cow::Borrowed("True"),
                     Content::Bool(false) => Cow::Borrowed("False"),
                 },
-                None => Cow::Borrowed(""),
-            },
-        ))))
+                ResolveContent::Missing(_) => Cow::Borrowed(""),
+            }),
+        )))
     }
 }
 
@@ -954,15 +974,15 @@ pub fn slugify(content: Cow<str>) -> Cow<str> {
 impl ResolveFilter for SlugifyFilter {
     fn resolve<'t, 'py>(
         &self,
-        variable: Option<Content<'t, 'py>>,
+        variable: ResolveContent<'t, 'py>,
         py: Python<'py>,
         template: TemplateString<'t>,
         _template_name: &'t FileName,
         _context: &mut Context,
-        _string_if_invalid: &'t str,
+        _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
-            Some(content) => match content {
+            ResolveContent::Content(content) => match content {
                 Content::Py(PyContent { content, at }) => {
                     let slug = slugify(Cow::Owned(
                         content
@@ -987,71 +1007,73 @@ impl ResolveFilter for SlugifyFilter {
                 Content::Bool(true) => "true".as_content(),
                 Content::Bool(false) => "false".as_content(),
             },
-            None => "".as_content(),
+            ResolveContent::Missing(_) => "".as_content(),
         };
-        Ok(Some(content))
+        Ok(ResolveContent::Content(content))
     }
 }
 
 impl ResolveFilter for TitleFilter {
     fn resolve<'t, 'py>(
         &self,
-        variable: Option<Content<'t, 'py>>,
+        variable: ResolveContent<'t, 'py>,
         py: Python<'py>,
         template: TemplateString<'t>,
         _template_name: &'t FileName,
         context: &mut Context,
-        _string_if_invalid: &'t str,
+        _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
-        let Some(content) = variable else {
-            return Ok(Some("".as_content()));
+        let ResolveContent::Content(content) = variable else {
+            return Ok(ResolveContent::Content("".as_content()));
         };
         let content_string = content.resolve_string(py, template, context)?;
 
-        Ok(Some(content_string.map_content(|content| {
-            let mut result = String::with_capacity(content.len());
-            let mut prev = None;
-            let mut prev_letter_was_lowercased = false;
+        Ok(ResolveContent::Content(content_string.map_content(
+            |content| {
+                let mut result = String::with_capacity(content.len());
+                let mut prev = None;
+                let mut prev_letter_was_lowercased = false;
 
-            for ch in content.chars() {
-                if ch.is_alphabetic() {
-                    // Django's special cases to trigger lowercase:
-                    // 1. After apostrophe that follows a lowercased letter
-                    // 2. After a digit
-                    let should_lowercase = match prev {
-                        Some('\'') if prev_letter_was_lowercased => true,
-                        Some(c) if c.is_ascii_digit() | c.is_alphabetic() => true,
-                        _ => false,
-                    };
+                for ch in content.chars() {
+                    if ch.is_alphabetic() {
+                        // Django's special cases to trigger lowercase:
+                        // 1. After apostrophe that follows a lowercased letter
+                        // 2. After a digit
+                        let should_lowercase = match prev {
+                            Some('\'') if prev_letter_was_lowercased => true,
+                            Some(c) if c.is_ascii_digit() | c.is_alphabetic() => true,
+                            _ => false,
+                        };
 
-                    if should_lowercase {
-                        result.extend(ch.to_lowercase());
+                        if should_lowercase {
+                            result.extend(ch.to_lowercase());
+                        } else {
+                            result.extend(ch.to_uppercase());
+                        }
+                        prev_letter_was_lowercased = should_lowercase;
                     } else {
-                        result.extend(ch.to_uppercase());
+                        result.push(ch);
                     }
-                    prev_letter_was_lowercased = should_lowercase;
-                } else {
-                    result.push(ch);
+                    prev = Some(ch);
                 }
-                prev = Some(ch);
-            }
-            Cow::Owned(result)
-        })))
+                Cow::Owned(result)
+            },
+        )))
     }
 }
 
 impl ResolveFilter for UpperFilter {
     fn resolve<'t, 'py>(
         &self,
-        variable: Option<Content<'t, 'py>>,
+        variable: ResolveContent<'t, 'py>,
         py: Python<'py>,
         template: TemplateString<'t>,
         _template_name: &'t FileName,
         context: &mut Context,
-        _string_if_invalid: &'t str,
+        _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
-            Some(content) => {
+            ResolveContent::Content(content) => {
                 // Django's `upper` is not `is_safe`, so a safe input is escaped again.
                 let content = match content.resolve_string(py, template, context)? {
                     ContentString::HtmlSafe(content) => ContentString::HtmlUnsafe(content),
@@ -1059,31 +1081,31 @@ impl ResolveFilter for UpperFilter {
                 };
                 content.map_content(|content| Cow::Owned(content.to_uppercase()))
             }
-            None => "".as_content(),
+            ResolveContent::Missing(_) => "".as_content(),
         };
-        Ok(Some(content))
+        Ok(ResolveContent::Content(content))
     }
 }
 
 impl ResolveFilter for WordcountFilter {
     fn resolve<'t, 'py>(
         &self,
-        variable: Option<Content<'t, 'py>>,
+        variable: ResolveContent<'t, 'py>,
         py: Python<'py>,
         template: TemplateString<'t>,
         _template_name: &'t FileName,
         context: &mut Context,
-        _string_if_invalid: &'t str,
+        _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
-            Some(content) => {
+            ResolveContent::Content(content) => {
                 let content_string = content.resolve_string(py, template, context)?;
                 let word_count = content_string.as_raw().split_whitespace().count();
                 Content::Int(word_count.into())
             }
-            None => Content::Int(0.into()),
+            ResolveContent::Missing(_) => Content::Int(0.into()),
         };
-        Ok(Some(content))
+        Ok(ResolveContent::Content(content))
     }
 }
 
@@ -1300,30 +1322,32 @@ fn wordwrap(text: &str, width: usize) -> String {
 impl ResolveFilter for WordwrapFilter {
     fn resolve<'t, 'py>(
         &self,
-        variable: Option<Content<'t, 'py>>,
+        variable: ResolveContent<'t, 'py>,
         py: Python<'py>,
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
-        let Some(content) = variable else {
-            return Ok(Some("".as_content()));
+        let ResolveContent::Content(content) = variable else {
+            return Ok(ResolveContent::Content("".as_content()));
         };
 
         let text = content.resolve_string(py, template, context)?;
 
-        let arg = self
-            .argument
-            .resolve(
-                py,
-                template,
-                template_name,
-                context,
-                ResolveFailures::Raise,
-                string_if_invalid,
-            )?
-            .expect("missing argument in context should already have raised");
+        let arg = match self.argument.resolve(
+            py,
+            template,
+            template_name,
+            context,
+            ResolveFailures::Raise,
+            string_if_invalid,
+        )? {
+            ResolveContent::Content(content) => content,
+            ResolveContent::Missing(_) => {
+                unreachable!("missing argument in context should already have raised")
+            }
+        };
 
         // Check for negative values before converting to usize
         if let Some(bigint) = arg.to_bigint()
@@ -1344,32 +1368,37 @@ impl ResolveFilter for WordwrapFilter {
         };
 
         let wrapped = wordwrap(text.as_raw(), width);
-        Ok(Some(text.map_content(|_| Cow::Owned(wrapped))))
+        Ok(ResolveContent::Content(
+            text.map_content(|_| Cow::Owned(wrapped)),
+        ))
     }
 }
 
 impl ResolveFilter for YesnoFilter {
     fn resolve<'t, 'py>(
         &self,
-        variable: Option<Content<'t, 'py>>,
+        variable: ResolveContent<'t, 'py>,
         py: Python<'py>,
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let arg_string = match &self.argument {
             Some(arg) => {
-                let arg_content = arg
-                    .resolve(
-                        py,
-                        template,
-                        template_name,
-                        context,
-                        ResolveFailures::Raise,
-                        string_if_invalid,
-                    )?
-                    .expect("missing argument in context should already have raised");
+                let arg_content = match arg.resolve(
+                    py,
+                    template,
+                    template_name,
+                    context,
+                    ResolveFailures::Raise,
+                    string_if_invalid,
+                )? {
+                    ResolveContent::Content(content) => content,
+                    ResolveContent::Missing(_) => {
+                        unreachable!("missing argument in context should already have raised")
+                    }
+                };
                 arg_content
                     .resolve_string_strict(py, template, context, arg.at.into(), template_name)?
                     .into_raw()
@@ -1386,10 +1415,10 @@ impl ResolveFilter for YesnoFilter {
         };
 
         let result = match variable {
-            Some(Content::Py(PyContent {
+            ResolveContent::Content(Content::Py(PyContent {
                 content: ref obj, ..
             })) if obj.is_none() => maybe,
-            Some(content) => match content.to_bool() {
+            ResolveContent::Content(content) => match content.to_bool() {
                 Ok(true) => yes,
                 Ok(false) => no,
                 Err(error) => {
@@ -1397,10 +1426,10 @@ impl ResolveFilter for YesnoFilter {
                     return Err(error.into());
                 }
             },
-            None => no,
+            ResolveContent::Missing(_) => no,
         };
 
-        Ok(Some(result.to_string().into_content()))
+        Ok(ResolveContent::Content(result.to_string().into_content()))
     }
 }
 
@@ -1458,7 +1487,7 @@ mod tests {
             };
 
             let rendered = filter
-                .render(py, template, &FileName(None), &mut context, "")
+                .render(py, template, &FileName(None), &mut context, "".into())
                 .unwrap();
             assert_eq!(rendered, "Lily");
         });
@@ -1672,7 +1701,7 @@ mod tests {
             };
 
             let rendered = filter
-                .render(py, template, &FileName(None), &mut context, "")
+                .render(py, template, &FileName(None), &mut context, "".into())
                 .unwrap();
             assert_eq!(rendered, r"\'hello\'");
         });
@@ -1833,7 +1862,7 @@ mod tests {
             };
 
             let rendered = filter
-                .render(py, template, &FileName(None), &mut context, "")
+                .render(py, template, &FileName(None), &mut context, "".into())
                 .unwrap();
             assert_eq!(rendered, "Bryony");
         });
@@ -1862,7 +1891,7 @@ mod tests {
             };
 
             let rendered = filter
-                .render(py, template, &FileName(None), &mut context, "")
+                .render(py, template, &FileName(None), &mut context, "".into())
                 .unwrap();
             assert_eq!(rendered, "12");
         });
@@ -1891,7 +1920,7 @@ mod tests {
             };
 
             let rendered = filter
-                .render(py, template, &FileName(None), &mut context, "")
+                .render(py, template, &FileName(None), &mut context, "".into())
                 .unwrap();
             assert_eq!(rendered, "3.5");
         });
@@ -1921,7 +1950,7 @@ mod tests {
             };
 
             let rendered = filter
-                .render(py, template, &FileName(None), &mut context, "")
+                .render(py, template, &FileName(None), &mut context, "".into())
                 .unwrap();
             assert_eq!(rendered, "Lily");
         });
@@ -1945,7 +1974,7 @@ mod tests {
             };
 
             let rendered = filter
-                .render(py, template, &FileName(None), &mut context, "")
+                .render(py, template, &FileName(None), &mut context, "".into())
                 .unwrap();
             assert_eq!(rendered, "lily");
         });
@@ -1968,7 +1997,7 @@ mod tests {
             };
 
             let rendered = filter
-                .render(py, template, &FileName(None), &mut context, "")
+                .render(py, template, &FileName(None), &mut context, "".into())
                 .unwrap();
             assert_eq!(rendered, "");
         });
@@ -2003,7 +2032,7 @@ mod tests {
             };
 
             let rendered = lower
-                .render(py, template, &FileName(None), &mut context, "")
+                .render(py, template, &FileName(None), &mut context, "".into())
                 .unwrap();
             assert_eq!(rendered, "bryony");
         });
@@ -2027,7 +2056,7 @@ mod tests {
             };
 
             let rendered = filter
-                .render(py, template, &FileName(None), &mut context, "")
+                .render(py, template, &FileName(None), &mut context, "".into())
                 .unwrap();
             assert_eq!(rendered, "FOO");
         });
@@ -2050,7 +2079,7 @@ mod tests {
             };
 
             let rendered = filter
-                .render(py, template, &FileName(None), &mut context, "")
+                .render(py, template, &FileName(None), &mut context, "".into())
                 .unwrap();
             assert_eq!(rendered, "");
         });

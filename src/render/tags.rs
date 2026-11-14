@@ -19,7 +19,10 @@ use super::types::{
     AsBorrowedContent, BlockData, Content, ContentString, Context, IncludeTemplateKey, PyContent,
     PyContext,
 };
-use super::{Evaluate, FileName, Render, RenderResult, Resolve, ResolveFailures, ResolveResult};
+use super::{
+    Evaluate, FileName, Render, RenderResult, Resolve, ResolveContent, ResolveFailures,
+    ResolveResult, StringIfInvalid,
+};
 use crate::error::{AnnotatePyErr, PyRenderError, RenderError, TupleUnpackError};
 use crate::parse::{
     Block, CsrfToken, Cycle, CycleValue, Extends, FirstOf, For, GetBlocks, IfCondition, Include,
@@ -71,19 +74,19 @@ impl Resolve for Url {
         template_name: &'t FileName,
         context: &mut Context,
         failures: ResolveFailures,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
-        let view_name = match self.view_name.resolve(
-            py,
-            template,
-            template_name,
-            context,
-            failures,
-            string_if_invalid,
-        )? {
-            Some(view_name) => view_name,
-            None => "".as_content(),
-        };
+        let view_name = self
+            .view_name
+            .resolve(
+                py,
+                template,
+                template_name,
+                context,
+                failures,
+                string_if_invalid,
+            )?
+            .into_content();
         let reverse = REVERSE.import(py, "django.urls", "reverse")?;
 
         let current_app = current_app(py, context.request.as_ref())?;
@@ -99,7 +102,7 @@ impl Resolve for Url {
                         failures,
                         string_if_invalid,
                     )?
-                    .unwrap_or_else(|| "".as_content()),
+                    .into_content(),
                 )?;
             }
             reverse.call1((
@@ -123,7 +126,7 @@ impl Resolve for Url {
                             failures,
                             string_if_invalid,
                         )?
-                        .unwrap_or_else(|| "".as_content()),
+                        .into_content(),
                 )?;
             }
             reverse.call1((view_name, py.None(), py.None(), kwargs, current_app))
@@ -132,7 +135,7 @@ impl Resolve for Url {
             Ok(url) => Ok(url),
             Err(error) => Err(error.annotate(py, self.at, "here", template)),
         };
-        Ok(Some(match &self.asvar {
+        Ok(ResolveContent::Content(match &self.asvar {
             None => Content::Py(PyContent {
                 content: url?,
                 at: self.at,
@@ -156,7 +159,7 @@ impl Evaluate for Content<'_, '_> {
         _template: TemplateString<'_>,
         _template_name: &FileName,
         _context: &mut Context,
-        _string_if_invalid: &str,
+        _string_if_invalid: StringIfInvalid<'_>,
     ) -> Option<bool> {
         Some(match self {
             Self::Py(PyContent { content: obj, .. }) => obj.is_truthy().unwrap_or(false),
@@ -610,7 +613,7 @@ trait ResolveTuple<'t, 'py> {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> Result<(Option<Content<'t, 'py>>, Option<Content<'t, 'py>>), PyRenderError>;
 }
 
@@ -621,7 +624,7 @@ impl<'t, 'py> ResolveTuple<'t, 'py> for (IfCondition, IfCondition) {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> Result<(Option<Content<'t, 'py>>, Option<Content<'t, 'py>>), PyRenderError> {
         const IGNORE: ResolveFailures = ResolveFailures::IgnoreVariableDoesNotExist;
         Ok(match self {
@@ -642,7 +645,7 @@ impl<'t, 'py> ResolveTuple<'t, 'py> for (IfCondition, IfCondition) {
                     IGNORE,
                     string_if_invalid,
                 )?;
-                (left, right)
+                (left.maybe_content(), right.maybe_content())
             }
             (IfCondition::Variable(l), r) => {
                 let left = l.resolve(
@@ -656,7 +659,7 @@ impl<'t, 'py> ResolveTuple<'t, 'py> for (IfCondition, IfCondition) {
                 let right = r
                     .evaluate(py, template, template_name, context, string_if_invalid)
                     .expect("Right cannot be an expression that evaluates to None");
-                (left, Some(Content::Bool(right)))
+                (left.maybe_content(), Some(Content::Bool(right)))
             }
             (l, IfCondition::Variable(r)) => {
                 let left = l
@@ -670,7 +673,7 @@ impl<'t, 'py> ResolveTuple<'t, 'py> for (IfCondition, IfCondition) {
                     IGNORE,
                     string_if_invalid,
                 )?;
-                (Some(Content::Bool(left)), right)
+                (Some(Content::Bool(left)), right.maybe_content())
             }
             (l, r) => {
                 let left = l
@@ -693,7 +696,7 @@ impl Evaluate for IfCondition {
         template: TemplateString<'_>,
         template_name: &FileName,
         context: &mut Context,
-        string_if_invalid: &str,
+        string_if_invalid: StringIfInvalid<'_>,
     ) -> Option<bool> {
         Some(match self {
             Self::Variable(v) => {
@@ -816,7 +819,7 @@ impl Render for Tag {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> RenderResult<'t> {
         Ok(match self {
             Self::Cycle(cycle) => {
@@ -902,7 +905,7 @@ impl For {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> RenderResult<'t> {
         let mut list: Vec<_> = match iterable.try_iter() {
             Ok(iterator) => iterator.collect(),
@@ -960,7 +963,7 @@ impl For {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> RenderResult<'t> {
         if string.is_empty() {
             return self
@@ -1010,9 +1013,9 @@ impl Render for For {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> RenderResult<'t> {
-        let Some(iterable) = self.iterable.iterable.resolve(
+        let ResolveContent::Content(iterable) = self.iterable.iterable.resolve(
             py,
             template,
             template_name,
@@ -1099,7 +1102,7 @@ fn resolve_template_name<'t, 'py>(
     template: TemplateString<'t>,
     template_name: &'t FileName,
     context: &mut Context,
-    string_if_invalid: &'t str,
+    string_if_invalid: StringIfInvalid<'t>,
 ) -> Result<Content<'t, 'py>, PyRenderError> {
     let resolved_template_name = match included_template_name {
         IncludeTemplateName::Text(text) => text
@@ -1120,13 +1123,13 @@ fn resolve_template_name<'t, 'py>(
             ResolveFailures::Raise,
             string_if_invalid,
         )?,
-        IncludeTemplateName::Relative(relative) => Some(Content::String(ContentString::String(
-            Cow::Borrowed(&relative.path),
-        ))),
+        IncludeTemplateName::Relative(relative) => ResolveContent::Content(Content::String(
+            ContentString::String(Cow::Borrowed(&relative.path)),
+        )),
     };
     match resolved_template_name {
-        Some(included_template_name) => Ok(included_template_name),
-        None => {
+        ResolveContent::Content(included_template_name) => Ok(included_template_name),
+        ResolveContent::Missing(_) => {
             let error = TemplateDoesNotExist::new_err("No template names provided").annotate(
                 py,
                 template_at(included_template_name),
@@ -1269,7 +1272,7 @@ impl Render for Include {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> RenderResult<'t> {
         let render_context = std::mem::take(&mut context.render_context);
         let included_template_name = resolve_template_name(
@@ -1297,8 +1300,8 @@ impl Render for Include {
                         ResolveFailures::IgnoreVariableDoesNotExist,
                         string_if_invalid,
                     )? {
-                        Some(value) => values.push(value.to_py(py)),
-                        None => values.push(PyString::new(py, "").into_any()),
+                        ResolveContent::Content(value) => values.push(value.to_py(py)),
+                        ResolveContent::Missing(_) => values.push(PyString::new(py, "").into_any()),
                     }
                 }
                 for (key, value) in names.iter().zip(values) {
@@ -1322,7 +1325,7 @@ impl Render for Include {
                 let mut inner_context = HashMap::new();
                 for (at, element) in &self.kwargs {
                     let key = template.content(*at).to_string();
-                    if let Some(value) = element.resolve(
+                    if let ResolveContent::Content(value) = element.resolve(
                         py,
                         template,
                         template_name,
@@ -1403,7 +1406,7 @@ impl Extends {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> Result<Template, PyRenderError> {
         let template_name = resolve_template_name(
             py,
@@ -1456,7 +1459,7 @@ impl Render for Extends {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> RenderResult<'t> {
         let parent = self.get_template(py, template, template_name, context, string_if_invalid)?;
         let block_context = context.render_context.block_context.get_or_insert_default();
@@ -1507,7 +1510,7 @@ impl Render for Block {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> RenderResult<'t> {
         if context.render_context.block_context.is_none() {
             context.block = Some((self.clone(), template.to_string()));
@@ -1618,7 +1621,7 @@ fn build_arg<'py>(
     template_name: &FileName,
     context: &mut Context,
     arg: &TagElement,
-    string_if_invalid: &str,
+    string_if_invalid: StringIfInvalid<'_>,
 ) -> Result<Bound<'py, PyAny>, PyRenderError> {
     let arg = match arg.resolve(
         py,
@@ -1628,8 +1631,10 @@ fn build_arg<'py>(
         ResolveFailures::Raise,
         string_if_invalid,
     )? {
-        Some(arg) => arg.to_py(py),
-        None => PyString::intern(py, string_if_invalid).into_any(),
+        ResolveContent::Content(arg) => arg.to_py(py),
+        ResolveContent::Missing(variable) => {
+            PyString::intern(py, &string_if_invalid.format(variable)).into_any()
+        }
     };
     Ok(arg)
 }
@@ -1640,7 +1645,7 @@ fn build_args<'py>(
     template_name: &FileName,
     context: &mut Context,
     args: &[TagElement],
-    string_if_invalid: &str,
+    string_if_invalid: StringIfInvalid<'_>,
 ) -> Result<VecDeque<Bound<'py, PyAny>>, PyRenderError> {
     args.iter()
         .map(|arg| build_arg(py, template, template_name, context, arg, string_if_invalid))
@@ -1653,19 +1658,21 @@ fn build_kwargs<'py>(
     template_name: &FileName,
     context: &mut Context,
     kwargs: &Vec<(String, TagElement)>,
-    string_if_invalid: &str,
+    string_if_invalid: StringIfInvalid<'_>,
 ) -> Result<Bound<'py, PyDict>, PyRenderError> {
     let py_kwargs = PyDict::new(py);
     for (key, value) in kwargs {
-        let value = value.resolve(
+        match value.resolve(
             py,
             template,
             template_name,
             context,
             ResolveFailures::Raise,
             string_if_invalid,
-        )?;
-        py_kwargs.set_item(key, value)?;
+        )? {
+            ResolveContent::Content(value) => py_kwargs.set_item(key, value)?,
+            ResolveContent::Missing(_) => py_kwargs.set_item(key, py.None())?,
+        }
     }
     Ok(py_kwargs)
 }
@@ -1693,7 +1700,7 @@ impl Render for SimpleTag {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> RenderResult<'t> {
         let mut args = build_args(
             py,
@@ -1741,7 +1748,7 @@ impl Render for SimpleBlockTag {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> RenderResult<'t> {
         let mut args = build_args(
             py,
@@ -1796,7 +1803,7 @@ impl Render for Now {
         template: TemplateString<'t>,
         _template_name: &'t FileName,
         context: &mut Context,
-        _string_if_invalid: &'t str,
+        _string_if_invalid: StringIfInvalid<'t>,
     ) -> RenderResult<'t> {
         let tz_mod = DJANGO_TIMEZONE
             .get_or_try_init(py, || -> Result<Py<PyAny>, PyRenderError> {
@@ -1863,7 +1870,7 @@ impl Render for CsrfToken {
         _template: TemplateString<'t>,
         _template_name: &'t FileName,
         context: &mut Context,
-        _string_if_invalid: &'t str,
+        _string_if_invalid: StringIfInvalid<'t>,
     ) -> RenderResult<'t> {
         match context.get("csrf_token") {
             Some(token) => {
@@ -1904,7 +1911,7 @@ impl Render for Lorem {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> RenderResult<'t> {
         let count_content = self.count.resolve(
             py,
@@ -1914,10 +1921,10 @@ impl Render for Lorem {
             ResolveFailures::IgnoreVariableDoesNotExist,
             string_if_invalid,
         )?;
-        let val = count_content
-            .and_then(|c| c.to_bigint())
-            .and_then(|n| n.to_i64())
-            .unwrap_or(1);
+        let val = match count_content {
+            ResolveContent::Content(c) => c.to_bigint().and_then(|n| n.to_i64()).unwrap_or(1),
+            ResolveContent::Missing(_) => 1,
+        };
 
         let text = match self.method {
             LoremMethod::Words => {
@@ -1960,10 +1967,10 @@ impl Render for FirstOf {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> RenderResult<'t> {
         for var in &self.vars {
-            if let Some(content) = var.resolve(
+            if let ResolveContent::Content(content) = var.resolve(
                 py,
                 template,
                 template_name,
@@ -1990,7 +1997,7 @@ impl Render for FirstOf {
 
 struct ResolvedCycleValue<'t, 'py> {
     at: At,
-    content: Option<Content<'t, 'py>>,
+    content: ResolveContent<'t, 'py>,
 }
 
 impl SimpleCycle {
@@ -2000,7 +2007,7 @@ impl SimpleCycle {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> Result<ResolvedCycleValue<'t, 'py>, PyRenderError> {
         let index = context.next_cycle_index(self.id, self.values.len());
         let CycleValue { value, at } = &self.values[index];
@@ -2023,21 +2030,23 @@ impl NamedCycle {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> Result<ResolvedCycleValue<'t, 'py>, PyRenderError> {
         let ResolvedCycleValue { at, content } =
             self.cycle
                 .resolve_next(py, template, template_name, context, string_if_invalid)?;
 
-        if let Some(content) = &content {
-            context.insert(self.asvar.clone(), content.to_py(py));
-        } else {
-            context.insert(
-                self.asvar.clone(),
-                PyString::new(py, string_if_invalid).into_any(),
-            );
+        match content {
+            ResolveContent::Content(ref content) => {
+                context.insert(self.asvar.clone(), content.to_py(py));
+            }
+            ResolveContent::Missing(variable) => {
+                context.insert(
+                    self.asvar.clone(),
+                    PyString::new(py, &string_if_invalid.format(variable)).into_any(),
+                );
+            }
         }
-
         Ok(ResolvedCycleValue { at, content })
     }
 }
@@ -2049,15 +2058,14 @@ impl Render for SimpleCycle {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> RenderResult<'t> {
         let ResolvedCycleValue { content, .. } =
             self.resolve_next(py, template, template_name, context, string_if_invalid)?;
-        let Some(content) = content else {
-            return Ok(Cow::Borrowed(string_if_invalid));
-        };
-
-        Ok(content.render(py, template, context)?)
+        Ok(match content {
+            ResolveContent::Content(content) => content.render(py, template, context)?,
+            ResolveContent::Missing(variable) => string_if_invalid.format(variable),
+        })
     }
 }
 
@@ -2068,15 +2076,14 @@ impl Render for NamedCycle {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> RenderResult<'t> {
         let ResolvedCycleValue { content, .. } =
             self.resolve_and_store(py, template, template_name, context, string_if_invalid)?;
-        let Some(content) = content else {
-            return Ok(Cow::Borrowed(string_if_invalid));
-        };
-
-        Ok(content.render(py, template, context)?)
+        Ok(match content {
+            ResolveContent::Content(content) => content.render(py, template, context)?,
+            ResolveContent::Missing(variable) => string_if_invalid.format(variable),
+        })
     }
 }
 
@@ -2087,7 +2094,7 @@ impl Render for SilentNamedCycle {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> RenderResult<'t> {
         self.cycle
             .resolve_and_store(py, template, template_name, context, string_if_invalid)?;
@@ -2102,7 +2109,7 @@ impl Render for Cycle {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
-        string_if_invalid: &'t str,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> RenderResult<'t> {
         match self {
             Self::Simple(cycle) => {
