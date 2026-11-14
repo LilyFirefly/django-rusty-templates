@@ -101,3 +101,14 @@ def test_url_tag_as_var_with_string_if_invalid(engine_class):
     template = engine.get_template("template")
 
     assert template.render(context={}) == ""
+
+
+def test_url_tag_missing_view_as_var_with_string_if_invalid(engine_class):
+    template_string = "{% url 'missing' as missing %}{{ missing }}"
+    config = locmem_config({"template": template_string})
+    config["OPTIONS"]["string_if_invalid"] = "INVALID"
+    engine = engine_class(config)
+
+    template = engine.get_template("template")
+
+    assert template.render(context={}) == ""
