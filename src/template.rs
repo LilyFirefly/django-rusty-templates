@@ -583,7 +583,13 @@ pub mod django_rusty_templates {
             let mut rendered = String::with_capacity(self.template.len());
             let template = TemplateString(&self.template);
             for node in &self.nodes {
-                let content = node.render(py, template, &self.filename, context)?;
+                let content = node.render(
+                    py,
+                    template,
+                    &self.filename,
+                    context,
+                    &self.engine.string_if_invalid,
+                )?;
                 rendered.push_str(&content);
             }
             Ok(rendered)
