@@ -1022,7 +1022,7 @@ mod tests {
         Python::attach(|py| {
             let name = PyString::new(py, "Lily").into_any();
             let context = HashMap::from([("name".to_string(), name.unbind())]);
-            let mut context = Context::new(context, None, false, Vec::new());
+            let mut context = Context::new(context, None, false, Vec::new(), "".into());
             let template = TemplateString("{{ name|default:'Bryony' }}");
             let variable = Variable::Variable((3, 4));
             let filter = Filter {
@@ -1242,7 +1242,7 @@ mod tests {
         Python::attach(|py| {
             let name = PyString::new(py, "'hello'").into_any();
             let context = HashMap::from([("quotes".to_string(), name.unbind())]);
-            let mut context = Context::new(context, None, false, Vec::new());
+            let mut context = Context::new(context, None, false, Vec::new(), "".into());
             let template = TemplateString("{{ quotes|addslashes }}");
             let variable = Variable::Variable((3, 6));
             let filter = Filter {
@@ -1397,7 +1397,7 @@ mod tests {
 
         Python::attach(|py| {
             let context = HashMap::new();
-            let mut context = Context::new(context, None, false, Vec::new());
+            let mut context = Context::new(context, None, false, Vec::new(), "".into());
             let template = TemplateString("{{ name|default:'Bryony' }}");
             let variable = Variable::Variable((3, 4));
             let filter = Filter {
@@ -1426,7 +1426,7 @@ mod tests {
 
         Python::attach(|py| {
             let context = HashMap::new();
-            let mut context = Context::new(context, None, false, Vec::new());
+            let mut context = Context::new(context, None, false, Vec::new(), "".into());
             let template = TemplateString("{{ count|default:12}}");
             let variable = Variable::Variable((3, 5));
             let filter = Filter {
@@ -1455,7 +1455,7 @@ mod tests {
 
         Python::attach(|py| {
             let context = HashMap::new();
-            let mut context = Context::new(context, None, false, Vec::new());
+            let mut context = Context::new(context, None, false, Vec::new(), "".into());
             let template = TemplateString("{{ count|default:3.5}}");
             let variable = Variable::Variable((3, 5));
             let filter = Filter {
@@ -1485,7 +1485,7 @@ mod tests {
         Python::attach(|py| {
             let me = PyString::new(py, "Lily").into_any();
             let context = HashMap::from([("me".to_string(), me.unbind())]);
-            let mut context = Context::new(context, None, false, Vec::new());
+            let mut context = Context::new(context, None, false, Vec::new(), "".into());
             let template = TemplateString("{{ name|default:me}}");
             let variable = Variable::Variable((3, 4));
             let filter = Filter {
@@ -1515,7 +1515,7 @@ mod tests {
         Python::attach(|py| {
             let name = PyString::new(py, "Lily").into_any();
             let context = HashMap::from([("name".to_string(), name.unbind())]);
-            let mut context = Context::new(context, None, false, Vec::new());
+            let mut context = Context::new(context, None, false, Vec::new(), "".into());
             let template = TemplateString("{{ name|lower }}");
             let variable = Variable::Variable((3, 4));
             let filter = Filter {
@@ -1538,7 +1538,7 @@ mod tests {
 
         Python::attach(|py| {
             let context = HashMap::new();
-            let mut context = Context::new(context, None, false, Vec::new());
+            let mut context = Context::new(context, None, false, Vec::new(), "".into());
             let template = TemplateString("{{ name|lower }}");
             let variable = Variable::Variable((3, 4));
             let filter = Filter {
@@ -1561,7 +1561,7 @@ mod tests {
 
         Python::attach(|py| {
             let context = HashMap::new();
-            let mut context = Context::new(context, None, false, Vec::new());
+            let mut context = Context::new(context, None, false, Vec::new(), "".into());
             let template = TemplateString("{{ name|default:'Bryony'|lower }}");
             let variable = Variable::Variable((3, 4));
             let default = Filter {
@@ -1597,7 +1597,7 @@ mod tests {
         Python::attach(|py| {
             let name = PyString::new(py, "Foo").into_any();
             let context = HashMap::from([("name".to_string(), name.unbind())]);
-            let mut context = Context::new(context, None, false, Vec::new());
+            let mut context = Context::new(context, None, false, Vec::new(), "".into());
             let template = TemplateString("{{ name|upper }}");
             let variable = Variable::Variable((3, 4));
             let filter = Filter {
@@ -1620,7 +1620,7 @@ mod tests {
 
         Python::attach(|py| {
             let context = HashMap::new();
-            let mut context = Context::new(context, None, false, Vec::new());
+            let mut context = Context::new(context, None, false, Vec::new(), "".into());
             let template = TemplateString("{{ name|upper }}");
             let variable = Variable::Variable((3, 4));
             let filter = Filter {

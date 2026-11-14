@@ -117,6 +117,7 @@ pub struct Context {
     cycle_indices: HashMap<CycleId, usize>,
     pub block: Option<(Block, String)>,
     pub render_context: RenderContext,
+    pub string_if_invalid: Cow<'static, str>,
 }
 
 impl Context {
@@ -125,6 +126,7 @@ impl Context {
         request: Option<Py<PyAny>>,
         autoescape: bool,
         loops: Vec<ForLoop>,
+        string_if_invalid: Cow<'static, str>,
     ) -> Self {
         let context = context.into_iter().map(|(k, v)| (k, vec![v])).collect();
         Self {
@@ -137,6 +139,7 @@ impl Context {
             cycle_indices: HashMap::new(),
             block: None,
             render_context: RenderContext::default(),
+            string_if_invalid,
         }
     }
 
@@ -155,6 +158,7 @@ impl Context {
             cycle_indices: self.cycle_indices.clone(),
             block: self.block.clone(),
             render_context: self.render_context.clone(),
+            string_if_invalid: self.string_if_invalid.clone(),
         }
     }
 
