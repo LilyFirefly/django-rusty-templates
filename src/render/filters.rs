@@ -300,19 +300,20 @@ impl ResolveFilter for AddFilter {
                 string_if_invalid,
             )?
             .expect("missing argument in context should already have raised");
-        Ok(match (variable.to_bigint(), right.to_bigint()) {
-            (Some(variable), Some(right)) => Some(Content::Int(variable + right)),
+        Ok(Some(match (variable.to_bigint(), right.to_bigint()) {
+            (Some(variable), Some(right)) => Content::Int(variable + right),
             _ => {
                 let variable = variable.to_py(py);
                 let right = right.to_py(py);
-                variable.add(right).ok().map(|variable| {
-                    Content::Py(PyContent {
+                match variable.add(right) {
+                    Ok(variable) => Content::Py(PyContent {
                         content: variable,
                         at: self.argument.at,
-                    })
-                })
+                    }),
+                    Err(_) => "".as_content(),
+                }
             }
-        })
+        }))
     }
 }
 

@@ -79,3 +79,14 @@ def test_invalid_variable_in_silent_named_cycle(engine_class):
     template = engine.get_template("template")
 
     assert template.render(context={"items": range(2)}) == "INVALIDb"
+
+
+def test_invalid_addition_in_add_filter_with_string_if_invalid(engine_class):
+    template_string = "{{ number|add:'string' }}"
+    config = locmem_config({"template": template_string})
+    config["OPTIONS"]["string_if_invalid"] = "INVALID"
+    engine = engine_class(config)
+
+    template = engine.get_template("template")
+
+    assert template.render(context={"number": 2}) == ""
