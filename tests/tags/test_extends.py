@@ -7,6 +7,7 @@ from django.template.base import VariableDoesNotExist
 from django.template.exceptions import TemplateDoesNotExist
 from django.utils.translation import gettext_lazy
 from inline_snapshot import snapshot
+from ..conftest import locmem_config
 
 
 def test_blocks(assert_render):
@@ -884,22 +885,7 @@ def test_extends_locmem_loader(engine_class):
     child = "{% extends 'parent' %}{% block extra %}{{ block.super }} Child content.{% endblock extra %}"
     parent = "{% extends 'parent' %}{% block extra %}Intermediate content.{% endblock extra %}"
     base = "{% block main %}Parent content.{% endblock main %} {% block extra %}{% endblock extra %}"
-    loaders = [
-        (
-            "django.template.loaders.locmem.Loader",
-            {"parent": parent},
-        ),
-        (
-            "django.template.loaders.locmem.Loader",
-            {"child": child, "parent": base},
-        ),
-    ]
-    config = {
-        "OPTIONS": {"loaders": loaders},
-        "NAME": "locmem",
-        "DIRS": (),
-        "APP_DIRS": False,
-    }
+    config = locmem_config({"parent": parent}, {"child": child, "parent": base})
     engine = engine_class(config)
 
     template = engine.get_template("child")
@@ -907,24 +893,14 @@ def test_extends_locmem_loader(engine_class):
 
 
 def test_include_block_uses_isolated_context(engine_class):
-    loaders = [
-        (
-            "django.template.loaders.locmem.Loader",
-            {
-                "child.html": "{% extends 'base.html' %}",
-                "base.html": (
-                    "{% block body %}{% include 'other_template_content.html' %}{% endblock %}"
-                ),
-                "other_template_content.html": "{% block other_template_content %}other_template_content{% endblock %}",
-            },
+    templates = {
+        "child.html": "{% extends 'base.html' %}",
+        "base.html": (
+            "{% block body %}{% include 'other_template_content.html' %}{% endblock %}"
         ),
-    ]
-    config = {
-        "OPTIONS": {"loaders": loaders},
-        "NAME": "locmem",
-        "DIRS": (),
-        "APP_DIRS": False,
+        "other_template_content.html": "{% block other_template_content %}other_template_content{% endblock %}",
     }
+    config = locmem_config(templates)
     engine = engine_class(config)
 
     template = engine.get_template("child.html")
