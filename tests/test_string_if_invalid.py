@@ -22,3 +22,25 @@ def test_invalid_variable_in_block_super(engine_class):
     template = engine.get_template("child")
 
     assert template.render(context={}) == "INVALID"
+
+
+def test_invalid_variable_in_simple_tag(engine_class):
+    template_string = "{% load double from custom_tags %}{% double missing %}"
+    config = locmem_config({"template": template_string})
+    config["OPTIONS"]["string_if_invalid"] = "INVALID"
+    engine = engine_class(config)
+
+    template = engine.get_template("template")
+
+    assert template.render(context={}) == "INVALIDINVALID"
+
+
+def test_invalid_variable_in_simple_block_tag(engine_class):
+    template_string = "{% load repeat_prefix from custom_tags %}{% repeat_prefix 2 missing %}inner{% endrepeat_prefix %}"
+    config = locmem_config({"template": template_string})
+    config["OPTIONS"]["string_if_invalid"] = "INVALID"
+    engine = engine_class(config)
+
+    template = engine.get_template("template")
+
+    assert template.render(context={}) == "INVALIDinnerINVALIDinner"

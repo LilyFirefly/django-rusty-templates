@@ -1627,7 +1627,7 @@ fn build_arg<'py>(
         string_if_invalid,
     )? {
         Some(arg) => arg.to_py(py),
-        None => PyString::intern(py, "").into_any(),
+        None => PyString::intern(py, string_if_invalid).into_any(),
     };
     Ok(arg)
 }

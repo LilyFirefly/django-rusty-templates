@@ -77,6 +77,11 @@ def repeat(content, count):
     return content * count
 
 
+@register.simple_block_tag
+def repeat_prefix(content, count, prefix):
+    return (prefix + content) * count
+
+
 @register.simple_block_tag(takes_context=True, end_name="end_with_block")
 def with_block(context, content, *, var):
     context[var] = content
