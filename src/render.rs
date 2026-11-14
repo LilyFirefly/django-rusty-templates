@@ -45,6 +45,7 @@ trait Resolve {
         template_name: &'t FileName,
         context: &mut Context,
         failures: ResolveFailures,
+        string_if_invalid: &'t str,
     ) -> ResolveResult<'t, 'py>;
 }
 
@@ -57,6 +58,7 @@ pub trait Render {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
+        string_if_invalid: &'t str,
     ) -> RenderResult<'t>;
 }
 
@@ -68,6 +70,7 @@ pub trait Evaluate {
         template: TemplateString<'_>,
         template_name: &FileName,
         context: &mut Context,
+        string_if_invalid: &str,
     ) -> Option<bool>;
 }
 
@@ -81,9 +84,10 @@ where
         template: TemplateString<'_>,
         template_name: &FileName,
         context: &mut Context,
+        string_if_invalid: &str,
     ) -> Option<bool> {
         match self {
-            Some(inner) => inner.evaluate(py, template, template_name, context),
+            Some(inner) => inner.evaluate(py, template, template_name, context, string_if_invalid),
             None => Some(false),
         }
     }
@@ -100,10 +104,18 @@ where
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
+        string_if_invalid: &'t str,
     ) -> RenderResult<'t> {
-        match self.resolve(py, template, template_name, context, ResolveFailures::Raise)? {
+        match self.resolve(
+            py,
+            template,
+            template_name,
+            context,
+            ResolveFailures::Raise,
+            string_if_invalid,
+        )? {
             Some(content) => Ok(content.render(py, template, context)?),
-            None => Ok(Cow::Borrowed("")),
+            None => Ok(string_if_invalid.into()),
         }
     }
 }
@@ -118,13 +130,16 @@ where
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
+        string_if_invalid: &'t str,
     ) -> RenderResult<'t> {
         match self.len() {
             0 => Ok(Cow::Borrowed("")),
-            1 => self[0].render(py, template, template_name, context),
+            1 => self[0].render(py, template, template_name, context, string_if_invalid),
             _ => Ok(Cow::Owned(
                 self.iter()
-                    .map(|node| node.render(py, template, template_name, context))
+                    .map(|node| {
+                        node.render(py, template, template_name, context, string_if_invalid)
+                    })
                     .collect::<Result<Vec<_>, _>>()?
                     .join(""),
             )),
@@ -142,9 +157,10 @@ where
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
+        string_if_invalid: &'t str,
     ) -> RenderResult<'t> {
         Ok(match self {
-            Some(inner) => inner.render(py, template, template_name, context)?,
+            Some(inner) => inner.render(py, template, template_name, context, string_if_invalid)?,
             None => Cow::Borrowed(""),
         })
     }

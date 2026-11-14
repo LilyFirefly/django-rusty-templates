@@ -62,6 +62,7 @@ impl Resolve for Variable {
         template_name: &'t FileName,
         context: &mut Context,
         failures: ResolveFailures,
+        string_if_invalid: &'t str,
     ) -> ResolveResult<'t, 'py> {
         match self {
             Self::Variable(at) => {
@@ -122,10 +123,22 @@ impl Resolve for Variable {
                     at: *at,
                 })))
             }
-            Self::ForVariable(for_variable) => {
-                for_variable.resolve(py, template, template_name, context, failures)
-            }
-            Self::BlockSuper => BlockSuper.resolve(py, template, template_name, context, failures),
+            Self::ForVariable(for_variable) => for_variable.resolve(
+                py,
+                template,
+                template_name,
+                context,
+                failures,
+                string_if_invalid,
+            ),
+            Self::BlockSuper => BlockSuper.resolve(
+                py,
+                template,
+                template_name,
+                context,
+                failures,
+                string_if_invalid,
+            ),
         }
     }
 }
@@ -138,12 +151,20 @@ impl Resolve for ForVariable {
         template_name: &'t FileName,
         context: &mut Context,
         failures: ResolveFailures,
+        string_if_invalid: &'t str,
     ) -> ResolveResult<'t, 'py> {
         let Some(for_loop) = context.get_for_loop(self.parent_count) else {
             match context.loops.is_empty() || context.loops.len() < self.parent_count {
                 true => {
                     let variable = Variable::Variable(self.at);
-                    return variable.resolve(py, template, template_name, context, failures);
+                    return variable.resolve(
+                        py,
+                        template,
+                        template_name,
+                        context,
+                        failures,
+                        string_if_invalid,
+                    );
                 }
                 false => return Ok(Some("{}".as_content())),
             }
@@ -173,13 +194,20 @@ impl Resolve for BlockSuper {
         template_name: &'t FileName,
         context: &mut Context,
         _failures: ResolveFailures,
+        string_if_invalid: &'t str,
     ) -> ResolveResult<'t, 'py> {
         let (block, template) = context
             .block
             .take()
             .expect("Should already have raised if None.");
         let rendered = block
-            .render(py, TemplateString(&template), template_name, context)
+            .render(
+                py,
+                TemplateString(&template),
+                template_name,
+                context,
+                string_if_invalid,
+            )
             .map(|content| content.to_string());
         let rendered = match rendered {
             Ok(content) => Ok(content.into_content()),
@@ -203,6 +231,7 @@ impl Resolve for Text {
         _template_name: &'t FileName,
         context: &mut Context,
         _failures: ResolveFailures,
+        _string_if_invalid: &'t str,
     ) -> ResolveResult<'t, 'py> {
         let resolved = Cow::Borrowed(template.content(self.at));
         Ok(Some(Content::String(match context.autoescape {
@@ -220,6 +249,7 @@ impl Resolve for TranslatedText {
         _template_name: &'t FileName,
         context: &mut Context,
         _failures: ResolveFailures,
+        _string_if_invalid: &'t str,
     ) -> ResolveResult<'t, 'py> {
         let text = template.content(self.at);
         let resolved = gettext(py, text)?;
@@ -238,16 +268,38 @@ impl Resolve for Argument {
         template_name: &'t FileName,
         context: &mut Context,
         failures: ResolveFailures,
+        string_if_invalid: &'t str,
     ) -> ResolveResult<'t, 'py> {
         Ok(Some(match &self.argument_type {
             ArgumentType::Text(text) => {
-                return text.resolve(py, template, template_name, context, failures);
+                return text.resolve(
+                    py,
+                    template,
+                    template_name,
+                    context,
+                    failures,
+                    string_if_invalid,
+                );
             }
             ArgumentType::TranslatedText(text) => {
-                return text.resolve(py, template, template_name, context, failures);
+                return text.resolve(
+                    py,
+                    template,
+                    template_name,
+                    context,
+                    failures,
+                    string_if_invalid,
+                );
             }
             ArgumentType::Variable(variable) => {
-                match variable.resolve(py, template, template_name, context, failures)? {
+                match variable.resolve(
+                    py,
+                    template,
+                    template_name,
+                    context,
+                    failures,
+                    string_if_invalid,
+                )? {
                     Some(content) => content,
                     None => {
                         let at = match variable {
@@ -289,15 +341,33 @@ impl Resolve for TagElement {
         template_name: &'t FileName,
         context: &mut Context,
         failures: ResolveFailures,
+        string_if_invalid: &'t str,
     ) -> ResolveResult<'t, 'py> {
         match self {
-            Self::Text(text) | Self::TranslatedText(text) => {
-                text.resolve(py, template, template_name, context, failures)
-            }
-            Self::Variable(variable) => {
-                variable.resolve(py, template, template_name, context, failures)
-            }
-            Self::Filter(filter) => filter.resolve(py, template, template_name, context, failures),
+            Self::Text(text) | Self::TranslatedText(text) => text.resolve(
+                py,
+                template,
+                template_name,
+                context,
+                failures,
+                string_if_invalid,
+            ),
+            Self::Variable(variable) => variable.resolve(
+                py,
+                template,
+                template_name,
+                context,
+                failures,
+                string_if_invalid,
+            ),
+            Self::Filter(filter) => filter.resolve(
+                py,
+                template,
+                template_name,
+                context,
+                failures,
+                string_if_invalid,
+            ),
             Self::Int(int) => Ok(Some(Content::Int(int.clone()))),
             Self::Float(float) => Ok(Some(Content::Float(*float))),
         }
@@ -311,6 +381,7 @@ impl Evaluate for TagElement {
         template: TemplateString<'_>,
         template_name: &FileName,
         context: &mut Context,
+        string_if_invalid: &str,
     ) -> Option<bool> {
         self.resolve(
             py,
@@ -318,9 +389,10 @@ impl Evaluate for TagElement {
             template_name,
             context,
             ResolveFailures::IgnoreVariableDoesNotExist,
+            string_if_invalid,
         )
         .ok()?
-        .evaluate(py, template, template_name, context)
+        .evaluate(py, template, template_name, context, string_if_invalid)
     }
 }
 
@@ -331,15 +403,22 @@ impl Render for TokenTree {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
+        string_if_invalid: &'t str,
     ) -> RenderResult<'t> {
         match self {
-            Self::Text(text) => text.render(py, template, template_name, context),
+            Self::Text(text) => {
+                text.render(py, template, template_name, context, string_if_invalid)
+            }
             Self::TranslatedText(_text) => todo!(),
             Self::Int(n) => Ok(n.to_string().into()),
             Self::Float(f) => Ok(f.to_string().into()),
-            Self::Tag(tag) => tag.render(py, template, template_name, context),
-            Self::Variable(variable) => variable.render(py, template, template_name, context),
-            Self::Filter(filter) => filter.render(py, template, template_name, context),
+            Self::Tag(tag) => tag.render(py, template, template_name, context, string_if_invalid),
+            Self::Variable(variable) => {
+                variable.render(py, template, template_name, context, string_if_invalid)
+            }
+            Self::Filter(filter) => {
+                filter.render(py, template, template_name, context, string_if_invalid)
+            }
         }
     }
 }
@@ -364,7 +443,7 @@ mod tests {
             let variable = Variable::Variable((3, 4));
 
             let rendered = variable
-                .render(py, template, &FileName(None), &mut context)
+                .render(py, template, &FileName(None), &mut context, "")
                 .unwrap();
             assert_eq!(rendered, "Lily");
         });
@@ -384,7 +463,7 @@ mod tests {
             let variable = Variable::Variable((3, 9));
 
             let rendered = variable
-                .render(py, template, &FileName(None), &mut context)
+                .render(py, template, &FileName(None), &mut context, "")
                 .unwrap();
             assert_eq!(rendered, "Lily");
         });
@@ -403,7 +482,7 @@ mod tests {
             let variable = Variable::Variable((3, 7));
 
             let rendered = variable
-                .render(py, template, &FileName(None), &mut context)
+                .render(py, template, &FileName(None), &mut context, "")
                 .unwrap();
             assert_eq!(rendered, "Lily");
         });
@@ -434,7 +513,7 @@ user = User('Lily')
             let variable = Variable::Variable((3, 9));
 
             let rendered = variable
-                .render(py, template, &FileName(None), &mut context)
+                .render(py, template, &FileName(None), &mut context, "")
                 .unwrap();
             assert_eq!(rendered, "Lily");
         });
@@ -452,7 +531,7 @@ user = User('Lily')
             let html = Variable::Variable((3, 4));
 
             let rendered = html
-                .render(py, template, &FileName(None), &mut context)
+                .render(py, template, &FileName(None), &mut context, "")
                 .unwrap();
             assert_eq!(rendered, "&lt;p&gt;Hello World!&lt;/p&gt;");
         });
