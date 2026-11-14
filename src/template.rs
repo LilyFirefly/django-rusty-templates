@@ -599,7 +599,7 @@ pub mod django_rusty_templates {
                     template,
                     &self.filename,
                     context,
-                    &self.engine.string_if_invalid,
+                    (*self.engine.string_if_invalid).into(),
                 )?;
                 rendered.push_str(&content);
             }
