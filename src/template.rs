@@ -651,9 +651,21 @@ pub mod django_rusty_templates {
                 Some(context) => {
                     let new_context: HashMap<_, _> = context.extract()?;
                     base_context.extend(new_context);
-                    Context::new(base_context, request, self.engine.autoescape, Vec::new())
+                    Context::new(
+                        base_context,
+                        request,
+                        self.engine.autoescape,
+                        Vec::new(),
+                        self.engine.string_if_invalid.clone().into(),
+                    )
                 }
-                None => Context::new(base_context, request, self.engine.autoescape, Vec::new()),
+                None => Context::new(
+                    base_context,
+                    request,
+                    self.engine.autoescape,
+                    Vec::new(),
+                    self.engine.string_if_invalid.clone().into(),
+                ),
             };
 
             self._render(py, &mut context)

@@ -1241,8 +1241,13 @@ impl Render for Include {
                     true => context.loops.clone(),
                     false => Vec::new(),
                 };
-                let mut new_context =
-                    Context::new(inner_context, request, context.autoescape, loops);
+                let mut new_context = Context::new(
+                    inner_context,
+                    request,
+                    context.autoescape,
+                    loops,
+                    context.string_if_invalid.clone(),
+                );
                 include
                     .render(
                         py,

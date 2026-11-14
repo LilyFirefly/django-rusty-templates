@@ -103,7 +103,7 @@ where
     ) -> RenderResult<'t> {
         match self.resolve(py, template, template_name, context, ResolveFailures::Raise)? {
             Some(content) => Ok(content.render(py, template, context)?),
-            None => Ok(Cow::Borrowed("")),
+            None => Ok(context.string_if_invalid.clone()),
         }
     }
 }
