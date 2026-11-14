@@ -132,18 +132,18 @@ impl Resolve for Url {
             Ok(url) => Ok(url),
             Err(error) => Err(error.annotate(py, self.at, "here", template)),
         };
-        match &self.asvar {
-            None => Ok(Some(Content::Py(PyContent {
+        Ok(Some(match &self.asvar {
+            None => Content::Py(PyContent {
                 content: url?,
                 at: self.at,
-            }))),
+            }),
             Some(variable) => {
                 if let Ok(url) = url.ok_or_isinstance_of::<NoReverseMatch>(py)? {
                     context.insert(variable.clone(), url);
                 }
-                Ok(None)
+                "".as_content()
             }
-        }
+        }))
     }
 }
 

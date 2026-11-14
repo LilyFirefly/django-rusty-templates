@@ -90,3 +90,14 @@ def test_invalid_addition_in_add_filter_with_string_if_invalid(engine_class):
     template = engine.get_template("template")
 
     assert template.render(context={"number": 2}) == ""
+
+
+def test_url_tag_as_var_with_string_if_invalid(engine_class):
+    template_string = "{% url 'home' as home %}"
+    config = locmem_config({"template": template_string})
+    config["OPTIONS"]["string_if_invalid"] = "INVALID"
+    engine = engine_class(config)
+
+    template = engine.get_template("template")
+
+    assert template.render(context={}) == ""
