@@ -140,6 +140,8 @@ impl Resolve for Url {
             Some(variable) => {
                 if let Ok(url) = url.ok_or_isinstance_of::<NoReverseMatch>(py)? {
                     context.insert(variable.clone(), url);
+                } else {
+                    context.insert(variable.clone(), intern!(py, "").clone().into_any());
                 }
                 "".as_content()
             }
