@@ -1914,6 +1914,7 @@ impl<'t, 'py> Parser<'t, 'py> {
                     parts: None,
                 })
             }
+            "verbatim" => Either::Left(self.parse_verbatim(at)?),
             "endverbatim" => Either::Right(EndTag {
                 end: EndTagType::Verbatim,
                 at,
@@ -2531,6 +2532,12 @@ impl<'t, 'py> Parser<'t, 'py> {
             only: only.is_some(),
         };
         Ok(TokenTree::Tag(Tag::Include(include)))
+    }
+
+    fn parse_verbatim(&mut self, at: At) -> Result<TokenTree, PyParseError> {
+        let (_, end_tag) = self.parse_until(vec![EndTagType::Verbatim], "verbatim".into(), at)?;
+        let start = at.0 + at.1;
+        Ok(TokenTree::Text(Text::new((start, end_tag.at.0 - start))))
     }
 
     fn parse_autoescape(&mut self, at: At, parts: TagParts) -> Result<TokenTree, PyParseError> {
