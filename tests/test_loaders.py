@@ -3,22 +3,12 @@ from django.template import TemplateSyntaxError
 from inline_snapshot import snapshot
 
 from django_rusty_templates import RustyTemplates
+from .conftest import locmem_config
 
 
 def test_extends_locmem_loader(engine_class):
     template = "{{ }}"
-    loaders = [
-        (
-            "django.template.loaders.locmem.Loader",
-            {"template": template},
-        ),
-    ]
-    config = {
-        "OPTIONS": {"loaders": loaders},
-        "NAME": "locmem",
-        "DIRS": (),
-        "APP_DIRS": False,
-    }
+    config = locmem_config({"template": template})
     engine = engine_class(config)
 
     with pytest.raises(TemplateSyntaxError) as exc_info:
