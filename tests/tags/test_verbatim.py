@@ -12,6 +12,8 @@ from inline_snapshot import snapshot
             "{% verbatim x %}{% endverbatim %}{% endverbatim x %}{{ a }}",
             "{% endverbatim %}1",
         ),
+        ("{% verbatim %}{% aaé %}{% endverbatim %}", "{% aaé %}"),
+        ("{% verbatim %}{% xyzverbatim %}{% endverbatim %}", "{% xyzverbatim %}"),
     ],
 )
 def test_verbatim(assert_render, template, expected):

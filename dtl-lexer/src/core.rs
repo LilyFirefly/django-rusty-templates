@@ -170,7 +170,7 @@ impl<'t> Lexer<'t> {
             };
             let inner = &rest[2..end_tag].trim();
             // Check we have the right endverbatim tag
-            if inner.len() < 3 || &inner[3..] != verbatim {
+            if inner.strip_prefix("end") != Some(verbatim) {
                 rest = &rest[end_tag + 2..];
                 index += start_tag + end_tag + 2;
                 continue;
