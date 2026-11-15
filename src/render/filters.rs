@@ -692,6 +692,11 @@ impl ResolveFilter for SafeFilter {
     }
 }
 
+/// Whitespace as Python's `str.strip` and `\s` see it.
+fn is_python_whitespace(c: char) -> bool {
+    c.is_whitespace() || matches!(c, '\x1c'..='\x1f')
+}
+
 /// Convert spaces or repeated dashes to single dashes.
 /// Remove characters that aren't ascii alphanumerics, underscores, or hyphens.
 /// Convert to lowercase. Also strip leading and trailing whitespace, dashes, and underscores.
@@ -843,52 +848,145 @@ impl ResolveFilter for WordcountFilter {
     }
 }
 
+/// The characters `textwrap` breaks lines on.
+const fn is_textwrap_whitespace(c: char) -> bool {
+    matches!(c, '\t' | '\n' | '\x0b' | '\x0c' | '\r' | ' ')
+}
+
+/// Split lines like Python's `str.splitlines`.
+fn python_splitlines(text: &str) -> Vec<&str> {
+    let mut lines = Vec::new();
+    let mut start = 0;
+    let mut chars = text.char_indices().peekable();
+    while let Some((index, c)) = chars.next() {
+        let mut end = index + c.len_utf8();
+        match c {
+            '\r' => {
+                if let Some((_, '\n')) = chars.peek() {
+                    chars.next();
+                    end += 1;
+                }
+            }
+            '\n' | '\x0b' | '\x0c' | '\x1c' | '\x1d' | '\x1e' | '\u{85}' | '\u{2028}'
+            | '\u{2029}' => {}
+            _ => continue,
+        }
+        lines.push(&text[start..index]);
+        start = end;
+    }
+    if start < text.len() {
+        lines.push(&text[start..]);
+    }
+    lines
+}
+
+/// Expand tabs like Python's `str.expandtabs`.
+fn expand_tabs(line: &str) -> Cow<'_, str> {
+    if !line.contains('\t') {
+        return Cow::Borrowed(line);
+    }
+    let mut expanded = String::with_capacity(line.len());
+    let mut column = 0;
+    for c in line.chars() {
+        if c == '\t' {
+            let spaces = 8 - column % 8;
+            expanded.extend(std::iter::repeat_n(' ', spaces));
+            column += spaces;
+        } else {
+            expanded.push(c);
+            column += 1;
+        }
+    }
+    Cow::Owned(expanded)
+}
+
+/// Wrap a single line like `textwrap.TextWrapper` with the options Django uses.
+///
+/// See https://github.com/python/cpython/blob/3.14/Lib/textwrap.py#L235
+fn wrap_line(line: &str, width: usize) -> Vec<&str> {
+    // (start, end, length in chars) of each run of whitespace or non-whitespace
+    let mut chunks: Vec<(usize, usize, usize)> = Vec::new();
+    let mut chunk_start = 0;
+    let mut chunk_len = 0;
+    let mut previous = None;
+    for (index, c) in line.char_indices() {
+        let whitespace = is_textwrap_whitespace(c);
+        if previous.is_some_and(|previous| previous != whitespace) {
+            chunks.push((chunk_start, index, chunk_len));
+            chunk_start = index;
+            chunk_len = 0;
+        }
+        chunk_len += 1;
+        previous = Some(whitespace);
+    }
+    if chunk_len > 0 {
+        chunks.push((chunk_start, line.len(), chunk_len));
+    }
+    let is_blank = |&(start, end, _): &(usize, usize, usize)| {
+        line[start..end].chars().all(is_python_whitespace)
+    };
+
+    let mut lines = Vec::new();
+    let mut next = 0;
+    while next < chunks.len() {
+        // drop leading whitespace, except on the first line
+        if !lines.is_empty() && is_blank(&chunks[next]) {
+            next += 1;
+        }
+        let first = next;
+        let mut line_len = 0;
+        while next < chunks.len() && line_len + chunks[next].2 <= width {
+            line_len += chunks[next].2;
+            next += 1;
+        }
+        // long words are not broken
+        if next == first && next < chunks.len() {
+            next += 1;
+        }
+        // drop trailing whitespace
+        let mut last = next;
+        if last > first && is_blank(&chunks[last - 1]) {
+            last -= 1;
+        }
+        if last > first {
+            lines.push(&line[chunks[first].0..chunks[last - 1].1]);
+        }
+    }
+    lines
+}
+
 /// A word-wrap function that preserves existing line breaks.
-/// Expects that existing line breaks are posix newlines.
 ///
 /// Preserve all white space except added line breaks consume the space on
 /// which they break the line.
 ///
 /// Don't wrap long words, thus the output text may have lines longer than ``width``.
+///
+/// See https://github.com/django/django/blob/stable/5.2.x/django/utils/text.py#L40
 fn wordwrap(text: &str, width: usize) -> String {
     let mut result = String::with_capacity(text.len());
 
-    for (i, line) in text.split('\n').enumerate() {
+    for (i, line) in python_splitlines(text).into_iter().enumerate() {
         if i > 0 {
             result.push('\n');
         }
 
-        if line.is_empty() {
-            continue;
-        }
-
-        let leading_whitespace = line.chars().take_while(|c| c.is_whitespace()).count();
-        let (indent, trimmed_line) = line.split_at(leading_whitespace);
-
-        let mut words = trimmed_line.split_whitespace();
-
-        let Some(first_word) = words.next() else {
-            // Line contains only whitespace - preserve it
+        let expanded = expand_tabs(line);
+        let wrapped = wrap_line(&expanded, width);
+        if wrapped.is_empty() {
+            // Line contains only whitespace that is dropped - preserve it
             result.push_str(line);
-            continue;
-        };
-
-        result.push_str(indent);
-        result.push_str(first_word);
-
-        let mut current_len = leading_whitespace + first_word.len();
-        for word in words {
-            let word_len = word.len();
-
-            if current_len + word_len < width {
-                result.push(' ');
-                current_len += 1 + word_len;
-            } else {
-                result.push('\n');
-                current_len = word_len;
+        } else {
+            for (j, wrapped_line) in wrapped.into_iter().enumerate() {
+                if j > 0 {
+                    result.push('\n');
+                }
+                result.push_str(wrapped_line);
             }
-            result.push_str(word);
         }
+    }
+    if text.ends_with('\n') {
+        result.push('\n');
     }
 
     result
