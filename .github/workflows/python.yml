@@ -10,6 +10,9 @@ on:
 
 permissions: {}
 
+env:
+  UV_LOCKED: 1
+
 # Cancel running jobs for the same workflow and branch.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
