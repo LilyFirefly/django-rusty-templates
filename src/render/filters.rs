@@ -290,19 +290,17 @@ impl ResolveFilter for AddFilter {
             ResolveContent::Content(content) => content,
             ResolveContent::Missing(missing) => return Ok(ResolveContent::Missing(missing)),
         };
-        let right = match self.argument.resolve(
-            py,
-            template,
-            template_name,
-            context,
-            ResolveFailures::Raise,
-            string_if_invalid,
-        )? {
-            ResolveContent::Content(content) => content,
-            ResolveContent::Missing(_) => {
-                unreachable!("missing argument in context should already have raised")
-            }
-        };
+        let right = self
+            .argument
+            .resolve(
+                py,
+                template,
+                template_name,
+                context,
+                ResolveFailures::Raise,
+                string_if_invalid,
+            )?
+            .expect_content("missing argument in context should already have raised");
         Ok(ResolveContent::Content(
             match (variable.to_bigint(), right.to_bigint()) {
                 (Some(variable), Some(right)) => Content::Int(variable + right),
@@ -362,19 +360,17 @@ impl ResolveFilter for CenterFilter {
             return Ok(ResolveContent::Content("".as_content()));
         };
         let content = content.resolve_string(py, template, context)?;
-        let arg = match self.argument.resolve(
-            py,
-            template,
-            template_name,
-            context,
-            ResolveFailures::Raise,
-            string_if_invalid,
-        )? {
-            ResolveContent::Content(content) => content,
-            ResolveContent::Missing(_) => {
-                unreachable!("missing argument in context should already have raised")
-            }
-        };
+        let arg = self
+            .argument
+            .resolve(
+                py,
+                template,
+                template_name,
+                context,
+                ResolveFailures::Raise,
+                string_if_invalid,
+            )?
+            .expect_content("missing argument in context should already have raised");
 
         let size = arg.resolve_usize(self.argument.at, template_name, template.0)?;
 
@@ -422,27 +418,25 @@ impl ResolveFilter for CutFilter {
             return Ok(ResolveContent::Content("".as_content()));
         };
 
-        let arg = match self.argument.resolve(
-            py,
-            template,
-            template_name,
-            context,
-            ResolveFailures::Raise,
-            string_if_invalid,
-        )? {
-            ResolveContent::Content(content) => content,
-            ResolveContent::Missing(_) => {
-                unreachable!("missing argument in context should already have raised")
-            }
-        }
-        .resolve_string_strict(
-            py,
-            template,
-            context,
-            self.argument.at.into(),
-            template_name,
-        )?
-        .into_raw();
+        let arg = self
+            .argument
+            .resolve(
+                py,
+                template,
+                template_name,
+                context,
+                ResolveFailures::Raise,
+                string_if_invalid,
+            )?
+            .expect_content("missing argument in context should already have raised")
+            .resolve_string_strict(
+                py,
+                template,
+                context,
+                self.argument.at.into(),
+                template_name,
+            )?
+            .into_raw();
 
         let content_string = variable.resolve_string(py, template, context)?;
         let result = match content_string {
@@ -548,20 +542,17 @@ impl ResolveFilter for DateFilter {
         };
 
         let fmt = match &self.argument {
-            Some(arg) => match arg.resolve(
-                py,
-                template,
-                template_name,
-                context,
-                ResolveFailures::Raise,
-                string_if_invalid,
-            )? {
-                ResolveContent::Content(content) => content,
-                ResolveContent::Missing(_) => {
-                    unreachable!("missing argument in context should already have raised")
-                }
-            }
-            .to_py(py),
+            Some(arg) => arg
+                .resolve(
+                    py,
+                    template,
+                    template_name,
+                    context,
+                    ResolveFailures::Raise,
+                    string_if_invalid,
+                )?
+                .expect_content("missing argument in context should already have raised")
+                .to_py(py),
             None => {
                 let get_format = GET_FORMAT.import(py, "django.utils.formats", "get_format")?;
                 get_format.call1(("DATE_FORMAT",))?
@@ -629,19 +620,17 @@ impl ResolveFilter for DivisibleByFilter {
                 .into());
         }
 
-        let right = match self.argument.resolve(
-            py,
-            template,
-            template_name,
-            context,
-            ResolveFailures::Raise,
-            string_if_invalid,
-        )? {
-            ResolveContent::Content(content) => content,
-            ResolveContent::Missing(_) => {
-                unreachable!("missing argument in context should already have raised")
-            }
-        };
+        let right = self
+            .argument
+            .resolve(
+                py,
+                template,
+                template_name,
+                context,
+                ResolveFailures::Raise,
+                string_if_invalid,
+            )?
+            .expect_content("missing argument in context should already have raised");
 
         let Some(right_val) = right.to_bigint() else {
             return Err(
@@ -1350,19 +1339,17 @@ impl ResolveFilter for WordwrapFilter {
 
         let text = content.resolve_string(py, template, context)?;
 
-        let arg = match self.argument.resolve(
-            py,
-            template,
-            template_name,
-            context,
-            ResolveFailures::Raise,
-            string_if_invalid,
-        )? {
-            ResolveContent::Content(content) => content,
-            ResolveContent::Missing(_) => {
-                unreachable!("missing argument in context should already have raised")
-            }
-        };
+        let arg = self
+            .argument
+            .resolve(
+                py,
+                template,
+                template_name,
+                context,
+                ResolveFailures::Raise,
+                string_if_invalid,
+            )?
+            .expect_content("missing argument in context should already have raised");
 
         // Check for negative values before converting to usize
         if let Some(bigint) = arg.to_bigint()
@@ -1401,19 +1388,16 @@ impl ResolveFilter for YesnoFilter {
     ) -> ResolveResult<'t, 'py> {
         let arg_string = match &self.argument {
             Some(arg) => {
-                let arg_content = match arg.resolve(
-                    py,
-                    template,
-                    template_name,
-                    context,
-                    ResolveFailures::Raise,
-                    string_if_invalid,
-                )? {
-                    ResolveContent::Content(content) => content,
-                    ResolveContent::Missing(_) => {
-                        unreachable!("missing argument in context should already have raised")
-                    }
-                };
+                let arg_content = arg
+                    .resolve(
+                        py,
+                        template,
+                        template_name,
+                        context,
+                        ResolveFailures::Raise,
+                        string_if_invalid,
+                    )?
+                    .expect_content("missing argument in context should already have raised");
                 arg_content
                     .resolve_string_strict(py, template, context, arg.at.into(), template_name)?
                     .into_raw()

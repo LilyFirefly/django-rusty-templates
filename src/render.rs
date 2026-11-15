@@ -34,6 +34,13 @@ impl<'t, 'py> ResolveContent<'t, 'py> {
             Self::Missing(_) => None,
         }
     }
+
+    pub fn expect_content(self, message: &'static str) -> Content<'t, 'py> {
+        match self {
+            Self::Content(content) => content,
+            Self::Missing(_) => unreachable!("{}", message),
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
