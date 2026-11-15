@@ -1,5 +1,6 @@
 from inline_snapshot import snapshot
 import pytest
+from django.utils.safestring import mark_safe
 
 
 def test_center(assert_render):
@@ -30,6 +31,62 @@ def test_center_with_odd_width(assert_render):
     template = "{{ var|center:7 }}"
     context = {"var": "even"}
     expected = "  even "
+
+    assert_render(template, context, expected)
+
+
+def test_center_non_ascii(assert_render):
+    template = "[{{ var|center:4 }}]"
+    context = {"var": "é"}
+    expected = "[ é  ]"
+
+    assert_render(template, context, expected)
+
+
+def test_center_multibyte_characters(assert_render):
+    template = "[{{ var|center:6 }}]"
+    context = {"var": "日本"}
+    expected = "[  日本  ]"
+
+    assert_render(template, context, expected)
+
+
+def test_center_non_ascii_already_wide_enough(assert_render):
+    template = "[{{ var|center:2 }}]"
+    context = {"var": "日本語"}
+    expected = "[日本語]"
+
+    assert_render(template, context, expected)
+
+
+def test_center_escapes_after_centering(assert_render):
+    template = "[{{ var|center:5 }}]"
+    context = {"var": "<"}
+    expected = "[  &lt;  ]"
+
+    assert_render(template, context, expected)
+
+
+def test_center_safe_string(assert_render):
+    template = "[{{ var|center:7 }}]"
+    context = {"var": mark_safe("<b>")}
+    expected = "[  <b>  ]"
+
+    assert_render(template, context, expected)
+
+
+def test_center_autoescape_off(assert_render):
+    template = "{% autoescape off %}[{{ var|center:5 }}]{% endautoescape %}"
+    context = {"var": "<"}
+    expected = "[  <  ]"
+
+    assert_render(template, context, expected)
+
+
+def test_center_integer(assert_render):
+    template = "[{{ var|center:5 }}]"
+    context = {"var": 12}
+    expected = "[  12 ]"
 
     assert_render(template, context, expected)
 
