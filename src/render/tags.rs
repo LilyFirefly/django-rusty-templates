@@ -1671,7 +1671,9 @@ fn build_kwargs<'py>(
             string_if_invalid,
         )? {
             ResolveContent::Content(value) => py_kwargs.set_item(key, value)?,
-            ResolveContent::Missing(_) => py_kwargs.set_item(key, py.None())?,
+            ResolveContent::Missing(variable) => {
+                py_kwargs.set_item(key, string_if_invalid.format(variable))?;
+            }
         }
     }
     Ok(py_kwargs)
