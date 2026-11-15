@@ -1,3 +1,7 @@
+import pytest
+from django.template.backends.django import DjangoTemplates
+from inline_snapshot import snapshot
+
 from .conftest import locmem_config
 
 
@@ -55,6 +59,19 @@ def test_invalid_variable_in_simple_tag(engine_class):
     template = engine.get_template("template")
 
     assert template.render(context={}) == "INVALIDINVALID"
+
+
+def test_invalid_variable_in_simple_tag_kwargs(engine_class):
+    template_string = (
+        "{% load combine from custom_tags %}{% combine 1 2 operation=operation %}"
+    )
+    config = locmem_config({"template": template_string})
+    config["OPTIONS"]["string_if_invalid"] = "add"
+    engine = engine_class(config)
+
+    template = engine.get_template("template")
+
+    assert template.render(context={}) == "3"
 
 
 def test_invalid_variable_in_simple_block_tag(engine_class):
@@ -190,6 +207,33 @@ def test_invalid_variable_in_simple_tag_formatted(engine_class):
     template = engine.get_template("template")
 
     assert template.render(context={}) == "missingmissing"
+
+
+def test_invalid_variable_in_simple_tag_kwargs_formatted(engine_class, request):
+    template_string = (
+        "{% load combine from custom_tags %}{% combine 1 2 operation=operation %}"
+    )
+    config = locmem_config({"template": template_string})
+    config["OPTIONS"]["string_if_invalid"] = "%s"
+    engine = engine_class(config)
+
+    template = engine.get_template("template")
+
+    with pytest.raises(RuntimeError) as exc_info:
+        template.render(context={})
+
+    message = str(exc_info.value)
+    if engine_class is DjangoTemplates:
+        assert message == snapshot("Unknown operation")
+    else:
+        assert message == snapshot("""\
+  × Unknown operation
+   ╭────
+ 1 │ {% load combine from custom_tags %}{% combine 1 2 operation=operation %}
+   ·                                    ──────────────────┬──────────────────
+   ·                                                      ╰── here
+   ╰────
+""")
 
 
 def test_invalid_variable_in_simple_block_tag_formatted(engine_class):
