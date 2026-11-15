@@ -35,6 +35,7 @@ pub mod django_rusty_templates {
     import_exception!(django.urls, NoReverseMatch);
 
     static IMPORT_STRING: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+    static SAFE_STRING: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 
     pub trait WithSourceCode {
         fn with_source_code(
@@ -448,12 +449,12 @@ pub mod django_rusty_templates {
         /// Render the template specified by `template_name` with the given context.
         /// For use in Django's test suite.
         #[pyo3(signature = (template_name, context=None))]
-        pub fn render_to_string(
+        pub fn render_to_string<'py>(
             &mut self,
-            py: Python<'_>,
-            template_name: Bound<'_, PyAny>,
-            context: Option<Bound<'_, PyAny>>,
-        ) -> PyResult<String> {
+            py: Python<'py>,
+            template_name: Bound<'py, PyAny>,
+            context: Option<Bound<'py, PyAny>>,
+        ) -> PyResult<Bound<'py, PyAny>> {
             let template = if template_name.is_instance_of::<PyList>()
                 || template_name.is_instance_of::<PyTuple>()
             {
@@ -462,7 +463,7 @@ pub mod django_rusty_templates {
                 self.get_template(py, template_name.extract()?)?
             };
 
-            template.py_render(py, context, None)
+            template.py_render_safe(py, context, None)
         }
 
         #[getter]
@@ -598,11 +599,7 @@ pub mod django_rusty_templates {
                     .into_pyerr(self.template.clone())),
             }
         }
-    }
 
-    #[pymethods]
-    impl Template {
-        #[pyo3(name = "render", signature = (context=None, request=None))]
         pub fn py_render(
             &self,
             py: Python<'_>,
@@ -657,6 +654,22 @@ pub mod django_rusty_templates {
             };
 
             self._render(py, &mut context)
+        }
+    }
+
+    #[pymethods]
+    impl Template {
+        /// Render the template to a `SafeString`, as Django's own engine does.
+        #[pyo3(name = "render", signature = (context=None, request=None))]
+        pub fn py_render_safe<'py>(
+            &self,
+            py: Python<'py>,
+            context: Option<Bound<'py, PyAny>>,
+            request: Option<Bound<'py, PyAny>>,
+        ) -> PyResult<Bound<'py, PyAny>> {
+            let rendered = self.py_render(py, context, request)?;
+            let safe_string = SAFE_STRING.import(py, "django.utils.safestring", "SafeString")?;
+            safe_string.call1((rendered,))
         }
     }
 }
