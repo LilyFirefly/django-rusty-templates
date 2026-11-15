@@ -209,3 +209,13 @@ def test_do_not_call_and_alters_data(assert_render):
     context = {"foo": both}
     assert_render(template=template, context=context, expected="0")
     assert both.data == 0
+
+
+def test_render_variable_after_unclosed_tag(assert_render):
+    template = "{% oops {{ foo }}\n%} {{# comment #}"
+    assert_render(template=template, context={"foo": 3}, expected="{% oops 3\n%} {")
+
+
+def test_render_overlapping_delimiters(assert_render):
+    template = "{%} {#} {{}"
+    assert_render(template=template, context={}, expected="{%} {#} {{}")

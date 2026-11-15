@@ -87,25 +87,17 @@ impl<'t> Lexer<'t> {
         }
     }
 
-    fn lex_text(&mut self) -> Token {
-        let next_tag = self.rest.find("{%");
-        let next_variable = self.rest.find("{{");
-        let next_comment = self.rest.find("{#");
+    fn lex_text(&mut self, skip: usize) -> Token {
+        let rest = &self.rest[skip..];
+        let next_tag = rest.find("{%");
+        let next_variable = rest.find("{{");
+        let next_comment = rest.find("{#");
         let next = [next_tag, next_variable, next_comment]
             .iter()
             .filter_map(|n| *n)
             .min();
-        let len = match next {
-            None => {
-                let len = self.rest.len();
-                self.rest = "";
-                len
-            }
-            Some(n) => {
-                self.rest = &self.rest[n..];
-                n
-            }
-        };
+        let len = next.map_or(self.rest.len(), |n| skip + n);
+        self.rest = &self.rest[len..];
         let at = (self.byte, len);
         self.byte += len;
         Token::text(at)
@@ -125,24 +117,16 @@ impl<'t> Lexer<'t> {
             EndTag::Tag => "%}",
             EndTag::Comment => "#}",
         };
-        let Some(n) = self.rest.find(end_str) else {
-            let len = self.rest.len();
-            let at = (self.byte, len);
-            self.byte += len;
-            self.rest = "";
-            return Token::text(at);
-        };
         // This can be removed if https://code.djangoproject.com/ticket/35899 lands
-        match self.rest.find("\n") {
-            Some(newline) if newline < n => {
-                let at = (self.byte, newline + 1);
-                self.byte += newline + 1;
-                self.rest = &self.rest[newline + 1..];
-                return Token::text(at);
-            }
-            _ => {}
-        }
-        let len = n + end_str.len();
+        let line = self
+            .rest
+            .split_once('\n')
+            .map_or(self.rest, |(line, _)| line);
+        let Some(n) = line[START_TAG_LEN..].find(end_str) else {
+            // Not closed on this line: treat the `{` as text and retry from the next character.
+            return self.lex_text(1);
+        };
+        let len = START_TAG_LEN + n + end_str.len();
         self.rest = &self.rest[len..];
 
         let at = (self.byte, len);
@@ -219,7 +203,7 @@ impl Iterator for Lexer<'_> {
                     tag
                 }
                 Some("{#") => self.lex_tag(EndTag::Comment),
-                _ => self.lex_text(),
+                _ => self.lex_text(0),
             },
             Some(verbatim) => self.lex_verbatim(verbatim),
         })
