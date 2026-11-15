@@ -696,6 +696,11 @@ impl ResolveFilter for SafeFilter {
     }
 }
 
+/// Whitespace as Python's `str.strip` and `\s` see it.
+fn is_python_whitespace(c: char) -> bool {
+    c.is_whitespace() || matches!(c, '\x1c'..='\x1f')
+}
+
 /// Convert spaces or repeated dashes to single dashes.
 /// Remove characters that aren't ascii alphanumerics, underscores, or hyphens.
 /// Convert to lowercase. Also strip leading and trailing whitespace, dashes, and underscores.
@@ -704,13 +709,17 @@ impl ResolveFilter for SafeFilter {
 pub fn slugify(content: Cow<str>) -> Cow<str> {
     let mut slug = String::with_capacity(content.len());
 
-    // treat start as if preceded by dash to strip leading dashes
-    let mut prev_dash = true;
-    for c in content.as_ref().nfkd().filter(|c| c.is_ascii()) {
+    let mut prev_dash = false;
+    let ascii_content = content
+        .as_ref()
+        .nfkd()
+        .filter(|c| c.is_ascii())
+        .skip_while(|c| !c.is_ascii_alphanumeric());
+    for c in ascii_content {
         if c.is_ascii_alphanumeric() || c == '_' {
             slug.push(c.to_ascii_lowercase());
             prev_dash = false;
-        } else if (c.is_whitespace() || c == '-') && !prev_dash {
+        } else if (is_python_whitespace(c) || c == '-') && !prev_dash {
             slug.push('-');
             prev_dash = true;
         }
