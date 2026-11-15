@@ -55,6 +55,7 @@ impl Resolve for Filter {
                 template,
                 template_name,
                 context,
+                failures,
                 string_if_invalid,
             ),
             FilterType::AddSlashes(filter) => filter.resolve(
@@ -63,6 +64,7 @@ impl Resolve for Filter {
                 template,
                 template_name,
                 context,
+                failures,
                 string_if_invalid,
             ),
             FilterType::Capfirst(filter) => filter.resolve(
@@ -71,6 +73,7 @@ impl Resolve for Filter {
                 template,
                 template_name,
                 context,
+                failures,
                 string_if_invalid,
             ),
             FilterType::Center(filter) => filter.resolve(
@@ -79,6 +82,7 @@ impl Resolve for Filter {
                 template,
                 template_name,
                 context,
+                failures,
                 string_if_invalid,
             ),
             FilterType::Cut(filter) => filter.resolve(
@@ -87,6 +91,7 @@ impl Resolve for Filter {
                 template,
                 template_name,
                 context,
+                failures,
                 string_if_invalid,
             ),
             FilterType::Default(filter) => filter.resolve(
@@ -95,6 +100,7 @@ impl Resolve for Filter {
                 template,
                 template_name,
                 context,
+                failures,
                 string_if_invalid,
             ),
             FilterType::DefaultIfNone(filter) => filter.resolve(
@@ -103,6 +109,7 @@ impl Resolve for Filter {
                 template,
                 template_name,
                 context,
+                failures,
                 string_if_invalid,
             ),
             FilterType::DivisibleBy(filter) => filter.resolve(
@@ -111,6 +118,7 @@ impl Resolve for Filter {
                 template,
                 template_name,
                 context,
+                failures,
                 string_if_invalid,
             ),
             FilterType::Date(filter) => filter.resolve(
@@ -119,6 +127,7 @@ impl Resolve for Filter {
                 template,
                 template_name,
                 context,
+                failures,
                 string_if_invalid,
             ),
             FilterType::Escape(filter) => filter.resolve(
@@ -127,6 +136,7 @@ impl Resolve for Filter {
                 template,
                 template_name,
                 context,
+                failures,
                 string_if_invalid,
             ),
             FilterType::Escapejs(filter) => filter.resolve(
@@ -135,6 +145,7 @@ impl Resolve for Filter {
                 template,
                 template_name,
                 context,
+                failures,
                 string_if_invalid,
             ),
             FilterType::External(filter) => filter.resolve(
@@ -143,6 +154,7 @@ impl Resolve for Filter {
                 template,
                 template_name,
                 context,
+                failures,
                 string_if_invalid,
             ),
             FilterType::ForceEscape(filter) => filter.resolve(
@@ -151,6 +163,7 @@ impl Resolve for Filter {
                 template,
                 template_name,
                 context,
+                failures,
                 string_if_invalid,
             ),
             FilterType::Last(filter) => filter.resolve(
@@ -159,6 +172,7 @@ impl Resolve for Filter {
                 template,
                 template_name,
                 context,
+                failures,
                 string_if_invalid,
             ),
             FilterType::Lower(filter) => filter.resolve(
@@ -167,6 +181,7 @@ impl Resolve for Filter {
                 template,
                 template_name,
                 context,
+                failures,
                 string_if_invalid,
             ),
             FilterType::Length(filter) => filter.resolve(
@@ -175,6 +190,7 @@ impl Resolve for Filter {
                 template,
                 template_name,
                 context,
+                failures,
                 string_if_invalid,
             ),
             FilterType::Safe(filter) => filter.resolve(
@@ -183,6 +199,7 @@ impl Resolve for Filter {
                 template,
                 template_name,
                 context,
+                failures,
                 string_if_invalid,
             ),
             FilterType::Slugify(filter) => filter.resolve(
@@ -191,6 +208,7 @@ impl Resolve for Filter {
                 template,
                 template_name,
                 context,
+                failures,
                 string_if_invalid,
             ),
             FilterType::Title(filter) => filter.resolve(
@@ -199,6 +217,7 @@ impl Resolve for Filter {
                 template,
                 template_name,
                 context,
+                failures,
                 string_if_invalid,
             ),
             FilterType::Upper(filter) => filter.resolve(
@@ -207,6 +226,7 @@ impl Resolve for Filter {
                 template,
                 template_name,
                 context,
+                failures,
                 string_if_invalid,
             ),
             FilterType::Wordcount(filter) => filter.resolve(
@@ -215,6 +235,7 @@ impl Resolve for Filter {
                 template,
                 template_name,
                 context,
+                failures,
                 string_if_invalid,
             ),
             FilterType::Wordwrap(filter) => filter.resolve(
@@ -223,6 +244,7 @@ impl Resolve for Filter {
                 template,
                 template_name,
                 context,
+                failures,
                 string_if_invalid,
             ),
             FilterType::Yesno(filter) => filter.resolve(
@@ -231,6 +253,7 @@ impl Resolve for Filter {
                 template,
                 template_name,
                 context,
+                failures,
                 string_if_invalid,
             ),
         }
@@ -238,6 +261,7 @@ impl Resolve for Filter {
 }
 
 pub trait ResolveFilter {
+    #[allow(clippy::too_many_arguments)]
     fn resolve<'t, 'py>(
         &self,
         variable: ResolveContent<'t, 'py>,
@@ -245,6 +269,7 @@ pub trait ResolveFilter {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
+        failures: ResolveFailures,
         string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py>;
 }
@@ -257,6 +282,7 @@ impl ResolveFilter for AddSlashesFilter {
         template: TemplateString<'t>,
         _template_name: &'t FileName,
         context: &mut Context,
+        _failures: ResolveFailures,
         _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
@@ -284,6 +310,7 @@ impl ResolveFilter for AddFilter {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
+        _failures: ResolveFailures,
         string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let variable = match variable {
@@ -328,6 +355,7 @@ impl ResolveFilter for CapfirstFilter {
         template: TemplateString<'t>,
         _template_name: &'t FileName,
         context: &mut Context,
+        _failures: ResolveFailures,
         _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
@@ -354,6 +382,7 @@ impl ResolveFilter for CenterFilter {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
+        _failures: ResolveFailures,
         string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let ResolveContent::Content(content) = variable else {
@@ -412,6 +441,7 @@ impl ResolveFilter for CutFilter {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
+        _failures: ResolveFailures,
         string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let ResolveContent::Content(variable) = variable else {
@@ -463,6 +493,7 @@ impl ResolveFilter for DefaultFilter {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
+        failures: ResolveFailures,
         string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         match variable {
@@ -473,7 +504,13 @@ impl ResolveFilter for DefaultFilter {
             {
                 Ok(ResolveContent::Content(left))
             }
-            ResolveContent::Content(_) => self.argument.resolve(
+            ResolveContent::Missing(missing)
+                if string_if_invalid.is_set()
+                    && !matches!(failures, ResolveFailures::IgnoreVariableDoesNotExist) =>
+            {
+                Ok(ResolveContent::Missing(missing))
+            }
+            _ => self.argument.resolve(
                 py,
                 template,
                 template_name,
@@ -481,19 +518,6 @@ impl ResolveFilter for DefaultFilter {
                 ResolveFailures::Raise,
                 string_if_invalid,
             ),
-            ResolveContent::Missing(missing) => match string_if_invalid {
-                StringIfInvalid::Plain("") => self.argument.resolve(
-                    py,
-                    template,
-                    template_name,
-                    context,
-                    ResolveFailures::Raise,
-                    string_if_invalid,
-                ),
-                _ => Ok(ResolveContent::Content(
-                    string_if_invalid.format(missing).into_content(),
-                )),
-            },
         }
     }
 }
@@ -506,6 +530,7 @@ impl ResolveFilter for DefaultIfNoneFilter {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
+        failures: ResolveFailures,
         string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         match variable {
@@ -519,10 +544,19 @@ impl ResolveFilter for DefaultIfNoneFilter {
                 ResolveFailures::Raise,
                 string_if_invalid,
             ),
-            ResolveContent::Content(left) => Ok(ResolveContent::Content(left)),
-            ResolveContent::Missing(missing) => Ok(ResolveContent::Content(
-                string_if_invalid.format(missing).into_content(),
-            )),
+            ResolveContent::Missing(_)
+                if matches!(failures, ResolveFailures::IgnoreVariableDoesNotExist) =>
+            {
+                self.argument.resolve(
+                    py,
+                    template,
+                    template_name,
+                    context,
+                    ResolveFailures::Raise,
+                    string_if_invalid,
+                )
+            }
+            content => Ok(content),
         }
     }
 }
@@ -535,6 +569,7 @@ impl ResolveFilter for DateFilter {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
+        _failures: ResolveFailures,
         string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let ResolveContent::Content(value) = variable else {
@@ -598,6 +633,7 @@ impl ResolveFilter for DivisibleByFilter {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
+        _failures: ResolveFailures,
         string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let ResolveContent::Content(variable) = variable else {
@@ -671,6 +707,7 @@ impl ResolveFilter for EscapeFilter {
         template: TemplateString<'t>,
         _template_name: &'t FileName,
         _context: &mut Context,
+        _failures: ResolveFailures,
         _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         Ok(ResolveContent::Content(Content::String(
@@ -754,6 +791,7 @@ impl ResolveFilter for EscapejsFilter {
         template: TemplateString<'t>,
         _template_name: &'t FileName,
         context: &mut Context,
+        _failures: ResolveFailures,
         _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
@@ -774,6 +812,7 @@ impl ResolveFilter for ExternalFilter {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
+        _failures: ResolveFailures,
         string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let arg = match &self.argument {
@@ -809,6 +848,7 @@ impl ResolveFilter for ForceEscapeFilter {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
+        failures: ResolveFailures,
         string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let variable = match variable {
@@ -824,6 +864,7 @@ impl ResolveFilter for ForceEscapeFilter {
             template,
             template_name,
             context,
+            failures,
             string_if_invalid,
         )
     }
@@ -837,6 +878,7 @@ impl ResolveFilter for LastFilter {
         template: TemplateString<'t>,
         _template_name: &'t FileName,
         _context: &mut Context,
+        _failures: ResolveFailures,
         _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let ResolveContent::Content(content) = variable else {
@@ -870,6 +912,7 @@ impl ResolveFilter for LowerFilter {
         template: TemplateString<'t>,
         _template_name: &'t FileName,
         context: &mut Context,
+        _failures: ResolveFailures,
         _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
@@ -890,6 +933,7 @@ impl ResolveFilter for LengthFilter {
         _template: TemplateString<'t>,
         _template_name: &'t FileName,
         _context: &mut Context,
+        _failures: ResolveFailures,
         _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let len = match variable {
@@ -915,6 +959,7 @@ impl ResolveFilter for SafeFilter {
         template: TemplateString<'t>,
         _template_name: &'t FileName,
         _context: &mut Context,
+        _failures: ResolveFailures,
         _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         Ok(ResolveContent::Content(Content::String(
@@ -983,6 +1028,7 @@ impl ResolveFilter for SlugifyFilter {
         template: TemplateString<'t>,
         _template_name: &'t FileName,
         _context: &mut Context,
+        _failures: ResolveFailures,
         _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
@@ -1025,6 +1071,7 @@ impl ResolveFilter for TitleFilter {
         template: TemplateString<'t>,
         _template_name: &'t FileName,
         context: &mut Context,
+        _failures: ResolveFailures,
         _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let ResolveContent::Content(content) = variable else {
@@ -1074,6 +1121,7 @@ impl ResolveFilter for UpperFilter {
         template: TemplateString<'t>,
         _template_name: &'t FileName,
         context: &mut Context,
+        _failures: ResolveFailures,
         _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
@@ -1099,6 +1147,7 @@ impl ResolveFilter for WordcountFilter {
         template: TemplateString<'t>,
         _template_name: &'t FileName,
         context: &mut Context,
+        _failures: ResolveFailures,
         _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
@@ -1331,6 +1380,7 @@ impl ResolveFilter for WordwrapFilter {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
+        _failures: ResolveFailures,
         string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let ResolveContent::Content(content) = variable else {
@@ -1384,6 +1434,7 @@ impl ResolveFilter for YesnoFilter {
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
+        _failures: ResolveFailures,
         string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let arg_string = match &self.argument {
