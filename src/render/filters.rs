@@ -479,7 +479,7 @@ impl ResolveFilter for DefaultFilter {
             {
                 Ok(ResolveContent::Content(left))
             }
-            ResolveContent::Missing(_) | ResolveContent::Content(_) => self.argument.resolve(
+            ResolveContent::Content(_) => self.argument.resolve(
                 py,
                 template,
                 template_name,
@@ -487,6 +487,19 @@ impl ResolveFilter for DefaultFilter {
                 ResolveFailures::Raise,
                 string_if_invalid,
             ),
+            ResolveContent::Missing(missing) => match string_if_invalid {
+                StringIfInvalid::Plain("") => self.argument.resolve(
+                    py,
+                    template,
+                    template_name,
+                    context,
+                    ResolveFailures::Raise,
+                    string_if_invalid,
+                ),
+                _ => Ok(ResolveContent::Content(
+                    string_if_invalid.format(missing).into_content(),
+                )),
+            },
         }
     }
 }
@@ -513,7 +526,9 @@ impl ResolveFilter for DefaultIfNoneFilter {
                 string_if_invalid,
             ),
             ResolveContent::Content(left) => Ok(ResolveContent::Content(left)),
-            ResolveContent::Missing(_) => Ok(ResolveContent::Content("".as_content())),
+            ResolveContent::Missing(missing) => Ok(ResolveContent::Content(
+                string_if_invalid.format(missing).into_content(),
+            )),
         }
     }
 }
