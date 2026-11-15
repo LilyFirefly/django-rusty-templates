@@ -56,6 +56,10 @@ impl<'t> StringIfInvalid<'t> {
             Self::Format(s) => Cow::Owned(s.replace("%s", variable)),
         }
     }
+
+    pub fn is_set(&self) -> bool {
+        !matches!(self, Self::Plain(""))
+    }
 }
 
 impl<'t> From<&'t str> for StringIfInvalid<'t> {

@@ -38,6 +38,56 @@ def test_invalid_variable_in_default_if_none_filter(engine_class):
     assert template.render(context={}) == "INVALID"
 
 
+def test_invalid_variable_in_default_filter_in_if_tag(engine_class):
+    template_string = "{% if missing|default:missing2 %}yes{% else %}no{% endif %}"
+    config = locmem_config({"template": template_string})
+    config["OPTIONS"]["string_if_invalid"] = "INVALID"
+    engine = engine_class(config)
+
+    template = engine.get_template("template")
+
+    assert template.render(context={}) == "no"
+
+
+def test_invalid_variable_in_default_filter_in_if_tag_default_exists(engine_class):
+    template_string = "{% if missing|default:'exists' %}yes{% else %}no{% endif %}"
+    config = locmem_config({"template": template_string})
+    config["OPTIONS"]["string_if_invalid"] = "INVALID"
+    engine = engine_class(config)
+
+    template = engine.get_template("template")
+
+    assert template.render(context={}) == "yes"
+
+
+def test_invalid_variable_in_default_if_none_filter_in_if_tag(engine_class):
+    template_string = (
+        "{% if missing|default_if_none:missing2 %}yes{% else %}no{% endif %}"
+    )
+    config = locmem_config({"template": template_string})
+    config["OPTIONS"]["string_if_invalid"] = "INVALID"
+    engine = engine_class(config)
+
+    template = engine.get_template("template")
+
+    assert template.render(context={}) == "no"
+
+
+def test_invalid_variable_in_default_if_none_filter_in_if_tag_default_exists(
+    engine_class,
+):
+    template_string = (
+        "{% if missing|default_if_none:exists %}yes{% else %}no{% endif %}"
+    )
+    config = locmem_config({"template": template_string})
+    config["OPTIONS"]["string_if_invalid"] = "INVALID"
+    engine = engine_class(config)
+
+    template = engine.get_template("template")
+
+    assert template.render(context={"exists": 1}) == "yes"
+
+
 def test_invalid_variable_in_block_super(engine_class):
     parent = "{% block b %}{{ missing }}{% endblock %}"
     child = "{% extends 'parent' %}{% block b %}{{ block.super }}{% endblock %}"
