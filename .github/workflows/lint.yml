@@ -24,7 +24,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Run Clippy
-        run: cargo clippy --all-targets --all-features
+        run: cargo clippy --locked --all-targets --all-features
 
   cargo-shear:
     runs-on: ubuntu-latest
