@@ -158,36 +158,30 @@ impl<'t> Lexer<'t> {
         let verbatim = verbatim.trim();
         self.verbatim = None;
 
-        let mut rest = self.rest;
         let mut index = 0;
         loop {
-            let Some(start_tag) = rest.find("{%") else {
+            let Some(start) = self.rest[index..].find("{%").map(|n| index + n) else {
                 return self.lex_text_to_end();
             };
-            rest = &rest[start_tag..];
-            let Some(end_tag) = rest.find("%}") else {
+            let Some(end) = self.rest[start + 2..].find("%}").map(|n| start + 2 + n) else {
                 return self.lex_text_to_end();
             };
-            let inner = &rest[2..end_tag].trim();
-            // Check we have the right endverbatim tag
-            if inner.strip_prefix("end") != Some(verbatim) {
-                rest = &rest[end_tag + 2..];
-                index += start_tag + end_tag + 2;
-                continue;
-            }
-
-            index += start_tag;
-            if index == 0 {
+            let inner = &self.rest[start + 2..end];
+            if inner.contains('\n') {
+                index = start + 2;
+            } else if inner.trim().strip_prefix("end") != Some(verbatim) {
+                index = end + 2;
+            } else if start == 0 {
                 // Return the endverbatim tag since we have no text
-                let tag_len = end_tag + "%}".len();
+                let tag_len = end + "%}".len();
                 let at = (self.byte, tag_len);
                 self.byte += tag_len;
                 self.rest = &self.rest[tag_len..];
                 return Token::tag(at);
             } else {
-                self.rest = &self.rest[index..];
-                let at = (self.byte, index);
-                self.byte += index;
+                self.rest = &self.rest[start..];
+                let at = (self.byte, start);
+                self.byte += start;
                 return Token::text(at);
             }
         }
