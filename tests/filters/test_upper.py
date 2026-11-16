@@ -1,3 +1,4 @@
+from django.utils.safestring import mark_safe
 from inline_snapshot import snapshot
 
 
@@ -69,3 +70,20 @@ def test_upper_add_numbers(assert_render):
     var = "2"
     uppered = "6"
     assert_render(template=template, context={"var": var}, expected=uppered)
+
+
+def test_upper_safe_string_is_escaped(assert_render):
+    template = "{{ var|upper }}"
+    assert_render(
+        template=template, context={"var": mark_safe("<b>")}, expected="&lt;B&gt;"
+    )
+
+
+def test_upper_safe_filter_is_escaped(assert_render):
+    template = "{{ var|safe|upper }}"
+    assert_render(template=template, context={"var": "<b>"}, expected="&lt;B&gt;")
+
+
+def test_upper_safe_string_autoescape_off(assert_render):
+    template = "{% autoescape off %}{{ var|upper }}{% endautoescape %}"
+    assert_render(template=template, context={"var": mark_safe("<b>")}, expected="<B>")
