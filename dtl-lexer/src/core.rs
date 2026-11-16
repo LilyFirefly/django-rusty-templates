@@ -142,38 +142,36 @@ impl<'t> Lexer<'t> {
         let verbatim = verbatim.trim();
         self.verbatim = None;
 
-        let mut rest = self.rest;
         let mut index = 0;
         loop {
-            let Some(start_tag) = rest.find("{%") else {
+            let Some(start) = self.rest[index..].find("{%").map(|n| index + n) else {
                 return self.lex_text_to_end();
             };
-            rest = &rest[start_tag..];
-            let Some(end_tag) = rest.find("%}") else {
+            let inner_start = start + START_TAG_LEN;
+            let Some(end) = self.rest[inner_start..].find("%}").map(|n| inner_start + n) else {
                 return self.lex_text_to_end();
             };
-            let inner = &rest[2..end_tag].trim();
-            // Check we have the right endverbatim tag
-            if inner.len() < 3 || &inner[3..] != verbatim {
-                rest = &rest[end_tag + 2..];
-                index += start_tag + end_tag + 2;
+            let inner = &self.rest[inner_start..end];
+            if inner.contains('\n') {
+                index = inner_start;
                 continue;
             }
-
-            index += start_tag;
-            if index == 0 {
+            if inner.trim().strip_prefix("end") != Some(verbatim) {
+                index = end + END_TAG_LEN;
+                continue;
+            }
+            if start == 0 {
                 // Return the endverbatim tag since we have no text
-                let tag_len = end_tag + "%}".len();
+                let tag_len = end + END_TAG_LEN;
                 let at = (self.byte, tag_len);
                 self.byte += tag_len;
                 self.rest = &self.rest[tag_len..];
                 return Token::tag(at);
-            } else {
-                self.rest = &self.rest[index..];
-                let at = (self.byte, index);
-                self.byte += index;
-                return Token::text(at);
             }
+            self.rest = &self.rest[start..];
+            let at = (self.byte, start);
+            self.byte += start;
+            return Token::text(at);
         }
     }
 }

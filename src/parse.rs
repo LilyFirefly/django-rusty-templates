@@ -909,7 +909,7 @@ enum EndTagType {
     Empty,
     EndBlock(Option<String>),
     EndFor,
-    Verbatim,
+    Verbatim(String),
     Custom(String),
 }
 
@@ -924,7 +924,8 @@ impl EndTagType {
             Self::EndBlock(None) => "'endblock'",
             Self::EndBlock(Some(name)) => return Cow::Owned(format!("'endblock {name}'")),
             Self::EndFor => "endfor",
-            Self::Verbatim => "endverbatim",
+            Self::Verbatim(name) if name.is_empty() => "endverbatim",
+            Self::Verbatim(name) => return Cow::Owned(format!("endverbatim {name}")),
             Self::Custom(s) => return Cow::Owned(s.clone()),
         };
         Cow::Borrowed(end_tag)
@@ -1914,8 +1915,9 @@ impl<'t, 'py> Parser<'t, 'py> {
                     parts: None,
                 })
             }
+            "verbatim" => Either::Left(self.parse_verbatim(at, tag.parts)?),
             "endverbatim" => Either::Right(EndTag {
-                end: EndTagType::Verbatim,
+                end: EndTagType::Verbatim(tag.parts.content(self.template).trim().to_string()),
                 at,
                 parts: None,
             }),
@@ -2531,6 +2533,14 @@ impl<'t, 'py> Parser<'t, 'py> {
             only: only.is_some(),
         };
         Ok(TokenTree::Tag(Tag::Include(include)))
+    }
+
+    fn parse_verbatim(&mut self, at: At, parts: TagParts) -> Result<TokenTree, PyParseError> {
+        let name = parts.content(self.template).trim().to_string();
+        let (_, end_tag) =
+            self.parse_until(vec![EndTagType::Verbatim(name)], "verbatim".into(), at)?;
+        let start = at.0 + at.1;
+        Ok(TokenTree::Text(Text::new((start, end_tag.at.0 - start))))
     }
 
     fn parse_autoescape(&mut self, at: At, parts: TagParts) -> Result<TokenTree, PyParseError> {
