@@ -163,17 +163,18 @@ impl<'t> Lexer<'t> {
             let Some(start) = self.rest[index..].find("{%").map(|n| index + n) else {
                 return self.lex_text_to_end();
             };
-            let Some(end) = self.rest[start + 2..].find("%}").map(|n| start + 2 + n) else {
+            let inner_start = start + START_TAG_LEN;
+            let Some(end) = self.rest[inner_start..].find("%}").map(|n| inner_start + n) else {
                 return self.lex_text_to_end();
             };
-            let inner = &self.rest[start + 2..end];
+            let inner = &self.rest[inner_start..end];
             if inner.contains('\n') {
-                index = start + 2;
+                index = inner_start;
             } else if inner.trim().strip_prefix("end") != Some(verbatim) {
-                index = end + 2;
+                index = end + END_TAG_LEN;
             } else if start == 0 {
                 // Return the endverbatim tag since we have no text
-                let tag_len = end + "%}".len();
+                let tag_len = end + END_TAG_LEN;
                 let at = (self.byte, tag_len);
                 self.byte += tag_len;
                 self.rest = &self.rest[tag_len..];
