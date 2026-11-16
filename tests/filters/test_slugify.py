@@ -3,6 +3,7 @@ Adapted from
 https://github.com/django/django/blob/5.1/tests/template_tests/filter_tests/test_slugify.py
 """
 
+import pytest
 from django.utils.functional import lazy
 from django.utils.safestring import mark_safe
 
@@ -84,5 +85,26 @@ def test_dictionary(assert_render):
     template = "{{ test|slugify }}"
     context = {"test": {"key": "value"}}
     expected = "key-value"
+
+    assert_render(template, context, expected)
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        pytest.param("_hello", "hello", id="leading_underscore"),
+        pytest.param("__hello__", "hello", id="underscores_both_ends"),
+        pytest.param("_-hello", "hello", id="underscore_then_dash"),
+        pytest.param("-_-hello-_-", "hello", id="mixed_both_ends"),
+        pytest.param(" _hello", "hello", id="space_then_underscore"),
+        pytest.param("hello_-_world", "hello_-_world", id="inner_kept"),
+        pytest.param("_", "", id="only_underscore"),
+        pytest.param("a\x1cb\x1fc", "a-b-c", id="separator_control_characters"),
+        pytest.param("a\x0bb\x0cc", "a-b-c", id="vertical_tab_and_form_feed"),
+    ],
+)
+def test_slugify_strips_dashes_and_underscores(assert_render, value, expected):
+    template = "{{ test|slugify }}"
+    context = {"test": value}
 
     assert_render(template, context, expected)

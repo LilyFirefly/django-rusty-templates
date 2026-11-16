@@ -3,6 +3,7 @@ from django.shortcuts import render
 from django.template import Context, RequestContext
 from django.template.response import SimpleTemplateResponse, TemplateResponse
 from django.test import RequestFactory
+from django.utils.safestring import SafeString
 
 
 class TestUserFacingTemplateRenderSuccess:
@@ -61,6 +62,32 @@ class TestUserFacingTemplateRenderSuccess:
 
         assert response.is_rendered
         assert response.rendered_content == "bar"
+
+
+class TestRenderReturnsSafeString:
+    """
+    Test that rendered output is marked safe, so it isn't escaped again
+    when passed to another template.
+    """
+
+    def test_render_returns_safe_string(self, template_engine):
+        template = template_engine.from_string("<b>{{ user }}</b>")
+
+        rendered = template.render({"user": "Lily"})
+        assert isinstance(rendered, SafeString)
+        assert rendered == "<b>Lily</b>"
+
+    def test_render_without_context_returns_safe_string(self, template_engine):
+        template = template_engine.from_string("<b>Hello</b>")
+
+        assert isinstance(template.render(), SafeString)
+
+    def test_rendered_output_is_not_escaped_again(self, template_engine):
+        inner = template_engine.from_string("<b>{{ user }}</b>")
+        outer = template_engine.from_string("<p>{{ inner }}</p>")
+
+        rendered = outer.render({"inner": inner.render({"user": "<Lily>"})})
+        assert rendered == "<p><b>&lt;Lily&gt;</b></p>"
 
 
 class TestUserFacingTemplateRenderRequiresDict:

@@ -7,6 +7,7 @@ from django.template import engines, Context
 from django.template.engine import Engine
 from django.template.library import InvalidTemplateLibrary
 from django.template.exceptions import TemplateDoesNotExist
+from django.utils.safestring import SafeString
 from django_rusty_templates import RustyTemplates
 
 
@@ -386,6 +387,7 @@ def test_render_to_string_success():
     # Test with no context
     result = rusty_engine.engine.render_to_string("basic.txt")
     assert result == "Hello !\n"
+    assert isinstance(result, SafeString)
 
 
 @pytest.mark.parametrize(
