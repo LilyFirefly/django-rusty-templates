@@ -170,21 +170,24 @@ impl<'t> Lexer<'t> {
             let inner = &self.rest[inner_start..end];
             if inner.contains('\n') {
                 index = inner_start;
-            } else if inner.trim().strip_prefix("end") != Some(verbatim) {
+                continue;
+            }
+            if inner.trim().strip_prefix("end") != Some(verbatim) {
                 index = end + END_TAG_LEN;
-            } else if start == 0 {
+                continue;
+            }
+            if start == 0 {
                 // Return the endverbatim tag since we have no text
                 let tag_len = end + END_TAG_LEN;
                 let at = (self.byte, tag_len);
                 self.byte += tag_len;
                 self.rest = &self.rest[tag_len..];
                 return Token::tag(at);
-            } else {
-                self.rest = &self.rest[start..];
-                let at = (self.byte, start);
-                self.byte += start;
-                return Token::text(at);
             }
+            self.rest = &self.rest[start..];
+            let at = (self.byte, start);
+            self.byte += start;
+            return Token::text(at);
         }
     }
 }
