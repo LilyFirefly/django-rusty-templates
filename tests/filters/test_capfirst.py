@@ -61,3 +61,20 @@ def test_capfirt_unexpected_argument(assert_parse_error):
         django_message=snapshot("capfirst requires 1 arguments, 2 provided"),
         rusty_message=rusty_message,
     )
+
+
+@pytest.mark.parametrize(
+    "template,value,expected",
+    [
+        pytest.param("{{ v|capfirst|length }}", "a<b", "3", id="capfirst_then_length"),
+        pytest.param(
+            "{{ v|capfirst|slugify }}", 'a"b', "ab", id="capfirst_then_slugify"
+        ),
+        pytest.param("{{ v|capfirst }}", "a<b", "A&lt;b", id="capfirst_escapes_once"),
+        pytest.param(
+            "{{ v|capfirst }}", mark_safe("<b>"), "<b>", id="capfirst_keeps_safe"
+        ),
+    ],
+)
+def test_capfirst_does_not_escape_early(assert_render, template, value, expected):
+    assert_render(template=template, context={"v": value}, expected=expected)
