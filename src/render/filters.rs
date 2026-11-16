@@ -813,7 +813,11 @@ impl ResolveFilter for UpperFilter {
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
             Some(content) => {
-                let content = content.resolve_string(py, template, context)?;
+                // Django's `upper` is not `is_safe`, so a safe input is escaped again.
+                let content = match content.resolve_string(py, template, context)? {
+                    ContentString::HtmlSafe(content) => ContentString::HtmlUnsafe(content),
+                    content => content,
+                };
                 content.map_content(|content| Cow::Owned(content.to_uppercase()))
             }
             None => "".as_content(),
