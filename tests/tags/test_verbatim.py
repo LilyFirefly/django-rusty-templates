@@ -86,7 +86,7 @@ def test_missing_named_endverbatim(assert_parse_error):
         "Unclosed tag on line 1: 'verbatim'. Looking for one of: endverbatim."
     )
     rusty_message = snapshot("""\
-  × Unclosed 'verbatim' tag. Looking for one of: endverbatim
+  × Unclosed 'verbatim' tag. Looking for one of: endverbatim block
    ╭────
  1 │ {% verbatim block %}{{ a }}{% endverbatim %}
    · ──────────┬─────────
