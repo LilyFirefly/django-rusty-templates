@@ -1734,4 +1734,27 @@ mod tests {
             assert_eq!(rendered, "");
         });
     }
+
+    #[test]
+    fn test_wordwrap_matches_django_wrap() {
+        use proptest::prelude::*;
+
+        Python::initialize();
+        let text_strategy = prop_oneof![
+            "[a-z \t\n\r\u{b}\u{c}\u{1c}\u{1d}\u{1e}\u{85}\u{a0}\u{2028}\u{3000}é日]{0,60}",
+            any::<String>(),
+        ];
+        proptest!(|(text in text_strategy, width in 1usize..30)| {
+            Python::attach(|py| {
+                let django_wrap = py
+                    .import("django.utils.text")
+                    .unwrap()
+                    .getattr("wrap")
+                    .unwrap();
+                let expected: String = django_wrap.call1((&text, width)).unwrap().extract().unwrap();
+                prop_assert_eq!(wordwrap(&text, width), expected);
+                Ok(())
+            })?;
+        });
+    }
 }
