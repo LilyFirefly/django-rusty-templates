@@ -482,9 +482,20 @@ impl ResolveFilter for EscapeFilter {
                             .str()
                             .map_err(|error| error.annotate(py, at, "here", template))?
                             .extract::<String>()?;
-                        let mut encoded = String::new();
-                        encode_quoted_attribute_to_string(&content, &mut encoded);
-                        Cow::Owned(encoded)
+                        // Like Django's `conditional_escape`, leave safe strings alone.
+                        #[allow(non_snake_case)]
+                        let SafeData =
+                            SAFEDATA.import(py, "django.utils.safestring", "SafeData")?;
+                        if object
+                            .is_instance(SafeData)
+                            .map_err(|error| error.annotate(py, at, "here", template))?
+                        {
+                            Cow::Owned(content)
+                        } else {
+                            let mut encoded = String::new();
+                            encode_quoted_attribute_to_string(&content, &mut encoded);
+                            Cow::Owned(encoded)
+                        }
                     }
                     Content::Bool(true) => Cow::Borrowed("True"),
                     Content::Bool(false) => Cow::Borrowed("False"),

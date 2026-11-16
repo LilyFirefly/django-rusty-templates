@@ -1,3 +1,4 @@
+from django.utils.safestring import mark_safe
 from inline_snapshot import snapshot
 
 
@@ -76,3 +77,13 @@ def test_autoescape_on_with_escape_does_nothing(template_engine):
         context
     )
     assert rendered_without_escape == rendered_with_escape
+
+
+def test_escape_safe_string(assert_render):
+    template = "{{ html|escape }}"
+    assert_render(template=template, context={"html": mark_safe("<b>")}, expected="<b>")
+
+
+def test_escape_safe_string_autoescape_off(assert_render):
+    template = "{% autoescape off %}{{ html|escape }}{% endautoescape %}"
+    assert_render(template=template, context={"html": mark_safe("<b>")}, expected="<b>")
