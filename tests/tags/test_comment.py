@@ -74,7 +74,7 @@ def test_unclosed_comment_tag(assert_parse_error):
         template=template,
         django_message=django_msg,
         rusty_message=snapshot("""\
-  × Unclosed 'comment' tag. Looking for one of: endcomment
+  × Unclosed 'comment' tag, expected 'endcomment'
    ╭────
  1 │ {% comment %} hidden stuff...
    · ──────┬──────
@@ -105,7 +105,7 @@ def test_comment_invalid_remainder_error(assert_parse_error):
         template=template,
         django_message=django_msg,
         rusty_message=snapshot("""\
-  × Unclosed 'comment' tag. Looking for one of: endcomment
+  × Unclosed 'comment' tag, expected 'endcomment'
    ╭────
  1 │ {% comment "note"invalid %}
    · ─────────────┬─────────────
@@ -125,7 +125,7 @@ def test_comment_unclosed_string_error(assert_parse_error):
         template=template,
         django_message=django_msg,
         rusty_message=snapshot("""\
-  × Unclosed 'comment' tag. Looking for one of: endcomment
+  × Unclosed 'comment' tag, expected 'endcomment'
    ╭────
  1 │ {% comment "unclosed string %}
    · ───────────────┬──────────────

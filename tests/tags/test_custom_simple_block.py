@@ -81,7 +81,7 @@ def test_simple_block_tag_missing_end_tag(assert_parse_error):
         "Unclosed tag on line 1: 'repeat'. Looking for one of: endrepeat."
     )
     rusty_message = snapshot("""\
-  × Unclosed 'repeat' tag. Looking for one of: endrepeat
+  × Unclosed 'repeat' tag, expected 'endrepeat'
    ╭────
  1 │ {% load repeat from custom_tags %}{% repeat 3 %}
    ·                                   ───────┬──────
@@ -99,7 +99,7 @@ def test_simple_block_tag_end_tag_only(assert_parse_error):
         "Invalid block tag on line 1: 'endrepeat'. Did you forget to register or load this tag?"
     )
     rusty_message = snapshot("""\
-  × Unexpected tag endrepeat
+  × Unexpected tag 'endrepeat'
    ╭────
  1 │ {% load repeat from custom_tags %}{% endrepeat %}
    ·                                   ───────┬───────

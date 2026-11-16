@@ -921,14 +921,26 @@ impl EndTagType {
             Self::Else => "else",
             Self::EndIf => "endif",
             Self::Empty => "empty",
-            Self::EndBlock(None) => "'endblock'",
-            Self::EndBlock(Some(name)) => return Cow::Owned(format!("'endblock {name}'")),
+            Self::EndBlock(None) => "endblock",
+            Self::EndBlock(Some(name)) => return Cow::Owned(format!("endblock {name}")),
             Self::EndFor => "endfor",
             Self::Verbatim(name) if name.is_empty() => "endverbatim",
             Self::Verbatim(name) => return Cow::Owned(format!("endverbatim {name}")),
             Self::Custom(s) => return Cow::Owned(s.clone()),
         };
         Cow::Borrowed(end_tag)
+    }
+
+    fn one_of(end_tags: &[Self]) -> String {
+        let quote = |end_tag: &Self| format!("'{}'", end_tag.as_cow());
+        match end_tags {
+            [] => unreachable!(),
+            [end_tag] => quote(end_tag),
+            [end_tags @ .., last] => {
+                let end_tags = end_tags.iter().map(quote).collect::<Vec<_>>().join(", ");
+                format!("{end_tags} or {}", quote(last))
+            }
+        }
     }
 }
 
@@ -1155,7 +1167,7 @@ pub enum ParseError {
         #[label("here")]
         at: SourceSpan,
     },
-    #[error("Unclosed '{start}' tag. Looking for one of: {expected}")]
+    #[error("Unclosed '{start}' tag, expected {expected}")]
     MissingEndTag {
         start: Cow<'static, str>,
         expected: Cow<'static, str>,
@@ -1260,7 +1272,7 @@ pub enum ParseError {
         #[label("after this")]
         at: SourceSpan,
     },
-    #[error("Unexpected tag {unexpected}")]
+    #[error("Unexpected tag '{unexpected}'")]
     UnexpectedEndTag {
         unexpected: Cow<'static, str>,
         #[label("unexpected tag")]
@@ -1277,7 +1289,7 @@ pub enum ParseError {
         #[label("here")]
         at: SourceSpan,
     },
-    #[error("Unexpected tag {unexpected}, expected {expected}")]
+    #[error("Unexpected tag '{unexpected}', expected {expected}")]
     WrongEndTag {
         unexpected: Cow<'static, str>,
         expected: String,
@@ -1529,22 +1541,8 @@ impl<'t, 'py> Parser<'t, 'py> {
                         if until.contains(&end_tag.end) {
                             return Ok((nodes, end_tag));
                         }
-                        let expected = match until.len() {
-                            0 => unreachable!(),
-                            1 => until[0].as_cow(),
-                            n => {
-                                let end_tags = until[..n - 1]
-                                    .iter()
-                                    .map(EndTagType::as_cow)
-                                    .collect::<Vec<_>>()
-                                    .join(", ");
-                                let last = until[n - 1].as_cow();
-                                Cow::Owned(format!("{end_tags} or {last}"))
-                            }
-                        }
-                        .to_string();
                         return Err(ParseError::WrongEndTag {
-                            expected,
+                            expected: EndTagType::one_of(&until),
                             unexpected: end_tag.as_cow(),
                             at: end_tag.at.into(),
                             start_at: start_at.into(),
@@ -1557,12 +1555,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         }
         Err(ParseError::MissingEndTag {
             start,
-            expected: until
-                .iter()
-                .map(EndTagType::as_cow)
-                .collect::<Vec<_>>()
-                .join(", ")
-                .into(),
+            expected: EndTagType::one_of(&until).into(),
             at: start_at.into(),
         }
         .into())
@@ -1745,7 +1738,7 @@ impl<'t, 'py> Parser<'t, 'py> {
 
         Err(ParseError::MissingEndTag {
             start: "comment".into(),
-            expected: "endcomment".into(),
+            expected: "'endcomment'".into(),
             at: at.into(),
         }
         .into())
