@@ -854,30 +854,38 @@ const fn is_textwrap_whitespace(c: char) -> bool {
 }
 
 /// Split lines like Python's `str.splitlines`.
-fn python_splitlines(text: &str) -> Vec<&str> {
-    let mut lines = Vec::new();
-    let mut start = 0;
-    let mut chars = text.char_indices().peekable();
-    while let Some((index, c)) = chars.next() {
-        let mut end = index + c.len_utf8();
-        match c {
-            '\r' => {
-                if let Some((_, '\n')) = chars.peek() {
-                    chars.next();
-                    end += 1;
-                }
-            }
-            '\n' | '\x0b' | '\x0c' | '\x1c' | '\x1d' | '\x1e' | '\u{85}' | '\u{2028}'
-            | '\u{2029}' => {}
-            _ => continue,
+struct PythonSplitlines<'t> {
+    rest: &'t str,
+}
+
+impl<'t> Iterator for PythonSplitlines<'t> {
+    type Item = &'t str;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.rest.is_empty() {
+            return None;
         }
-        lines.push(&text[start..index]);
-        start = end;
+        let mut chars = self.rest.char_indices().peekable();
+        while let Some((index, c)) = chars.next() {
+            let mut end = index + c.len_utf8();
+            match c {
+                '\r' => {
+                    if let Some((_, '\n')) = chars.peek() {
+                        end += 1;
+                    }
+                }
+                '\n' | '\x0b' | '\x0c' | '\x1c' | '\x1d' | '\x1e' | '\u{85}' | '\u{2028}'
+                | '\u{2029}' => {}
+                _ => continue,
+            }
+            let line = &self.rest[..index];
+            self.rest = &self.rest[end..];
+            return Some(line);
+        }
+        let line = self.rest;
+        self.rest = "";
+        Some(line)
     }
-    if start < text.len() {
-        lines.push(&text[start..]);
-    }
-    lines
 }
 
 /// Expand tabs like Python's `str.expandtabs`.
@@ -885,7 +893,7 @@ fn expand_tabs(line: &str) -> Cow<'_, str> {
     if !line.contains('\t') {
         return Cow::Borrowed(line);
     }
-    let mut expanded = String::with_capacity(line.len());
+    let mut expanded = String::with_capacity(line.len() * 2);
     let mut column = 0;
     for c in line.chars() {
         if c == '\t' {
@@ -900,59 +908,117 @@ fn expand_tabs(line: &str) -> Cow<'_, str> {
     Cow::Owned(expanded)
 }
 
-/// Wrap a single line like `textwrap.TextWrapper` with the options Django uses.
+/// A run of `textwrap` whitespace or non-whitespace in a line.
+#[derive(Clone, Copy)]
+struct Chunk {
+    start: usize,
+    end: usize,
+    len: usize,
+}
+
+impl Chunk {
+    fn is_blank(&self, line: &str) -> bool {
+        line[self.start..self.end].chars().all(is_python_whitespace)
+    }
+}
+
+/// Split a line into the chunks `textwrap.TextWrapper` works with.
+struct Chunks<'t> {
+    rest: &'t str,
+    byte: usize,
+}
+
+impl Iterator for Chunks<'_> {
+    type Item = Chunk;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut chars = self.rest.chars();
+        let whitespace = is_textwrap_whitespace(chars.next()?);
+        let mut len = 1;
+        let mut size = self.rest.len();
+        for (index, c) in self.rest.char_indices().skip(1) {
+            if is_textwrap_whitespace(c) != whitespace {
+                size = index;
+                break;
+            }
+            len += 1;
+        }
+        let chunk = Chunk {
+            start: self.byte,
+            end: self.byte + size,
+            len,
+        };
+        self.rest = &self.rest[size..];
+        self.byte += size;
+        Some(chunk)
+    }
+}
+
+/// Build the lines of a wrapped line like `textwrap.TextWrapper` with the options Django uses.
 ///
 /// See https://github.com/python/cpython/blob/3.14/Lib/textwrap.py#L235
-fn wrap_line(line: &str, width: usize) -> Vec<&str> {
-    // (start, end, length in chars) of each run of whitespace or non-whitespace
-    let mut chunks: Vec<(usize, usize, usize)> = Vec::new();
-    let mut chunk_start = 0;
-    let mut chunk_len = 0;
-    let mut previous = None;
-    for (index, c) in line.char_indices() {
-        let whitespace = is_textwrap_whitespace(c);
-        if previous.is_some_and(|previous| previous != whitespace) {
-            chunks.push((chunk_start, index, chunk_len));
-            chunk_start = index;
-            chunk_len = 0;
-        }
-        chunk_len += 1;
-        previous = Some(whitespace);
-    }
-    if chunk_len > 0 {
-        chunks.push((chunk_start, line.len(), chunk_len));
-    }
-    let is_blank = |&(start, end, _): &(usize, usize, usize)| {
-        line[start..end].chars().all(is_python_whitespace)
-    };
+struct WrappedLines<'t> {
+    line: &'t str,
+    width: usize,
+    chunks: std::iter::Peekable<Chunks<'t>>,
+    first_line: bool,
+}
 
-    let mut lines = Vec::new();
-    let mut next = 0;
-    while next < chunks.len() {
-        // drop leading whitespace, except on the first line
-        if !lines.is_empty() && is_blank(&chunks[next]) {
-            next += 1;
-        }
-        let first = next;
-        let mut line_len = 0;
-        while next < chunks.len() && line_len + chunks[next].2 <= width {
-            line_len += chunks[next].2;
-            next += 1;
-        }
-        // long words are not broken
-        if next == first && next < chunks.len() {
-            next += 1;
-        }
-        // drop trailing whitespace
-        let mut last = next;
-        if last > first && is_blank(&chunks[last - 1]) {
-            last -= 1;
-        }
-        if last > first {
-            lines.push(&line[chunks[first].0..chunks[last - 1].1]);
+impl<'t> WrappedLines<'t> {
+    fn new(line: &'t str, width: usize) -> Self {
+        Self {
+            line,
+            width,
+            chunks: Chunks {
+                rest: line,
+                byte: 0,
+            }
+            .peekable(),
+            first_line: true,
         }
     }
-    lines
+}
+
+impl<'t> Iterator for WrappedLines<'t> {
+    type Item = &'t str;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            // drop leading whitespace, except on the first line
+            if !self.first_line
+                && let Some(chunk) = self.chunks.peek()
+                && chunk.is_blank(self.line)
+            {
+                self.chunks.next();
+            }
+            let first = *self.chunks.peek()?;
+            let mut line_len = 0;
+            let mut last = None;
+            let mut before_last = None;
+            while let Some(chunk) = self
+                .chunks
+                .next_if(|chunk| line_len + chunk.len <= self.width)
+            {
+                line_len += chunk.len;
+                before_last = last;
+                last = Some(chunk);
+            }
+            // long words are not broken
+            let mut last = match last {
+                Some(last) => last,
+                None => self.chunks.next()?,
+            };
+            // drop trailing whitespace
+            if last.is_blank(self.line) {
+                match before_last {
+                    Some(chunk) => last = chunk,
+                    None => continue,
+                }
+            }
+            self.first_line = false;
+            return Some(&self.line[first.start..last.end]);
+        }
+    }
 }
 
 /// A word-wrap function that preserves existing line breaks.
@@ -966,23 +1032,23 @@ fn wrap_line(line: &str, width: usize) -> Vec<&str> {
 fn wordwrap(text: &str, width: usize) -> String {
     let mut result = String::with_capacity(text.len());
 
-    for (i, line) in python_splitlines(text).into_iter().enumerate() {
+    for (i, line) in (PythonSplitlines { rest: text }).enumerate() {
         if i > 0 {
             result.push('\n');
         }
 
         let expanded = expand_tabs(line);
-        let wrapped = wrap_line(&expanded, width);
-        if wrapped.is_empty() {
+        let mut wrapped = false;
+        for (j, wrapped_line) in WrappedLines::new(&expanded, width).enumerate() {
+            if j > 0 {
+                result.push('\n');
+            }
+            result.push_str(wrapped_line);
+            wrapped = true;
+        }
+        if !wrapped {
             // Line contains only whitespace that is dropped - preserve it
             result.push_str(line);
-        } else {
-            for (j, wrapped_line) in wrapped.into_iter().enumerate() {
-                if j > 0 {
-                    result.push('\n');
-                }
-                result.push_str(wrapped_line);
-            }
         }
     }
     if text.ends_with('\n') {
