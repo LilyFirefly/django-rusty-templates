@@ -38,7 +38,7 @@ jobs:
         git config --global core.autocrlf false
         git config --global core.eol lf
 
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - uses: actions/checkout@v7.0.1
       with:
         persist-credentials: false
 
@@ -57,15 +57,15 @@ jobs:
         echo "C:/Program Files/gettext-iconv/bin" >> $GITHUB_PATH
 
     - name: Set up Python
-      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      uses: actions/setup-python@v7.1.0
       with:
         python-version: ${{ matrix.python-version }}
 
     - name: Install uv
-      uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      uses: astral-sh/setup-uv@v10.3.3
 
     - name: Install cargo-binstall
-      uses: cargo-bins/cargo-binstall@5885714d0a40a14b2535c6ffc051fd8e49aa9665  # v1.27.0
+      uses: cargo-bins/cargo-binstall@v1.27.0
 
     - name: Install cargo-llvm-cov
       run: cargo binstall cargo-llvm-cov
@@ -93,7 +93,7 @@ jobs:
         cargo llvm-cov report --workspace --codecov --output-path codecov.json
 
     - name: Upload to codecov
-      uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+      uses: codecov/codecov-action@v7.1.1
       with:
         files: coverage.xml,codecov.json
         fail_ci_if_error: true
@@ -106,13 +106,13 @@ jobs:
       contents: read
     steps:
     - name: Set up Python
-      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      uses: actions/setup-python@v7.1.0
 
     - name: Install uv
-      uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      uses: astral-sh/setup-uv@v10.3.3
 
     - name: Checkout main
-      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      uses: actions/checkout@v7.0.1
       with:
         ref: main
         persist-credentials: false
@@ -121,7 +121,7 @@ jobs:
       run: uv run scripts/run_django_test_suite.py --parsed-output main_test_output
 
     - name: Checkout current branch
-      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      uses: actions/checkout@v7.0.1
       with:
         clean: false
         persist-credentials: false
@@ -161,7 +161,7 @@ jobs:
         cat test-diff-result
 
     - name: Upload test diff result
-      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      uses: actions/upload-artifact@v7.0.2
       with:
         name: test-diff-result
         path: test-diff-result
@@ -171,7 +171,7 @@ jobs:
         echo ${{ github.event.number }} > pr-number
 
     - name: Upload pr-number
-      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      uses: actions/upload-artifact@v7.0.2
       with:
         name: pr-number
         path: pr-number
