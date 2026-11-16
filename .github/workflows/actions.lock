@@ -21,7 +21,7 @@ workflows:
         - 'actions/checkout@v7.0.1'
         - 'cargo-bins/cargo-binstall@v1.27.0'
     '.github/workflows/pr-comment-django-test-suite.yml':
-        - 'dawidd6/action-download-artifact@v11'
+        - 'dawidd6/action-download-artifact@v28'
         - 'peter-evans/create-or-update-comment@v5.0.0'
         - 'peter-evans/find-comment@v4.0.0'
     '.github/workflows/python.yml':
@@ -98,9 +98,9 @@ dependencies:
         uses:
             - 'actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7'
             - 'actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd'
-    'dawidd6/action-download-artifact@v11':
-        ref: 'v11'
-        commit: 'sha1-ac66b43f0e6a346234dd65d4d0c8fbb31cb316e5'
+    'dawidd6/action-download-artifact@v28':
+        ref: 'v28'
+        commit: 'sha1-a92c7ae74cf1df8810783758581e485ac3aaa309'
         owner_id: 9713907
         repo_id: 239218448
     'moonrepo/setup-rust@v1.3.0':
