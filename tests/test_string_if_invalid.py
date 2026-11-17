@@ -5,87 +5,108 @@ from inline_snapshot import snapshot
 from .conftest import locmem_config
 
 
-def test_invalid_variable(engine_class):
-    template_string = "{{ missing }}"
+@pytest.mark.parametrize(
+    "template_string,invalid,expected,context",
+    (
+        ("{{ missing }}", "INVALID", "INVALID", {}),
+        ("{{ missing }}", "%s", "missing", {}),
+        ("{{ missing|default:'valid' }}", "INVALID", "INVALID", {}),
+        ("{{ missing|default:'valid' }}", "%s", "missing", {}),
+        ("{{ missing|default_if_none:'valid' }}", "INVALID", "INVALID", {}),
+        ("{{ missing|default_if_none:'valid' }}", "%s", "missing", {}),
+        (
+            "{% if missing|default:missing2 %}yes{% else %}no{% endif %}",
+            "INVALID",
+            "no",
+            {},
+        ),
+        (
+            "{% if missing|default:'exists' %}yes{% else %}no{% endif %}",
+            "INVALID",
+            "yes",
+            {},
+        ),
+        (
+            "{% if missing|default_if_none:missing2 %}yes{% else %}no{% endif %}",
+            "INVALID",
+            "no",
+            {},
+        ),
+        (
+            "{% if missing|default_if_none:exists %}yes{% else %}no{% endif %}",
+            "INVALID",
+            "yes",
+            {"exists": 1},
+        ),
+        (
+            "{% load double from custom_tags %}{% double missing %}",
+            "INVALID",
+            "INVALIDINVALID",
+            {},
+        ),
+        (
+            "{% load double from custom_tags %}{% double missing %}",
+            "%s",
+            "missingmissing",
+            {},
+        ),
+        (
+            "{% load combine from custom_tags %}{% combine 1 2 operation=operation %}",
+            "add",
+            "3",
+            {},
+        ),
+        (
+            "{% load repeat_prefix from custom_tags %}{% repeat_prefix 2 missing %}inner{% endrepeat_prefix %}",
+            "INVALID",
+            "INVALIDinnerINVALIDinner",
+            {},
+        ),
+        (
+            "{% load repeat_prefix from custom_tags %}{% repeat_prefix 2 missing %}inner{% endrepeat_prefix %}",
+            "%s",
+            "missinginnermissinginner",
+            {},
+        ),
+        (
+            "{% for item in items %}{% cycle missing 'b' %}{% endfor %}",
+            "INVALID",
+            "INVALIDb",
+            {"items": range(2)},
+        ),
+        (
+            "{% for item in items %}{% cycle missing 'b' %}{% endfor %}",
+            "%s",
+            "missingb",
+            {"items": range(2)},
+        ),
+        ("{% cycle missing 'b' as c %}{% cycle c %}", "INVALID", "INVALIDb", {}),
+        ("{% cycle missing 'b' as c %}{% cycle c %}", "%s", "missingb", {}),
+        (
+            "{% for item in items %}{% cycle missing 'b' as c silent %}{{ c }}{% endfor %}",
+            "INVALID",
+            "INVALIDb",
+            {"items": range(2)},
+        ),
+        (
+            "{% for item in items %}{% cycle missing 'b' as c silent %}{{ c }}{% endfor %}",
+            "%s",
+            "missingb",
+            {"items": range(2)},
+        ),
+        ("{{ number|add:'string' }}", "INVALID", "", {"number": 2}),
+        ("{% url 'home' as home %}", "INVALID", "", {}),
+        ("{% url 'missing' as missing %}{{ missing }}", "INVALID", "", {}),
+    ),
+)
+def test_invalid_variable(engine_class, template_string, invalid, expected, context):
     config = locmem_config({"template": template_string})
-    config["OPTIONS"]["string_if_invalid"] = "INVALID"
+    config["OPTIONS"]["string_if_invalid"] = invalid
     engine = engine_class(config)
 
     template = engine.get_template("template")
 
-    assert template.render(context={}) == "INVALID"
-
-
-def test_invalid_variable_in_default_filter(engine_class):
-    template_string = "{{ missing|default:'valid' }}"
-    config = locmem_config({"template": template_string})
-    config["OPTIONS"]["string_if_invalid"] = "INVALID"
-    engine = engine_class(config)
-
-    template = engine.get_template("template")
-
-    assert template.render(context={}) == "INVALID"
-
-
-def test_invalid_variable_in_default_if_none_filter(engine_class):
-    template_string = "{{ missing|default_if_none:'valid' }}"
-    config = locmem_config({"template": template_string})
-    config["OPTIONS"]["string_if_invalid"] = "INVALID"
-    engine = engine_class(config)
-
-    template = engine.get_template("template")
-
-    assert template.render(context={}) == "INVALID"
-
-
-def test_invalid_variable_in_default_filter_in_if_tag(engine_class):
-    template_string = "{% if missing|default:missing2 %}yes{% else %}no{% endif %}"
-    config = locmem_config({"template": template_string})
-    config["OPTIONS"]["string_if_invalid"] = "INVALID"
-    engine = engine_class(config)
-
-    template = engine.get_template("template")
-
-    assert template.render(context={}) == "no"
-
-
-def test_invalid_variable_in_default_filter_in_if_tag_default_exists(engine_class):
-    template_string = "{% if missing|default:'exists' %}yes{% else %}no{% endif %}"
-    config = locmem_config({"template": template_string})
-    config["OPTIONS"]["string_if_invalid"] = "INVALID"
-    engine = engine_class(config)
-
-    template = engine.get_template("template")
-
-    assert template.render(context={}) == "yes"
-
-
-def test_invalid_variable_in_default_if_none_filter_in_if_tag(engine_class):
-    template_string = (
-        "{% if missing|default_if_none:missing2 %}yes{% else %}no{% endif %}"
-    )
-    config = locmem_config({"template": template_string})
-    config["OPTIONS"]["string_if_invalid"] = "INVALID"
-    engine = engine_class(config)
-
-    template = engine.get_template("template")
-
-    assert template.render(context={}) == "no"
-
-
-def test_invalid_variable_in_default_if_none_filter_in_if_tag_default_exists(
-    engine_class,
-):
-    template_string = (
-        "{% if missing|default_if_none:exists %}yes{% else %}no{% endif %}"
-    )
-    config = locmem_config({"template": template_string})
-    config["OPTIONS"]["string_if_invalid"] = "INVALID"
-    engine = engine_class(config)
-
-    template = engine.get_template("template")
-
-    assert template.render(context={"exists": 1}) == "yes"
+    assert template.render(context=context) == expected
 
 
 def test_invalid_variable_in_block_super(engine_class):
@@ -100,142 +121,6 @@ def test_invalid_variable_in_block_super(engine_class):
     assert template.render(context={}) == "INVALID"
 
 
-def test_invalid_variable_in_simple_tag(engine_class):
-    template_string = "{% load double from custom_tags %}{% double missing %}"
-    config = locmem_config({"template": template_string})
-    config["OPTIONS"]["string_if_invalid"] = "INVALID"
-    engine = engine_class(config)
-
-    template = engine.get_template("template")
-
-    assert template.render(context={}) == "INVALIDINVALID"
-
-
-def test_invalid_variable_in_simple_tag_kwargs(engine_class):
-    template_string = (
-        "{% load combine from custom_tags %}{% combine 1 2 operation=operation %}"
-    )
-    config = locmem_config({"template": template_string})
-    config["OPTIONS"]["string_if_invalid"] = "add"
-    engine = engine_class(config)
-
-    template = engine.get_template("template")
-
-    assert template.render(context={}) == "3"
-
-
-def test_invalid_variable_in_simple_block_tag(engine_class):
-    template_string = "{% load repeat_prefix from custom_tags %}{% repeat_prefix 2 missing %}inner{% endrepeat_prefix %}"
-    config = locmem_config({"template": template_string})
-    config["OPTIONS"]["string_if_invalid"] = "INVALID"
-    engine = engine_class(config)
-
-    template = engine.get_template("template")
-
-    assert template.render(context={}) == "INVALIDinnerINVALIDinner"
-
-
-def test_invalid_variable_in_cycle(engine_class):
-    template_string = "{% for item in items %}{% cycle missing 'b' %}{% endfor %}"
-    config = locmem_config({"template": template_string})
-    config["OPTIONS"]["string_if_invalid"] = "INVALID"
-    engine = engine_class(config)
-
-    template = engine.get_template("template")
-
-    assert template.render(context={"items": range(2)}) == "INVALIDb"
-
-
-def test_invalid_variable_in_named_cycle(engine_class):
-    template_string = "{% cycle missing 'b' as c %}{% cycle c %}"
-    config = locmem_config({"template": template_string})
-    config["OPTIONS"]["string_if_invalid"] = "INVALID"
-    engine = engine_class(config)
-
-    template = engine.get_template("template")
-
-    assert template.render(context={}) == "INVALIDb"
-
-
-def test_invalid_variable_in_silent_named_cycle(engine_class):
-    template_string = (
-        "{% for item in items %}{% cycle missing 'b' as c silent %}{{ c }}{% endfor %}"
-    )
-    config = locmem_config({"template": template_string})
-    config["OPTIONS"]["string_if_invalid"] = "INVALID"
-    engine = engine_class(config)
-
-    template = engine.get_template("template")
-
-    assert template.render(context={"items": range(2)}) == "INVALIDb"
-
-
-def test_invalid_addition_in_add_filter_with_string_if_invalid(engine_class):
-    template_string = "{{ number|add:'string' }}"
-    config = locmem_config({"template": template_string})
-    config["OPTIONS"]["string_if_invalid"] = "INVALID"
-    engine = engine_class(config)
-
-    template = engine.get_template("template")
-
-    assert template.render(context={"number": 2}) == ""
-
-
-def test_url_tag_as_var_with_string_if_invalid(engine_class):
-    template_string = "{% url 'home' as home %}"
-    config = locmem_config({"template": template_string})
-    config["OPTIONS"]["string_if_invalid"] = "INVALID"
-    engine = engine_class(config)
-
-    template = engine.get_template("template")
-
-    assert template.render(context={}) == ""
-
-
-def test_url_tag_missing_view_as_var_with_string_if_invalid(engine_class):
-    template_string = "{% url 'missing' as missing %}{{ missing }}"
-    config = locmem_config({"template": template_string})
-    config["OPTIONS"]["string_if_invalid"] = "INVALID"
-    engine = engine_class(config)
-
-    template = engine.get_template("template")
-
-    assert template.render(context={}) == ""
-
-
-def test_invalid_variable_formatted(engine_class):
-    template_string = "{{ missing }}"
-    config = locmem_config({"template": template_string})
-    config["OPTIONS"]["string_if_invalid"] = "%s"
-    engine = engine_class(config)
-
-    template = engine.get_template("template")
-
-    assert template.render(context={}) == "missing"
-
-
-def test_invalid_variable_in_default_filter_formatted(engine_class):
-    template_string = "{{ missing|default:'valid' }}"
-    config = locmem_config({"template": template_string})
-    config["OPTIONS"]["string_if_invalid"] = "%s"
-    engine = engine_class(config)
-
-    template = engine.get_template("template")
-
-    assert template.render(context={}) == "missing"
-
-
-def test_invalid_variable_in_default_if_none_filter_formatted(engine_class):
-    template_string = "{{ missing|default_if_none:'valid' }}"
-    config = locmem_config({"template": template_string})
-    config["OPTIONS"]["string_if_invalid"] = "%s"
-    engine = engine_class(config)
-
-    template = engine.get_template("template")
-
-    assert template.render(context={}) == "missing"
-
-
 def test_invalid_variable_in_block_super_formatted(engine_class):
     parent = "{% block b %}{{ missing }}{% endblock %}"
     child = "{% extends 'parent' %}{% block b %}{{ block.super }}{% endblock %}"
@@ -246,17 +131,6 @@ def test_invalid_variable_in_block_super_formatted(engine_class):
     template = engine.get_template("child")
 
     assert template.render(context={}) == "missing"
-
-
-def test_invalid_variable_in_simple_tag_formatted(engine_class):
-    template_string = "{% load double from custom_tags %}{% double missing %}"
-    config = locmem_config({"template": template_string})
-    config["OPTIONS"]["string_if_invalid"] = "%s"
-    engine = engine_class(config)
-
-    template = engine.get_template("template")
-
-    assert template.render(context={}) == "missingmissing"
 
 
 def test_invalid_variable_in_simple_tag_kwargs_formatted(engine_class, request):
@@ -284,49 +158,3 @@ def test_invalid_variable_in_simple_tag_kwargs_formatted(engine_class, request):
    ·                                                      ╰── here
    ╰────
 """)
-
-
-def test_invalid_variable_in_simple_block_tag_formatted(engine_class):
-    template_string = "{% load repeat_prefix from custom_tags %}{% repeat_prefix 2 missing %}inner{% endrepeat_prefix %}"
-    config = locmem_config({"template": template_string})
-    config["OPTIONS"]["string_if_invalid"] = "%s"
-    engine = engine_class(config)
-
-    template = engine.get_template("template")
-
-    assert template.render(context={}) == "missinginnermissinginner"
-
-
-def test_invalid_variable_in_cycle_formatted(engine_class):
-    template_string = "{% for item in items %}{% cycle missing 'b' %}{% endfor %}"
-    config = locmem_config({"template": template_string})
-    config["OPTIONS"]["string_if_invalid"] = "%s"
-    engine = engine_class(config)
-
-    template = engine.get_template("template")
-
-    assert template.render(context={"items": range(2)}) == "missingb"
-
-
-def test_invalid_variable_in_named_cycle_formatted(engine_class):
-    template_string = "{% cycle missing 'b' as c %}{% cycle c %}"
-    config = locmem_config({"template": template_string})
-    config["OPTIONS"]["string_if_invalid"] = "%s"
-    engine = engine_class(config)
-
-    template = engine.get_template("template")
-
-    assert template.render(context={}) == "missingb"
-
-
-def test_invalid_variable_in_silent_named_cycle_formatted(engine_class):
-    template_string = (
-        "{% for item in items %}{% cycle missing 'b' as c silent %}{{ c }}{% endfor %}"
-    )
-    config = locmem_config({"template": template_string})
-    config["OPTIONS"]["string_if_invalid"] = "%s"
-    engine = engine_class(config)
-
-    template = engine.get_template("template")
-
-    assert template.render(context={"items": range(2)}) == "missingb"
