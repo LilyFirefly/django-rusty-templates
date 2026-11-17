@@ -132,7 +132,7 @@ impl Iterator for TagElementLexer<'_> {
         let mut chars = self.rest.chars();
         let token = match chars.next()? {
             '_' => {
-                if let Some('(') = chars.next() {
+                if chars.next() == Some('(') {
                     self.lex_translated(&mut chars)
                 } else {
                     self.lex_variable_or_filter()

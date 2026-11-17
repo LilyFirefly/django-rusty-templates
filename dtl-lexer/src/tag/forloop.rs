@@ -118,7 +118,7 @@ impl<'t> ForLexer<'t> {
         let mut chars = self.rest.chars();
         let token = match chars.next().expect("self.rest is not empty") {
             '_' => {
-                if let Some('(') = chars.next() {
+                if chars.next() == Some('(') {
                     self.lex_translated(&mut chars)?
                 } else {
                     self.lex_variable()

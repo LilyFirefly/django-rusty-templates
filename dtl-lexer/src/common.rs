@@ -125,7 +125,7 @@ pub fn lex_translated<'t>(
             return Err(LexerError::MissingTranslatedString { at: at.into() });
         }
     };
-    if let Some(')') = chars.next() {
+    if chars.next() == Some(')') {
         let byte = byte + END_TRANSLATE_LEN;
         let rest = &rest[END_TRANSLATE_LEN..];
         let at = (start, byte - start);

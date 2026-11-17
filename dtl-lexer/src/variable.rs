@@ -270,7 +270,7 @@ impl<'t> FilterLexer<'t> {
         let mut chars = self.rest.chars();
         Ok(Some(match chars.next().unwrap() {
             '_' => {
-                if let Some('(') = chars.next() {
+                if chars.next() == Some('(') {
                     self.lex_translated(&mut chars)?
                 } else {
                     let end = self.rest.next_whitespace();

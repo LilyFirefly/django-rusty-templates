@@ -1728,7 +1728,7 @@ impl<'t, 'py> Parser<'t, 'py> {
 
     fn parse_comment(&mut self, at: At, _parts: TagParts) -> Result<Comment, PyParseError> {
         for token in self.lexer.by_ref() {
-            if let TokenType::Tag = token.token_type {
+            if token.token_type == TokenType::Tag {
                 let content = token.content(self.template).trim();
                 if content.split_whitespace().next() == Some("endcomment") {
                     return Ok(Comment);

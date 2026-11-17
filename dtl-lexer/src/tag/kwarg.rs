@@ -195,7 +195,7 @@ impl Iterator for TagElementKwargLexer<'_> {
         };
         let token = match next {
             '_' => {
-                if let Some('(') = chars.next() {
+                if chars.next() == Some('(') {
                     self.lex_translated(&mut chars, kwarg)
                 } else {
                     self.lex_variable_or_filter(kwarg)
