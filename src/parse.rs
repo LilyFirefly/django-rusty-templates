@@ -1644,7 +1644,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         Ok(var)
     }
 
-    fn parse_lorem(&mut self, _at: At, parts: TagParts) -> Result<Lorem, PyParseError> {
+    fn parse_lorem(&self, _at: At, parts: TagParts) -> Result<Lorem, PyParseError> {
         let mut lexer = LoremLexer::new(self.template, parts);
 
         let first = match lexer.next() {
@@ -1744,7 +1744,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         .into())
     }
 
-    fn parse_now(&mut self, parts: TagParts) -> Result<Now, PyParseError> {
+    fn parse_now(&self, parts: TagParts) -> Result<Now, PyParseError> {
         let mut lexer = NowLexer::new(self.template, parts);
 
         let format_at = lexer.lex_format().map_err(ParseError::from)?;
@@ -1767,7 +1767,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         })
     }
 
-    fn parse_firstof(&mut self, parts: TagParts) -> Result<TokenTree, PyParseError> {
+    fn parse_firstof(&self, parts: TagParts) -> Result<TokenTree, PyParseError> {
         let mut tokens = TagElementKwargLexer::new(self.template, parts.clone())
             .collect::<Result<Vec<_>, _>>()
             .map_err(ParseError::from)?;

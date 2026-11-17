@@ -234,7 +234,7 @@ impl<'t> ForLexer<'t> {
         Err(ForLexerError::UnexpectedExpression { at: at.into() })
     }
 
-    fn check_invalid_variable_name(&mut self, index: usize, at: At) -> Result<(), ForLexerError> {
+    fn check_invalid_variable_name(&self, index: usize, at: At) -> Result<(), ForLexerError> {
         let name = &self.rest[..index];
 
         let (_, _, remainder) = lex_variable(0, name);

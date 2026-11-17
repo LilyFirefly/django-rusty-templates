@@ -307,7 +307,7 @@ impl<'t> FilterLexer<'t> {
         }
     }
 
-    fn remainder_to_filter_or_argument(&mut self) -> (&'t str, usize) {
+    fn remainder_to_filter_or_argument(&self) -> (&'t str, usize) {
         match (self.rest.find("|"), self.rest.find(":")) {
             (None, None) => (self.rest, self.rest.len()),
             (None, Some(a)) => (&self.rest[..a], a + 1),
