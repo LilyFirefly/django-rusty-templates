@@ -136,18 +136,15 @@ impl<'t> TagElementKwargLexer<'t> {
         Some(at)
     }
 
-    fn lex_variable_or_filter(
-        &mut self,
-        kwarg: Option<At>,
-    ) -> Result<TagElementKwargToken, TagElementKwargLexerError> {
+    fn lex_variable_or_filter(&mut self, kwarg: Option<At>) -> TagElementKwargToken {
         let (at, byte, rest) = lex_variable(self.byte, self.rest);
         self.rest = rest;
         self.byte = byte;
-        Ok(TagElementKwargToken {
+        TagElementKwargToken {
             token_type: TagElementTokenType::Variable,
             at,
             kwarg,
-        })
+        }
     }
 
     fn lex_remainder(
@@ -199,13 +196,13 @@ impl Iterator for TagElementKwargLexer<'_> {
                 if chars.next() == Some('(') {
                     self.lex_translated(&mut chars, kwarg)
                 } else {
-                    self.lex_variable_or_filter(kwarg)
+                    Ok(self.lex_variable_or_filter(kwarg))
                 }
             }
             '"' => self.lex_text(&mut chars, '"', kwarg),
             '\'' => self.lex_text(&mut chars, '\'', kwarg),
             '0'..='9' | '-' => Ok(self.lex_numeric(kwarg)),
-            _ => self.lex_variable_or_filter(kwarg),
+            _ => Ok(self.lex_variable_or_filter(kwarg)),
         };
         Some(self.lex_remainder(token))
     }
