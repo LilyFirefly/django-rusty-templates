@@ -9,7 +9,8 @@ use crate::common::{
 use crate::tag::TagParts;
 use crate::tag::common::TagElementTokenType;
 use crate::types::{At, TemplateString};
-#[derive(Clone, Debug, PartialEq)]
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TagElementKwargToken {
     pub at: At,
     pub token_type: TagElementTokenType,

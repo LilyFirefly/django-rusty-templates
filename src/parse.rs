@@ -95,10 +95,10 @@ pub struct Lorem {
     pub common: bool,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Comment;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct CsrfToken;
 
 impl Parse<Argument> for ArgumentToken {
@@ -790,7 +790,7 @@ impl PartialEq for SimpleBlockTag {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Now {
     pub format: String,
     pub asvar: Option<At>,

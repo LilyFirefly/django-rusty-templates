@@ -17,7 +17,7 @@ use types::{Content, Context};
 pub type ResolveResult<'t, 'py> = Result<Option<Content<'t, 'py>>, PyRenderError>;
 pub type RenderResult<'t> = Result<Cow<'t, str>, PyRenderError>;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FileName(pub Option<PathBuf>);
 
 impl FileName {

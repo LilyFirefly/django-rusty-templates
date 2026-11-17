@@ -5,7 +5,7 @@ use crate::common::NextChar;
 use crate::tag::TagParts;
 use crate::types::{At, TemplateString};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct BlockToken {
     pub at: At,
 }

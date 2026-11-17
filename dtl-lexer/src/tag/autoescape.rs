@@ -4,7 +4,7 @@ use thiserror::Error;
 use crate::tag::TagParts;
 use crate::types::{At, TemplateString};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AutoescapeEnabled {
     On,
     Off,
@@ -19,7 +19,7 @@ impl From<&AutoescapeEnabled> for bool {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct AutoescapeToken {
     pub at: At,
     pub enabled: AutoescapeEnabled,
