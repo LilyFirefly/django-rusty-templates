@@ -61,7 +61,7 @@ def test_missing_endautoescape(assert_parse_error):
         "Unclosed tag on line 1: 'autoescape'. Looking for one of: endautoescape."
     )
     rusty_message = snapshot("""\
-  × Unclosed 'autoescape' tag. Looking for one of: endautoescape
+  × Unclosed 'autoescape' tag, expected 'endautoescape'
    ╭────
  1 │ {% autoescape off %}{{ html }}
    · ──────────┬─────────
@@ -79,7 +79,7 @@ def test_wrong_end_tag(assert_parse_error):
         "Invalid block tag on line 1: 'endverbatim', expected 'endautoescape'. Did you forget to register or load this tag?"
     )
     rusty_message = snapshot("""\
-  × Unexpected tag endverbatim, expected endautoescape
+  × Unexpected tag 'endverbatim', expected 'endautoescape'
    ╭────
  1 │ {% autoescape off %}{{ html }}{% endverbatim %}{% endautoescape %}
    · ──────────┬─────────          ────────┬────────
@@ -128,7 +128,7 @@ def test_unexpected_end_tag(assert_parse_error):
         "Invalid block tag on line 1: 'endautoescape'. Did you forget to register or load this tag?"
     )
     rusty_message = snapshot("""\
-  × Unexpected tag endautoescape
+  × Unexpected tag 'endautoescape'
    ╭────
  1 │ {% endautoescape %}
    · ─────────┬─────────

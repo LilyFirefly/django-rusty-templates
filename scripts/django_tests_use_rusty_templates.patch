@@ -80,14 +80,14 @@ index 50e7a4c..274d5a1 100644
      @setup({"template": "{% block content %}"})
      def test_unclosed_block(self):
 -        msg = "Unclosed tag on line 1: 'block'. Looking for one of: endblock."
-+        msg = "Unclosed 'block' tag. Looking for one of: 'endblock', 'endblock content'"
++        msg = "Unclosed 'block' tag, expected 'endblock' or 'endblock content'"
          with self.assertRaisesMessage(TemplateSyntaxError, msg):
              self.engine.render_to_string("template")
  
      @setup({"template": "{% if a %}"})
      def test_unclosed_block2(self):
 -        msg = "Unclosed tag on line 1: 'if'. Looking for one of: elif, else, endif."
-+        msg = "Unclosed 'if' tag. Looking for one of: elif, else, endif"
++        msg = "Unclosed 'if' tag, expected 'elif', 'else' or 'endif'"
          with self.assertRaisesMessage(TemplateSyntaxError, msg):
              self.engine.render_to_string("template")
  
@@ -486,7 +486,7 @@ index da03c2d..180248f 100644
 -            "Invalid block tag on line 1: 'endblock', expected 'elif', 'else' "
 -            "or 'endif'. Did you forget to register or load this tag?"
 -        )
-+        msg = "Unexpected tag 'endblock', expected elif, else or endif"
++        msg = "Unexpected tag 'endblock', expected 'elif', 'else' or 'endif'"
          with self.settings(USE_I18N=True), translation.override("de"):
              with self.assertRaisesMessage(TemplateSyntaxError, msg):
                  engine.from_string("{% if 1 %}lala{% endblock %}{% endif %}")

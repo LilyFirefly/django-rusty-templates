@@ -68,7 +68,7 @@ def test_missing_endverbatim(assert_parse_error):
         "Unclosed tag on line 1: 'verbatim'. Looking for one of: endverbatim."
     )
     rusty_message = snapshot("""\
-  × Unclosed 'verbatim' tag. Looking for one of: endverbatim
+  × Unclosed 'verbatim' tag, expected 'endverbatim'
    ╭────
  1 │ {% verbatim %}{{ a }}
    · ───────┬──────
@@ -86,7 +86,7 @@ def test_missing_named_endverbatim(assert_parse_error):
         "Unclosed tag on line 1: 'verbatim'. Looking for one of: endverbatim."
     )
     rusty_message = snapshot("""\
-  × Unclosed 'verbatim' tag. Looking for one of: endverbatim block
+  × Unclosed 'verbatim' tag, expected 'endverbatim block'
    ╭────
  1 │ {% verbatim block %}{{ a }}{% endverbatim %}
    · ──────────┬─────────
@@ -104,7 +104,7 @@ def test_extra_endverbatim(assert_parse_error):
         "Invalid block tag on line 1: 'endverbatim'. Did you forget to register or load this tag?"
     )
     rusty_message = snapshot("""\
-  × Unexpected tag endverbatim
+  × Unexpected tag 'endverbatim'
    ╭────
  1 │ {% verbatim %}{% verbatim %}{% endverbatim %}{% endverbatim %}
    ·                                              ────────┬────────
@@ -122,7 +122,7 @@ def test_empty_tag_swallows_endverbatim(assert_parse_error):
         "Unclosed tag on line 1: 'verbatim'. Looking for one of: endverbatim."
     )
     rusty_message = snapshot("""\
-  × Unclosed 'verbatim' tag. Looking for one of: endverbatim
+  × Unclosed 'verbatim' tag, expected 'endverbatim'
    ╭────
  1 │ {% verbatim %}{%}{% endverbatim %}
    · ───────┬──────

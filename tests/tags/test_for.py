@@ -708,7 +708,7 @@ def test_render_empty_tag(assert_parse_error):
         "Invalid block tag on line 1: 'empty'. Did you forget to register or load this tag?"
     )
     rusty_message = snapshot("""\
-  × Unexpected tag empty
+  × Unexpected tag 'empty'
    ╭────
  1 │ {% empty %}
    · ─────┬─────
@@ -726,7 +726,7 @@ def test_render_endfor_tag(assert_parse_error):
         "Invalid block tag on line 1: 'endfor'. Did you forget to register or load this tag?"
     )
     rusty_message = snapshot("""\
-  × Unexpected tag endfor
+  × Unexpected tag 'endfor'
    ╭────
  1 │ {% endfor %}
    · ──────┬─────
@@ -744,7 +744,7 @@ def test_render_missing_endfor_tag(assert_parse_error):
         "Unclosed tag on line 1: 'for'. Looking for one of: empty, endfor."
     )
     rusty_message = snapshot("""\
-  × Unclosed 'for' tag. Looking for one of: empty, endfor
+  × Unclosed 'for' tag, expected 'empty' or 'endfor'
    ╭────
  1 │ {% for x in 'a' %}
    · ─────────┬────────
@@ -762,7 +762,7 @@ def test_render_missing_endfor_tag_after_empty(assert_parse_error):
         "Unclosed tag on line 1: 'for'. Looking for one of: endfor."
     )
     rusty_message = snapshot("""\
-  × Unclosed 'empty' tag. Looking for one of: endfor
+  × Unclosed 'empty' tag, expected 'endfor'
    ╭────
  1 │ {% for x in 'a' %}{% empty %}
    ·                   ─────┬─────

@@ -336,7 +336,7 @@ def test_unmatched_block_tag(assert_parse_error):
         "Unclosed tag on line 1: 'block'. Looking for one of: endblock."
     )
     rusty_message = snapshot("""\
-  × Unclosed 'block' tag. Looking for one of: 'endblock', 'endblock foo'
+  × Unclosed 'block' tag, expected 'endblock' or 'endblock foo'
    ╭────
  1 │ {% block foo %}
    · ───────┬───────

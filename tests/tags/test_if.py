@@ -572,7 +572,7 @@ def test_if_tag_split_by_newline(assert_parse_error):
         "Invalid block tag on line 2: 'else'. Did you forget to register or load this tag?"
     )
     rusty_message = snapshot("""\
-  × Unexpected tag else
+  × Unexpected tag 'else'
    ╭─[2:11]
  1 │ {% if '
  2 │ ' %}truthy{% else %}falsey{% endif %}
@@ -601,7 +601,7 @@ def test_unexpected_tag_elif(assert_parse_error):
         "Invalid block tag on line 1: 'elif'. Did you forget to register or load this tag?"
     )
     rusty_message = snapshot("""\
-  × Unexpected tag elif
+  × Unexpected tag 'elif'
    ╭────
  1 │ {% elif foo %}
    · ───────┬──────
@@ -619,7 +619,7 @@ def test_unexpected_tag_else(assert_parse_error):
         "Invalid block tag on line 1: 'else'. Did you forget to register or load this tag?"
     )
     rusty_message = snapshot("""\
-  × Unexpected tag else
+  × Unexpected tag 'else'
    ╭────
  1 │ {% else %}
    · ─────┬────
@@ -637,7 +637,7 @@ def test_unexpected_tag_endif(assert_parse_error):
         "Invalid block tag on line 1: 'endif'. Did you forget to register or load this tag?"
     )
     rusty_message = snapshot("""\
-  × Unexpected tag endif
+  × Unexpected tag 'endif'
    ╭────
  1 │ {% endif %}
    · ─────┬─────
