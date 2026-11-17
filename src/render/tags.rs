@@ -1260,11 +1260,11 @@ impl Render for Include {
 }
 
 impl Extends {
-    fn load_template<'t, 'py>(
+    fn load_template(
         &self,
-        py: Python<'py>,
+        py: Python<'_>,
         template_path: String,
-        template: TemplateString<'t>,
+        template: TemplateString<'_>,
         context: &mut Context,
     ) -> Result<Template, PyErr> {
         if context.render_context.seen.is_none() {
@@ -1297,9 +1297,9 @@ impl Extends {
         }
     }
 
-    fn get_template<'t, 'py>(
+    fn get_template<'t>(
         &self,
-        py: Python<'py>,
+        py: Python<'_>,
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,

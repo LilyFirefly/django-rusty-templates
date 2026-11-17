@@ -478,8 +478,8 @@ impl<'t, 'py> ContentString<'t> {
     }
 }
 
-fn resolve_python<'py, 't>(
-    py: Python<'py>,
+fn resolve_python<'t>(
+    py: Python<'_>,
     value: Bound<'_, PyAny>,
     at: At,
     template: TemplateString<'t>,

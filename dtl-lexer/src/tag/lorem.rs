@@ -119,7 +119,7 @@ impl<'t> LoremLexer<'t> {
     }
 }
 
-impl<'t> Iterator for LoremLexer<'t> {
+impl Iterator for LoremLexer<'_> {
     type Item = Result<LoremToken, LoremError>;
 
     fn next(&mut self) -> Option<Self::Item> {

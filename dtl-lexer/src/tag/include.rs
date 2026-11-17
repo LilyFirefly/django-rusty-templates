@@ -166,7 +166,7 @@ impl<'t> IncludeLexer<'t> {
     }
 }
 
-impl<'t> Iterator for IncludeLexer<'t> {
+impl Iterator for IncludeLexer<'_> {
     type Item = Result<IncludeToken, IncludeLexerError>;
 
     fn next(&mut self) -> Option<Self::Item> {
