@@ -872,52 +872,211 @@ impl ResolveFilter for WordcountFilter {
     }
 }
 
+/// The characters `textwrap` breaks lines on.
+const fn is_textwrap_whitespace(c: char) -> bool {
+    matches!(c, '\t' | '\n' | '\x0b' | '\x0c' | '\r' | ' ')
+}
+
+/// Split lines like Python's `str.splitlines`.
+struct PythonSplitlines<'t> {
+    rest: &'t str,
+}
+
+impl<'t> Iterator for PythonSplitlines<'t> {
+    type Item = &'t str;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.rest.is_empty() {
+            return None;
+        }
+        let mut chars = self.rest.char_indices().peekable();
+        while let Some((index, c)) = chars.next() {
+            let mut end = index + c.len_utf8();
+            match c {
+                '\r' => {
+                    if let Some((_, '\n')) = chars.peek() {
+                        end += 1;
+                    }
+                }
+                '\n' | '\x0b' | '\x0c' | '\x1c' | '\x1d' | '\x1e' | '\u{85}' | '\u{2028}'
+                | '\u{2029}' => {}
+                _ => continue,
+            }
+            let line = &self.rest[..index];
+            self.rest = &self.rest[end..];
+            return Some(line);
+        }
+        let line = self.rest;
+        self.rest = "";
+        Some(line)
+    }
+}
+
+/// Expand tabs like Python's `str.expandtabs`.
+fn expand_tabs(line: &str) -> Cow<'_, str> {
+    if !line.contains('\t') {
+        return Cow::Borrowed(line);
+    }
+    let mut expanded = String::with_capacity(line.len() * 2);
+    let mut column = 0;
+    for c in line.chars() {
+        if c == '\t' {
+            let spaces = 8 - column % 8;
+            expanded.extend(std::iter::repeat_n(' ', spaces));
+            column += spaces;
+        } else {
+            expanded.push(c);
+            column += 1;
+        }
+    }
+    Cow::Owned(expanded)
+}
+
+/// A run of `textwrap` whitespace or non-whitespace in a line.
+#[derive(Clone, Copy)]
+struct Chunk {
+    start: usize,
+    end: usize,
+    len: usize,
+}
+
+impl Chunk {
+    fn is_blank(&self, line: &str) -> bool {
+        line[self.start..self.end].chars().all(is_python_whitespace)
+    }
+}
+
+/// Split a line into the chunks `textwrap.TextWrapper` works with.
+struct Chunks<'t> {
+    rest: &'t str,
+    byte: usize,
+}
+
+impl Iterator for Chunks<'_> {
+    type Item = Chunk;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut chars = self.rest.chars();
+        let whitespace = is_textwrap_whitespace(chars.next()?);
+        let mut len = 1;
+        let mut size = self.rest.len();
+        for (index, c) in self.rest.char_indices().skip(1) {
+            if is_textwrap_whitespace(c) != whitespace {
+                size = index;
+                break;
+            }
+            len += 1;
+        }
+        let chunk = Chunk {
+            start: self.byte,
+            end: self.byte + size,
+            len,
+        };
+        self.rest = &self.rest[size..];
+        self.byte += size;
+        Some(chunk)
+    }
+}
+
+/// Build the lines of a wrapped line like `textwrap.TextWrapper` with the options Django uses.
+///
+/// See https://github.com/python/cpython/blob/3.14/Lib/textwrap.py#L235
+struct WrappedLines<'t> {
+    line: &'t str,
+    width: usize,
+    chunks: std::iter::Peekable<Chunks<'t>>,
+    first_line: bool,
+}
+
+impl<'t> WrappedLines<'t> {
+    fn new(line: &'t str, width: usize) -> Self {
+        Self {
+            line,
+            width,
+            chunks: Chunks {
+                rest: line,
+                byte: 0,
+            }
+            .peekable(),
+            first_line: true,
+        }
+    }
+}
+
+impl<'t> Iterator for WrappedLines<'t> {
+    type Item = &'t str;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            // drop leading whitespace, except on the first line
+            if !self.first_line
+                && let Some(chunk) = self.chunks.peek()
+                && chunk.is_blank(self.line)
+            {
+                self.chunks.next();
+            }
+            let first = *self.chunks.peek()?;
+            let mut line_len = 0;
+            let mut last = None;
+            let mut before_last = None;
+            while let Some(chunk) = self
+                .chunks
+                .next_if(|chunk| line_len + chunk.len <= self.width)
+            {
+                line_len += chunk.len;
+                before_last = last;
+                last = Some(chunk);
+            }
+            // long words are not broken
+            let mut last = match last {
+                Some(last) => last,
+                None => self.chunks.next()?,
+            };
+            // drop trailing whitespace
+            if last.is_blank(self.line) {
+                match before_last {
+                    Some(chunk) => last = chunk,
+                    None => continue,
+                }
+            }
+            self.first_line = false;
+            return Some(&self.line[first.start..last.end]);
+        }
+    }
+}
+
 /// A word-wrap function that preserves existing line breaks.
-/// Expects that existing line breaks are posix newlines.
 ///
 /// Preserve all white space except added line breaks consume the space on
 /// which they break the line.
 ///
 /// Don't wrap long words, thus the output text may have lines longer than ``width``.
+///
+/// See https://github.com/django/django/blob/stable/5.2.x/django/utils/text.py#L40
 fn wordwrap(text: &str, width: usize) -> String {
     let mut result = String::with_capacity(text.len());
 
-    for (i, line) in text.split('\n').enumerate() {
+    for (i, line) in (PythonSplitlines { rest: text }).enumerate() {
         if i > 0 {
             result.push('\n');
         }
 
-        if line.is_empty() {
-            continue;
-        }
-
-        let leading_whitespace = line.chars().take_while(|c| c.is_whitespace()).count();
-        let (indent, trimmed_line) = line.split_at(leading_whitespace);
-
-        let mut words = trimmed_line.split_whitespace();
-
-        let Some(first_word) = words.next() else {
-            // Line contains only whitespace - preserve it
-            result.push_str(line);
-            continue;
-        };
-
-        result.push_str(indent);
-        result.push_str(first_word);
-
-        let mut current_len = leading_whitespace + first_word.len();
-        for word in words {
-            let word_len = word.len();
-
-            if current_len + word_len < width {
-                result.push(' ');
-                current_len += 1 + word_len;
-            } else {
+        let expanded = expand_tabs(line);
+        let mut wrapped = false;
+        for (j, wrapped_line) in WrappedLines::new(&expanded, width).enumerate() {
+            if j > 0 {
                 result.push('\n');
-                current_len = word_len;
             }
-            result.push_str(word);
+            result.push_str(wrapped_line);
+            wrapped = true;
         }
+        if !wrapped {
+            // Line contains only whitespace that is dropped - preserve it
+            result.push_str(line);
+        }
+    }
+    if text.ends_with('\n') {
+        result.push('\n');
     }
 
     result
@@ -1663,6 +1822,29 @@ mod tests {
                 .render(py, template, &FileName(None), &mut context)
                 .unwrap();
             assert_eq!(rendered, "");
+        });
+    }
+
+    #[test]
+    fn test_wordwrap_matches_django_wrap() {
+        use proptest::prelude::*;
+
+        Python::initialize();
+        let text_strategy = prop_oneof![
+            "[a-z \t\n\r\u{b}\u{c}\u{1c}\u{1d}\u{1e}\u{85}\u{a0}\u{2028}\u{3000}é日]{0,60}",
+            any::<String>(),
+        ];
+        proptest!(|(text in text_strategy, width in 1usize..30)| {
+            Python::attach(|py| {
+                let django_wrap = py
+                    .import("django.utils.text")
+                    .unwrap()
+                    .getattr("wrap")
+                    .unwrap();
+                let expected: String = django_wrap.call1((&text, width)).unwrap().extract().unwrap();
+                prop_assert_eq!(wordwrap(&text, width), expected);
+                Ok(())
+            })?;
         });
     }
 }

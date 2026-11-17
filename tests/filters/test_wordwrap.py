@@ -51,6 +51,46 @@ from tests.utils import BrokenDunderStr
             "a bb ccc\ndddd eeeee",
             id="mixed_length_words",
         ),
+        pytest.param(1, "\xa0.", "\xa0.", id="leading_non_breaking_space"),
+        pytest.param(10, "a\xa0b c", "a\xa0b c", id="non_breaking_space_in_word"),
+        pytest.param(3, "a\xa0b c", "a\xa0b\nc", id="non_breaking_space_not_a_break"),
+        pytest.param(5, "\xa0", "\xa0", id="only_non_breaking_space"),
+        pytest.param(
+            3, "ab \xa0 cd", "ab\n cd", id="non_breaking_space_dropped_at_break"
+        ),
+        pytest.param(
+            20, "hello    world", "hello    world", id="spaces_kept_within_width"
+        ),
+        pytest.param(1, " a", "a", id="leading_space_too_wide"),
+        pytest.param(5, "  a b", "  a b", id="leading_spaces_fit"),
+        pytest.param(4, "  a b", "  a\nb", id="leading_spaces_then_wrap"),
+        pytest.param(5, "a b  ", "a b", id="trailing_spaces_dropped"),
+        pytest.param(20, "a\tb", "a       b", id="tab_expanded"),
+        pytest.param(
+            20, "abc\tb\tc", "abc     b       c", id="tabs_expanded_to_columns"
+        ),
+        pytest.param(5, "\t", "\t", id="only_tab"),
+        pytest.param(10, "one\r\ntwo", "one\ntwo", id="windows_line_endings"),
+        pytest.param(10, "one\rtwo\r", "one\ntwo", id="carriage_returns"),
+        pytest.param(
+            10, "one\x0btwo\x0cthree", "one\ntwo\nthree", id="vertical_tab_form_feed"
+        ),
+        pytest.param(
+            10, "a\x1cb\x1dc\x1ed", "a\nb\nc\nd", id="separator_control_characters"
+        ),
+        pytest.param(
+            10, "a\x85b\u2028c\u2029d", "a\nb\nc\nd", id="unicode_line_separators"
+        ),
+        pytest.param(10, "a\x1fb", "a\x1fb", id="unit_separator_not_a_line_break"),
+        pytest.param(10, "\n", "\n", id="only_newline"),
+        pytest.param(10, "\n\n", "\n\n", id="only_newlines"),
+        pytest.param(10, "a\n\n", "a\n\n", id="trailing_blank_line"),
+        pytest.param(10, " \n a", " \n a", id="whitespace_line_then_indent"),
+        pytest.param(3, "abcdef gh", "abcdef\ngh", id="long_first_word"),
+        pytest.param(3, "ab cdefgh ij", "ab\ncdefgh\nij", id="long_middle_word"),
+        pytest.param(6, "ééé éé", "ééé éé", id="non_ascii_fits_width"),
+        pytest.param(5, "ééé éé", "ééé\néé", id="non_ascii_wraps"),
+        pytest.param(5, "日本 語 日本語", "日本 語\n日本語", id="multibyte_characters"),
         pytest.param(
             12,
             12345,
