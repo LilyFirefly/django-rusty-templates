@@ -87,3 +87,29 @@ def test_escape_safe_string(assert_render):
 def test_escape_safe_string_autoescape_off(assert_render):
     template = "{% autoescape off %}{{ html|escape }}{% endautoescape %}"
     assert_render(template=template, context={"html": mark_safe("<b>")}, expected="<b>")
+
+
+class BrokenClass:
+    @property
+    def __class__(self):
+        raise RuntimeError("no class")
+
+    def __str__(self):
+        return "<b>"
+
+
+def test_escape_isinstance_error(assert_render_error):
+    assert_render_error(
+        template="{{ value|escape }}",
+        context={"value": BrokenClass()},
+        exception=RuntimeError,
+        django_message=snapshot("no class"),
+        rusty_message=snapshot("""\
+  × no class
+   ╭────
+ 1 │ {{ value|escape }}
+   ·    ──┬──
+   ·      ╰── here
+   ╰────
+"""),
+    )
