@@ -30,11 +30,11 @@ impl TagElementKwargToken {
     /// The location of the full keyword argument:
     ///     keyword=variable
     ///             ────┬───
-    ///                 ╰── self.at
+    ///                 ╰── `self.at`
     ///     ───┬───
-    ///        ╰── self.kwarg
+    ///        ╰── `self.kwarg`
     ///     ────────┬───────
-    ///             ╰── self.all_at()
+    ///             ╰── `self.all_at()`
     pub fn all_at(&self) -> At {
         match self.kwarg {
             None => self.at,

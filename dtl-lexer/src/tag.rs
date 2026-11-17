@@ -62,7 +62,7 @@ impl<'t> TemplateContent<'t> for Tag {
 ///
 /// Both pieces are trimmed to have no leading or trailing whitespace.
 ///
-/// Returns a TagLexerError when the tag is empty or has an invalid name.
+/// Returns a `TagLexerError` when the tag is empty or has an invalid name.
 pub fn lex_tag(tag: &str, start: usize) -> Result<Tag, TagLexerError> {
     let rest = tag.trim_start();
     if rest.trim().is_empty() {

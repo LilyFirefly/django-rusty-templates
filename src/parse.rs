@@ -327,9 +327,9 @@ impl Parse<TagElement> for TagElementKwargToken {
 /// Extracts "as variable" from the end of the tokens list (and truncates it).
 ///
 /// This will return:
-/// - Ok(Some(variable_name)) if found and valid
-/// - Ok(None) if "as" not found
-/// - ParseError if as is not at the end or missing a variable
+/// - `Ok(Some(variable_name))` if found and valid
+/// - `Ok(None)` if "as" not found
+/// - `ParseError` if as is not at the end or missing a variable
 fn extract_as_variable(
     tokens: &mut Vec<TagElementKwargToken>,
     template: &TemplateString<'_>,
