@@ -129,6 +129,22 @@ def test_render_invalid_variable(assert_parse_error):
     )
 
 
+def test_render_variable_missing_argument_after_filter(assert_parse_error):
+    template = "{{ engines|default: }}"
+    django_message = snapshot("default requires 2 arguments, 1 provided")
+    rusty_message = snapshot("""\
+  × Expected an argument
+   ╭────
+ 1 │ {{ engines|default: }}
+   ·                   ┬
+   ·                   ╰── after this
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
 def test_render_variable_callable(assert_render):
     template = "{{ foo }}"
     assert_render(template=template, context={"foo": lambda: 3}, expected="3")

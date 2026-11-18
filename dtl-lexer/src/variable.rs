@@ -76,6 +76,11 @@ pub enum VariableLexerError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     LexerError(#[from] LexerError),
+    #[error("Expected an argument")]
+    MissingArgument {
+        #[label("after this")]
+        at: SourceSpan,
+    },
     #[error("Expected a valid filter name")]
     InvalidFilterName {
         #[label("here")]
@@ -264,11 +269,15 @@ impl<'t> FilterLexer<'t> {
             Some(f) if f < a => return Ok(None),
             _ => a + 1,
         };
+        let arg_at = (self.byte + a, 1);
         self.rest = &self.rest[next..];
         self.byte += next;
 
         let mut chars = self.rest.chars();
-        Ok(Some(match chars.next().unwrap() {
+        let Some(next_char) = chars.next() else {
+            return Err(VariableLexerError::MissingArgument { at: arg_at.into() });
+        };
+        Ok(Some(match next_char {
             '_' => {
                 if chars.next() == Some('(') {
                     self.lex_translated(&mut chars)?
