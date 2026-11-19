@@ -2156,7 +2156,6 @@ impl<'t, 'py> Parser<'t, 'py> {
         Ok(TokenTree::Tag(Tag::Load))
     }
 
-    #[allow(clippy::too_many_lines)]
     fn load_tag(
         &mut self,
         at: At,
@@ -2177,105 +2176,120 @@ impl<'t, 'py> Parser<'t, 'py> {
             if closure_names.contains(&"filename".to_string()) {
                 todo!("Inclusion tag")
             } else if closure_names.contains(&"end_name".to_string()) {
-                let defaults_count = get_defaults_count(&closure_values[0])?;
-                let end_tag_name: String = closure_values[1].extract()?;
-                let func = closure_values[2].clone();
-                let function_name = closure_values[3].extract()?;
-                let kwonly = closure_values[4].extract()?;
-                let kwonly_defaults = get_kwonly_defaults(&closure_values[5])?;
-                let params: Vec<String> = closure_values[6].extract()?;
-                let takes_context = closure_values[7].is_truthy()?;
-                let varargs = !closure_values[8].is_none();
-                let varkw = !closure_values[9].is_none();
-
-                let params = match takes_context {
-                    false => {
-                        if let Some(param) = params.first()
-                            && param == "content"
-                        {
-                            params.iter().skip(1).cloned().collect()
-                        } else {
-                            return Err(ParseError::RequiresContent {
-                                name: function_name,
-                                at: at.into(),
-                            }
-                            .into());
-                        }
-                    }
-                    true => {
-                        if let Some([context, content]) = params.first_chunk::<2>()
-                            && context == "context"
-                            && content == "content"
-                        {
-                            params.iter().skip(2).cloned().collect()
-                        } else {
-                            return Err(ParseError::RequiresContextAndContent {
-                                name: function_name,
-                                at: at.into(),
-                            }
-                            .into());
-                        }
-                    }
-                };
-                // TODO: `end_tag_name already present?
-                self.external_tags
-                    .insert(end_tag_name.clone(), TagContext::EndSimpleBlock);
-                TagContext::SimpleBlock {
-                    end_tag_name,
-                    context: SimpleTagContext {
-                        func,
-                        function_name,
-                        takes_context,
-                        params,
-                        defaults_count,
-                        varargs,
-                        kwonly,
-                        kwonly_defaults,
-                        varkw,
-                    },
-                }
+                self.load_simple_block_tag(closure_values, at)?
             } else {
-                let defaults_count = get_defaults_count(&closure_values[0])?;
-                let func = closure_values[1].clone();
-                let function_name = closure_values[2].extract()?;
-                let kwonly = closure_values[3].extract()?;
-                let kwonly_defaults = get_kwonly_defaults(&closure_values[4])?;
-                let params: Vec<String> = closure_values[5].extract()?;
-                let takes_context = closure_values[6].is_truthy()?;
-                let varargs = !closure_values[7].is_none();
-                let varkw = !closure_values[8].is_none();
-
-                let params = match takes_context {
-                    false => params,
-                    true => {
-                        if let Some(param) = params.first()
-                            && param == "context"
-                        {
-                            params.iter().skip(1).cloned().collect()
-                        } else {
-                            return Err(ParseError::RequiresContext {
-                                name: function_name,
-                                at: at.into(),
-                            }
-                            .into());
-                        }
-                    }
-                };
-                TagContext::Simple(SimpleTagContext {
-                    func,
-                    function_name,
-                    takes_context,
-                    params,
-                    defaults_count,
-                    varargs,
-                    kwonly,
-                    kwonly_defaults,
-                    varkw,
-                })
+                Parser::load_simple_tag(closure_values, at)?
             }
         };
         self.external_tags.insert(name.to_string(), tag);
         Ok(())
+    }
+
+    fn load_simple_tag(
+        closure_values: Vec<Bound<'py, PyAny>>,
+        at: At,
+    ) -> Result<TagContext<'py>, PyParseError> {
+        let defaults_count = get_defaults_count(&closure_values[0])?;
+        let func = closure_values[1].clone();
+        let function_name = closure_values[2].extract()?;
+        let kwonly = closure_values[3].extract()?;
+        let kwonly_defaults = get_kwonly_defaults(&closure_values[4])?;
+        let params: Vec<String> = closure_values[5].extract()?;
+        let takes_context = closure_values[6].is_truthy()?;
+        let varargs = !closure_values[7].is_none();
+        let varkw = !closure_values[8].is_none();
+
+        let params = match takes_context {
+            false => params,
+            true => {
+                if let Some(param) = params.first()
+                    && param == "context"
+                {
+                    params.iter().skip(1).cloned().collect()
+                } else {
+                    return Err(ParseError::RequiresContext {
+                        name: function_name,
+                        at: at.into(),
+                    }
+                    .into());
+                }
+            }
+        };
+        Ok(TagContext::Simple(SimpleTagContext {
+            func,
+            function_name,
+            takes_context,
+            params,
+            defaults_count,
+            varargs,
+            kwonly,
+            kwonly_defaults,
+            varkw,
+        }))
+    }
+
+    fn load_simple_block_tag(
+        &mut self,
+        closure_values: Vec<Bound<'py, PyAny>>,
+        at: At,
+    ) -> Result<TagContext<'py>, PyParseError> {
+        let defaults_count = get_defaults_count(&closure_values[0])?;
+        let end_tag_name: String = closure_values[1].extract()?;
+        let func = closure_values[2].clone();
+        let function_name = closure_values[3].extract()?;
+        let kwonly = closure_values[4].extract()?;
+        let kwonly_defaults = get_kwonly_defaults(&closure_values[5])?;
+        let params: Vec<String> = closure_values[6].extract()?;
+        let takes_context = closure_values[7].is_truthy()?;
+        let varargs = !closure_values[8].is_none();
+        let varkw = !closure_values[9].is_none();
+
+        let params = match takes_context {
+            false => {
+                if let Some(param) = params.first()
+                    && param == "content"
+                {
+                    params.iter().skip(1).cloned().collect()
+                } else {
+                    return Err(ParseError::RequiresContent {
+                        name: function_name,
+                        at: at.into(),
+                    }
+                    .into());
+                }
+            }
+            true => {
+                if let Some([context, content]) = params.first_chunk::<2>()
+                    && context == "context"
+                    && content == "content"
+                {
+                    params.iter().skip(2).cloned().collect()
+                } else {
+                    return Err(ParseError::RequiresContextAndContent {
+                        name: function_name,
+                        at: at.into(),
+                    }
+                    .into());
+                }
+            }
+        };
+        // TODO: `end_tag_name already present?
+        self.external_tags
+            .insert(end_tag_name.clone(), TagContext::EndSimpleBlock);
+        Ok(TagContext::SimpleBlock {
+            end_tag_name,
+            context: SimpleTagContext {
+                func,
+                function_name,
+                takes_context,
+                params,
+                defaults_count,
+                varargs,
+                kwonly,
+                kwonly_defaults,
+                varkw,
+            },
+        })
     }
 
     fn get_tags(
