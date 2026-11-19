@@ -1354,7 +1354,7 @@ impl Render for Extends {
                 TokenTree::Text(_)
                 | TokenTree::TranslatedText(_)
                 | TokenTree::Int(_)
-                | TokenTree::Float(_) => continue,
+                | TokenTree::Float(_) => {},
                 TokenTree::Tag(Tag::Extends(_)) => break,
                 _ => {
                     for block in parent.nodes.get_blocks() {

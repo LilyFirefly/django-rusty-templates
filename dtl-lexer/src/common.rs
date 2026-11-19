@@ -176,7 +176,6 @@ pub fn check_variable_attrs(variable: &str, start: usize) -> Result<(), LexerErr
         match var.chars().next() {
             Some(c) if c != '_' => {
                 offset += var.len() + 1;
-                continue;
             }
             _ => {
                 let at = (start + offset, var.len());
