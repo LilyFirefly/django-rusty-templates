@@ -1749,18 +1749,17 @@ impl Render for Lorem {
             LoremMethod::Paragraphs | LoremMethod::Blocks => {
                 if val <= 0 {
                     return Ok(Cow::Borrowed(""));
+                }
+                let count = val as usize;
+                let paras = paragraphs(count, self.common);
+                if matches!(self.method, LoremMethod::Paragraphs) {
+                    paras
+                        .into_iter()
+                        .map(|p| format!("<p>{}</p>", p))
+                        .collect::<Vec<_>>()
+                        .join("\n\n")
                 } else {
-                    let count = val as usize;
-                    let paras = paragraphs(count, self.common);
-                    if matches!(self.method, LoremMethod::Paragraphs) {
-                        paras
-                            .into_iter()
-                            .map(|p| format!("<p>{}</p>", p))
-                            .collect::<Vec<_>>()
-                            .join("\n\n")
-                    } else {
-                        paras.join("\n\n")
-                    }
+                    paras.join("\n\n")
                 }
             }
         };
