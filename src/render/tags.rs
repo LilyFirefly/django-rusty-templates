@@ -1787,7 +1787,7 @@ impl Render for FirstOf {
             )? && content.to_bool().unwrap_or(false)
             {
                 if let Some(asvar) = &self.asvar {
-                    context.insert(asvar.to_string(), content.to_py(py));
+                    context.insert(asvar.clone(), content.to_py(py));
                     return Ok(Cow::Borrowed(""));
                 }
 
@@ -1796,7 +1796,7 @@ impl Render for FirstOf {
             }
         }
         if let Some(asvar) = &self.asvar {
-            context.insert(asvar.to_string(), PyString::new(py, "").into_any());
+            context.insert(asvar.clone(), PyString::new(py, "").into_any());
         }
         Ok(Cow::Borrowed(""))
     }

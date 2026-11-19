@@ -2515,7 +2515,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         let origin = self
             .origin
             .as_ref()
-            .map(|origin| origin.template_name.to_string());
+            .map(|origin| origin.template_name.clone());
         let include = Include {
             template_name,
             origin,
