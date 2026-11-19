@@ -1418,6 +1418,9 @@ enum TagContext<'py> {
     EndSimpleBlock,
 }
 
+type CustomTagArgs = Vec<TagElement>;
+type CustomTagKwargs = Vec<(String, TagElement)>;
+
 pub struct Parser<'t, 'py> {
     py: Python<'py>,
     template: TemplateString<'t>,
@@ -1978,12 +1981,11 @@ impl<'t, 'py> Parser<'t, 'py> {
         })
     }
 
-    #[allow(clippy::type_complexity)]
     fn parse_custom_tag_parts(
         &self,
         parts: TagParts,
         context: &SimpleTagContext,
-    ) -> Result<(Vec<TagElement>, Vec<(String, TagElement)>, Option<String>), ParseError> {
+    ) -> Result<(CustomTagArgs, CustomTagKwargs, Option<String>), ParseError> {
         let mut args = Vec::new();
         let mut kwargs = Vec::new();
 
