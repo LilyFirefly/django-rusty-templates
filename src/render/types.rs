@@ -532,12 +532,7 @@ fn resolve_bigint(
     template: &str,
 ) -> Result<usize, PyRenderError> {
     match bigint.to_isize() {
-        Some(n) => {
-            let n = n.max(0);
-            #[allow(clippy::cast_sign_loss)]
-            let n = n as usize;
-            Ok(n)
-        }
+        Some(n) => Ok(n.max(0).cast_unsigned()),
         None => Err(RenderError::OverflowError(Box::new(OverflowError {
             argument: bigint.to_string(),
             argument_at: at.into(),
