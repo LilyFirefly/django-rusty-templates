@@ -2417,9 +2417,8 @@ impl<'t, 'py> Parser<'t, 'py> {
 
     fn parse_block(&mut self, at: At, parts: TagParts) -> Result<TokenTree, PyParseError> {
         let token = lex_block(self.template, parts, BlockType::Start).map_err(ParseError::from)?;
-        let token = match token {
-            Some(token) => token,
-            None => return Err(ParseError::MissingBlockName { at: at.into() }.into()),
+        let Some(token) = token else {
+            return Err(ParseError::MissingBlockName { at: at.into() }.into());
         };
         let name = self.template.content(token.at).to_string();
         match self.seen_blocks.entry(name.clone()) {

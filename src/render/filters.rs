@@ -397,15 +397,12 @@ impl ResolveFilter for DivisibleByFilter {
         template_name: &'t FileName,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
-        let variable = match variable {
-            Some(v) => v,
-            None => {
-                return Err(pyo3::exceptions::PyValueError::new_err(
-                    "invalid literal for int() with base 10: 'None'",
-                )
-                .annotate(py, self.at, "here", template)
-                .into());
-            }
+        let Some(variable) = variable else {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "invalid literal for int() with base 10: 'None'",
+            )
+            .annotate(py, self.at, "here", template)
+            .into());
         };
 
         if let Content::Py(PyContent {
@@ -611,9 +608,8 @@ impl ResolveFilter for LastFilter {
         _template_name: &'t FileName,
         _context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
-        let content = match variable {
-            Some(content) => content,
-            None => return Ok(Some("".as_content())),
+        let Some(content) = variable else {
+            return Ok(Some("".as_content()));
         };
 
         let obj = content.to_py(py);
