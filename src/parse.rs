@@ -723,7 +723,7 @@ pub struct Block {
 }
 
 impl Block {
-    fn nested_blocks(&self) -> Box<dyn Iterator<Item = &Block> + '_> {
+    fn nested_blocks(&self) -> Box<dyn Iterator<Item = &Self> + '_> {
         Box::new(
             self.nodes
                 .iter()

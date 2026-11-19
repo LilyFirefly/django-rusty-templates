@@ -28,8 +28,8 @@ pub enum BlockType {
 impl BlockType {
     fn name(&self) -> &'static str {
         match self {
-            BlockType::Start => "block",
-            BlockType::End => "endblock",
+            Self::Start => "block",
+            Self::End => "endblock",
         }
     }
 }
