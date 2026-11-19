@@ -449,7 +449,6 @@ pub enum ContentString<'t> {
     HtmlUnsafe(Cow<'t, str>),
 }
 
-#[allow(clippy::needless_lifetimes)] // https://github.com/rust-lang/rust-clippy/issues/13923
 impl<'t, 'py> ContentString<'t> {
     pub fn content(self) -> Cow<'t, str> {
         match self {
