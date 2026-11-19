@@ -593,7 +593,7 @@ pub mod django_rusty_templates {
 
         fn _render(&self, py: Python<'_>, context: &mut Context) -> PyResult<String> {
             match self.render(py, context) {
-                Ok(content) => Ok(content.to_string()),
+                Ok(content) => Ok(content),
                 Err(err) => Err(err
                     .try_into_render_error()?
                     .into_pyerr(self.template.clone())),
