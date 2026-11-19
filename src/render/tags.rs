@@ -11,7 +11,7 @@ use pyo3::prelude::*;
 use pyo3::sync::{MutexExt, PyOnceLock};
 use pyo3::types::{PyBool, PyDict, PyList, PyNone, PyString, PyTuple};
 
-use crate::render::lorem::{COMMON_WORDS, paragraphs, words};
+use crate::render::lorem::{COMMON_WORDS_LEN, paragraphs, words};
 use dtl_lexer::tag::lorem::LoremMethod;
 use dtl_lexer::types::{At, TemplateString};
 
@@ -1354,7 +1354,7 @@ impl Render for Extends {
                 TokenTree::Text(_)
                 | TokenTree::TranslatedText(_)
                 | TokenTree::Int(_)
-                | TokenTree::Float(_) => {},
+                | TokenTree::Float(_) => {}
                 TokenTree::Tag(Tag::Extends(_)) => break,
                 _ => {
                     for block in parent.nodes.get_blocks() {
@@ -1740,9 +1740,12 @@ impl Render for Lorem {
         let text = match self.method {
             LoremMethod::Words => {
                 let final_count = match (val, self.common) {
-                    (val, true) if val < 0 => (COMMON_WORDS.len() as i64 + val).max(0) as usize,
+                    (val, true) if val < 0 => (i64::from(COMMON_WORDS_LEN) + val)
+                        .max(0)
+                        .try_into()
+                        .expect("count should be nonnegative"),
                     (val, false) if val < 0 => 0,
-                    (val, _) => val as usize,
+                    (val, _) => val.try_into().expect("value should be nonnegative"),
                 };
                 words(final_count, self.common)
             }
@@ -1750,7 +1753,7 @@ impl Render for Lorem {
                 if val <= 0 {
                     return Ok(Cow::Borrowed(""));
                 }
-                let count = val as usize;
+                let count = val.try_into().expect("value should be positive");
                 let paras = paragraphs(count, self.common);
                 if matches!(self.method, LoremMethod::Paragraphs) {
                     paras
