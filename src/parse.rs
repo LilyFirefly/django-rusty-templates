@@ -1064,7 +1064,6 @@ pub enum ParseError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     ForLexerInError(#[from] ForLexerInError),
-    #[allow(clippy::enum_variant_names)]
     #[error(transparent)]
     #[diagnostic(transparent)]
     ForParseError(#[from] ForParseError),

@@ -25,7 +25,6 @@ pub struct AutoescapeToken {
     pub enabled: AutoescapeEnabled,
 }
 
-#[allow(clippy::enum_variant_names)] // https://github.com/rust-lang/rust-clippy/issues/10599
 #[derive(Error, Debug, Diagnostic, PartialEq, Eq)]
 pub enum AutoescapeError {
     #[error("'autoescape' argument should be 'on' or 'off'.")]
