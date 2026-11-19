@@ -635,7 +635,6 @@ impl<'t, 'py> ResolveTuple<'t, 'py> for (IfCondition, IfCondition) {
 }
 
 impl Evaluate for IfCondition {
-    #[allow(clippy::too_many_lines)]
     fn evaluate(
         &self,
         py: Python<'_>,
@@ -654,71 +653,42 @@ impl Evaluate for IfCondition {
                     .1
                     .evaluate(py, template, template_name, context)
                     .unwrap_or(false);
-                if left { right } else { false }
+                left && right
             }
             Self::Or(inner) => {
                 let left = inner.0.evaluate(py, template, template_name, context);
                 let right = inner.1.evaluate(py, template, template_name, context);
-                match left {
-                    None => false,
-                    Some(left) => {
-                        if left {
-                            true
-                        } else {
-                            right.unwrap_or(false)
-                        }
-                    }
-                }
+                left.is_some_and(|left| left || right.unwrap_or(false))
             }
-            Self::Not(inner) => match inner.evaluate(py, template, template_name, context) {
-                None | Some(true) => false,
-                Some(false) => true,
+            Self::Not(inner) => inner
+                .evaluate(py, template, template_name, context)
+                .is_some_and(|b| !b),
+            Self::Equal(inner) => inner
+                .resolve(py, template, template_name, context)
+                .is_ok_and(|(l, r)| l.eq(&r)),
+            Self::NotEqual(inner) => inner
+                .resolve(py, template, template_name, context)
+                .is_ok_and(|(l, r)| l.ne(&r)),
+            Self::LessThan(inner) => inner
+                .resolve(py, template, template_name, context)
+                .is_ok_and(|(l, r)| l.lt(&r)),
+            Self::GreaterThan(inner) => inner
+                .resolve(py, template, template_name, context)
+                .is_ok_and(|(l, r)| l.gt(&r)),
+            Self::LessThanEqual(inner) => inner
+                .resolve(py, template, template_name, context)
+                .is_ok_and(|(l, r)| l.lte(&r)),
+            Self::GreaterThanEqual(inner) => inner
+                .resolve(py, template, template_name, context)
+                .is_ok_and(|(l, r)| l.gte(&r)),
+            Self::In(inner) => match inner.resolve(py, template, template_name, context) {
+                Ok((l, Some(r))) => r.contains(l).unwrap_or(false),
+                _ => false,
             },
-            Self::Equal(inner) => match inner.resolve(py, template, template_name, context) {
-                Ok((l, r)) => l.eq(&r),
-                Err(_) => false,
+            Self::NotIn(inner) => match inner.resolve(py, template, template_name, context) {
+                Ok((l, Some(r))) => !(r.contains(l).unwrap_or(true)),
+                _ => false,
             },
-            Self::NotEqual(inner) => match inner.resolve(py, template, template_name, context) {
-                Ok((l, r)) => l.ne(&r),
-                Err(_) => false,
-            },
-            Self::LessThan(inner) => match inner.resolve(py, template, template_name, context) {
-                Ok((l, r)) => l.lt(&r),
-                Err(_) => false,
-            },
-            Self::GreaterThan(inner) => match inner.resolve(py, template, template_name, context) {
-                Ok((l, r)) => l.gt(&r),
-                Err(_) => false,
-            },
-            Self::LessThanEqual(inner) => match inner.resolve(py, template, template_name, context)
-            {
-                Ok((l, r)) => l.lte(&r),
-                Err(_) => false,
-            },
-            Self::GreaterThanEqual(inner) => {
-                match inner.resolve(py, template, template_name, context) {
-                    Ok((l, r)) => l.gte(&r),
-                    Err(_) => false,
-                }
-            }
-            Self::In(inner) => {
-                let Ok(inner) = inner.resolve(py, template, template_name, context) else {
-                    return Some(false);
-                };
-                match inner {
-                    (l, Some(r)) => r.contains(l).unwrap_or(false),
-                    _ => false,
-                }
-            }
-            Self::NotIn(inner) => {
-                let Ok(inner) = inner.resolve(py, template, template_name, context) else {
-                    return Some(false);
-                };
-                match inner {
-                    (l, Some(r)) => !(r.contains(l).unwrap_or(true)),
-                    _ => false,
-                }
-            }
             Self::Is(inner) => {
                 let Ok(inner) = inner.resolve(py, template, template_name, context) else {
                     return Some(false);
