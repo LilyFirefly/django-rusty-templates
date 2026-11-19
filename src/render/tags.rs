@@ -1755,7 +1755,7 @@ impl Render for Lorem {
                 if matches!(self.method, LoremMethod::Paragraphs) {
                     paras
                         .into_iter()
-                        .map(|p| format!("<p>{}</p>", p))
+                        .map(|p| format!("<p>{p}</p>"))
                         .collect::<Vec<_>>()
                         .join("\n\n")
                 } else {
