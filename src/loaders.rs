@@ -490,7 +490,7 @@ mod tests {
                  expected_path: &Path| {
                     let (cached_template, _origin) = cache
                         .get(key)
-                        .expect("Expected '{key}' to be in cache.")
+                        .unwrap_or_else(|| panic!("Expected '{key}' to be in cache."))
                         .as_ref()
                         .unwrap();
                     assert_eq!(cached_template.filename.0.as_ref().unwrap(), expected_path);
