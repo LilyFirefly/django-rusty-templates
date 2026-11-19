@@ -235,14 +235,12 @@ pub mod django_rusty_templates {
 
     #[derive(Debug)]
     pub struct Engine {
-        #[allow(dead_code)]
         dirs: Vec<PathBuf>,
         app_dirs: bool,
         context_processors: Vec<String>,
         debug: bool,
         template_loaders: Mutex<Vec<Loader>>,
         string_if_invalid: String,
-        #[allow(dead_code)]
         encoding: &'static Encoding,
         builtins: Vec<String>,
         pub autoescape: bool,
