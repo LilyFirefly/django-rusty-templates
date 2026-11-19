@@ -889,9 +889,9 @@ impl GetBlocks for Tag {
                     None => truthy_blocks,
                 }
             }
-            Self::For(_for) => {
-                let body_blocks = _for.body.get_blocks();
-                match &_for.empty {
+            Self::For(for_) => {
+                let body_blocks = for_.body.get_blocks();
+                match &for_.empty {
                     Some(empty) => Box::new(body_blocks.chain(empty.get_blocks())),
                     None => body_blocks,
                 }
