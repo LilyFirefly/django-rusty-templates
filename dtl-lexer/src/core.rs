@@ -195,7 +195,7 @@ impl Iterator for Lexer<'_> {
                     {
                         let verbatim = tag.content(self.template).trim();
                         if verbatim == "verbatim" || verbatim.starts_with("verbatim ") {
-                            self.verbatim = Some(verbatim)
+                            self.verbatim = Some(verbatim);
                         }
                     }
                     tag

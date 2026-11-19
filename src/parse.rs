@@ -2505,7 +2505,7 @@ impl<'t, 'py> Parser<'t, 'py> {
                         match self.template.content(kwarg_at) {
                             "forloop" => forloop = true,
                             _ => kwargs.push((kwarg_at, element)),
-                        };
+                        }
                     }
                 }
             }

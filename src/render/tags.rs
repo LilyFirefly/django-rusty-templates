@@ -1262,8 +1262,8 @@ impl Extends {
             .expect("context.seen should be populated");
 
         if let Some(origin) = &self.origin {
-            seen.push(origin.clone())
-        };
+            seen.push(origin.clone());
+        }
         match get_template(
             self.engine.clone(),
             py,
