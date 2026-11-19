@@ -157,6 +157,7 @@ pub struct Filter {
 }
 
 impl Filter {
+    #[allow(clippy::too_many_lines)]
     pub fn new(
         parser: &Parser,
         at: At,
