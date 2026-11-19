@@ -140,6 +140,7 @@ impl Context {
         }
     }
 
+    #[must_use]
     pub fn clone_ref(&self, py: Python<'_>) -> Self {
         Self {
             request: self.request.as_ref().map(|v| v.clone_ref(py)),
