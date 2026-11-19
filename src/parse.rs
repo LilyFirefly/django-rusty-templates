@@ -1704,7 +1704,9 @@ impl<'t, 'py> Parser<'t, 'py> {
                         common: false,
                     });
                 }
-                _ => unreachable!("Count in second position should already have errored"),
+                LoremTokenType::Count(_) => {
+                    unreachable!("Count in second position should already have errored")
+                }
             },
             Some(third) => third.map_err(ParseError::from)?,
         };
