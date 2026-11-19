@@ -82,7 +82,7 @@ pub struct BlockContext {
 
 impl BlockContext {
     pub fn pop(&mut self, name: &str) -> Option<BlockData> {
-        self.blocks.get_mut(name).map(|blocks| blocks.pop_back())?
+        self.blocks.get_mut(name).map(VecDeque::pop_back)?
     }
 
     pub fn push(&mut self, name: &str, block: BlockData) {

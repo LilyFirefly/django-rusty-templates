@@ -725,7 +725,7 @@ pub fn slugify(content: Cow<str>) -> Cow<str> {
     let ascii_content = content
         .as_ref()
         .nfkd()
-        .filter(|c| c.is_ascii())
+        .filter(char::is_ascii)
         .skip_while(|c| !c.is_ascii_alphanumeric());
     for c in ascii_content {
         if c.is_ascii_alphanumeric() || c == '_' {
