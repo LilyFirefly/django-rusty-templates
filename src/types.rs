@@ -29,7 +29,7 @@ pub enum Variable {
     #[expect(clippy::enum_variant_names)]
     Variable(At),
     ForVariable(ForVariable),
-    BlockSuper(At),
+    BlockSuper,
 }
 
 #[derive(Clone, Debug, PartialEq)]

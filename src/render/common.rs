@@ -152,7 +152,7 @@ impl Resolve for Variable {
                     }),
                 }))
             }
-            Self::BlockSuper(_) => {
+            Self::BlockSuper => {
                 let (block, template) = context
                     .block
                     .take()
@@ -233,7 +233,7 @@ impl Resolve for Argument {
                     None => {
                         let at = match variable {
                             Variable::Variable(at) => *at,
-                            Variable::BlockSuper(_) => {
+                            Variable::BlockSuper => {
                                 unreachable!("A BlockSuper should always resolve.")
                             }
                             Variable::ForVariable(ForVariable { at, .. }) => *at,

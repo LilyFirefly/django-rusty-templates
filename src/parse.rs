@@ -1571,7 +1571,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             return match parts.next() {
                 Some(part) if part.trim() == "super" => {
                     if self.seen_extends {
-                        Ok(Variable::BlockSuper(at))
+                        Ok(Variable::BlockSuper)
                     } else {
                         Err(ParseError::BlockSuperInBaseTemplate { at: at.into() })
                     }
