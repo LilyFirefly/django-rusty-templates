@@ -198,7 +198,7 @@ pub mod django_rusty_templates {
                             .collect::<PyResult<Vec<_>>>()
                     })
                     .transpose()?
-                    .unwrap_or(dirs.clone());
+                    .unwrap_or_else(|| dirs.clone());
 
                 Ok(Loader::FileSystem(FileSystemLoader::new(paths, encoding)))
             }

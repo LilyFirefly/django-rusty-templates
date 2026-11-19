@@ -88,7 +88,7 @@ impl Resolve for Url {
             for arg in &self.args {
                 py_args.append(
                     arg.resolve(py, template, template_name, context, failures)?
-                        .unwrap_or("".as_content()),
+                        .unwrap_or_else(|| "".as_content()),
                 )?;
             }
             reverse.call1((
@@ -105,7 +105,7 @@ impl Resolve for Url {
                     key,
                     value
                         .resolve(py, template, template_name, context, failures)?
-                        .unwrap_or("".as_content()),
+                        .unwrap_or_else(|| "".as_content()),
                 )?;
             }
             reverse.call1((view_name, py.None(), py.None(), kwargs, current_app))

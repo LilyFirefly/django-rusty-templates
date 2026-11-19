@@ -312,7 +312,7 @@ impl Context {
             .map_or_default(|values| values.last())
             .map(|dict| dict.bind(py))
             .cloned()
-            .unwrap_or(PyDict::new(py).into_any());
+            .unwrap_or_else(|| PyDict::new(py).into_any());
         for forloop in self.loops.iter().rev().take(self.loops.len() - depth) {
             let dict = PyDict::new(py);
             dict.set_item("parentloop", forloop_dict)
