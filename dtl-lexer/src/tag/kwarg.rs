@@ -9,7 +9,8 @@ use crate::common::{
 use crate::tag::TagParts;
 use crate::tag::common::TagElementTokenType;
 use crate::types::{At, TemplateString};
-#[derive(Clone, Debug, PartialEq)]
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TagElementKwargToken {
     pub at: At,
     pub token_type: TagElementTokenType,
@@ -29,11 +30,11 @@ impl TagElementKwargToken {
     /// The location of the full keyword argument:
     ///     keyword=variable
     ///             ────┬───
-    ///                 ╰── self.at
+    ///                 ╰── `self.at`
     ///     ───┬───
-    ///        ╰── self.kwarg
+    ///        ╰── `self.kwarg`
     ///     ────────┬───────
-    ///             ╰── self.all_at()
+    ///             ╰── `self.all_at()`
     pub fn all_at(&self) -> At {
         match self.kwarg {
             None => self.at,
@@ -135,18 +136,15 @@ impl<'t> TagElementKwargLexer<'t> {
         Some(at)
     }
 
-    fn lex_variable_or_filter(
-        &mut self,
-        kwarg: Option<At>,
-    ) -> Result<TagElementKwargToken, TagElementKwargLexerError> {
+    fn lex_variable_or_filter(&mut self, kwarg: Option<At>) -> TagElementKwargToken {
         let (at, byte, rest) = lex_variable(self.byte, self.rest);
         self.rest = rest;
         self.byte = byte;
-        Ok(TagElementKwargToken {
+        TagElementKwargToken {
             token_type: TagElementTokenType::Variable,
             at,
             kwarg,
-        })
+        }
     }
 
     fn lex_remainder(
@@ -195,16 +193,16 @@ impl Iterator for TagElementKwargLexer<'_> {
         };
         let token = match next {
             '_' => {
-                if let Some('(') = chars.next() {
+                if chars.next() == Some('(') {
                     self.lex_translated(&mut chars, kwarg)
                 } else {
-                    self.lex_variable_or_filter(kwarg)
+                    Ok(self.lex_variable_or_filter(kwarg))
                 }
             }
             '"' => self.lex_text(&mut chars, '"', kwarg),
             '\'' => self.lex_text(&mut chars, '\'', kwarg),
             '0'..='9' | '-' => Ok(self.lex_numeric(kwarg)),
-            _ => self.lex_variable_or_filter(kwarg),
+            _ => Ok(self.lex_variable_or_filter(kwarg)),
         };
         Some(self.lex_remainder(token))
     }

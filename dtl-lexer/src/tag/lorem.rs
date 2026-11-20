@@ -5,21 +5,21 @@ use crate::types::{At, TemplateString};
 use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum LoremMethod {
     Words,
     Paragraphs,
     Blocks,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum LoremTokenType {
     Count(TagElementToken),
     Method(LoremMethod),
     Random,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct LoremToken {
     pub at: At,
     pub token_type: LoremTokenType,
@@ -119,7 +119,7 @@ impl<'t> LoremLexer<'t> {
     }
 }
 
-impl<'t> Iterator for LoremLexer<'t> {
+impl Iterator for LoremLexer<'_> {
     type Item = Result<LoremToken, LoremError>;
 
     fn next(&mut self) -> Option<Self::Item> {

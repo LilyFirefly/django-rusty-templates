@@ -397,15 +397,12 @@ impl ResolveFilter for DivisibleByFilter {
         template_name: &'t FileName,
         context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
-        let variable = match variable {
-            Some(v) => v,
-            None => {
-                return Err(pyo3::exceptions::PyValueError::new_err(
-                    "invalid literal for int() with base 10: 'None'",
-                )
-                .annotate(py, self.at, "here", template)
-                .into());
-            }
+        let Some(variable) = variable else {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "invalid literal for int() with base 10: 'None'",
+            )
+            .annotate(py, self.at, "here", template)
+            .into());
         };
 
         if let Content::Py(PyContent {
@@ -443,7 +440,7 @@ impl ResolveFilter for DivisibleByFilter {
 
         let Some(left_val) = variable.to_bigint() else {
             let value_str = variable.render(py, template, context)?;
-            let msg = format!("invalid literal for int() with base 10: '{}'", value_str);
+            let msg = format!("invalid literal for int() with base 10: '{value_str}'");
 
             return Err(pyo3::exceptions::PyValueError::new_err(msg)
                 .annotate(py, self.at, "here", template)
@@ -611,9 +608,8 @@ impl ResolveFilter for LastFilter {
         _template_name: &'t FileName,
         _context: &mut Context,
     ) -> ResolveResult<'t, 'py> {
-        let content = match variable {
-            Some(content) => content,
-            None => return Ok(Some("".as_content())),
+        let Some(content) = variable else {
+            return Ok(Some("".as_content()));
         };
 
         let obj = content.to_py(py);
@@ -714,10 +710,11 @@ fn is_python_whitespace(c: char) -> bool {
 }
 
 /// Convert spaces or repeated dashes to single dashes.
+///
 /// Remove characters that aren't ascii alphanumerics, underscores, or hyphens.
 /// Convert to lowercase. Also strip leading and trailing whitespace, dashes, and underscores.
 ///
-/// See https://github.com/django/django/blob/stable/5.2.x/django/utils/text.py#L453
+/// See <https://github.com/django/django/blob/stable/5.2.x/django/utils/text.py#L453>
 pub fn slugify(content: Cow<str>) -> Cow<str> {
     let mut slug = String::with_capacity(content.len());
 
@@ -725,7 +722,7 @@ pub fn slugify(content: Cow<str>) -> Cow<str> {
     let ascii_content = content
         .as_ref()
         .nfkd()
-        .filter(|c| c.is_ascii())
+        .filter(char::is_ascii)
         .skip_while(|c| !c.is_ascii_alphanumeric());
     for c in ascii_content {
         if c.is_ascii_alphanumeric() || c == '_' {
@@ -980,7 +977,7 @@ impl Iterator for Chunks<'_> {
 
 /// Build the lines of a wrapped line like `textwrap.TextWrapper` with the options Django uses.
 ///
-/// See https://github.com/python/cpython/blob/3.14/Lib/textwrap.py#L235
+/// See <https://github.com/python/cpython/blob/3.14/Lib/textwrap.py#L235>
 struct WrappedLines<'t> {
     line: &'t str,
     width: usize,
@@ -1052,7 +1049,7 @@ impl<'t> Iterator for WrappedLines<'t> {
 ///
 /// Don't wrap long words, thus the output text may have lines longer than ``width``.
 ///
-/// See https://github.com/django/django/blob/stable/5.2.x/django/utils/text.py#L40
+/// See <https://github.com/django/django/blob/stable/5.2.x/django/utils/text.py#L40>
 fn wordwrap(text: &str, width: usize) -> String {
     let mut result = String::with_capacity(text.len());
 

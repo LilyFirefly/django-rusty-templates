@@ -118,7 +118,7 @@ impl<'t> ForLexer<'t> {
         let mut chars = self.rest.chars();
         let token = match chars.next().expect("self.rest is not empty") {
             '_' => {
-                if let Some('(') = chars.next() {
+                if chars.next() == Some('(') {
                     self.lex_translated(&mut chars)?
                 } else {
                     self.lex_variable()
@@ -234,7 +234,7 @@ impl<'t> ForLexer<'t> {
         Err(ForLexerError::UnexpectedExpression { at: at.into() })
     }
 
-    fn check_invalid_variable_name(&mut self, index: usize, at: At) -> Result<(), ForLexerError> {
+    fn check_invalid_variable_name(&self, index: usize, at: At) -> Result<(), ForLexerError> {
         let name = &self.rest[..index];
 
         let (_, _, remainder) = lex_variable(0, name);

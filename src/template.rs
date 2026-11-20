@@ -198,7 +198,7 @@ pub mod django_rusty_templates {
                             .collect::<PyResult<Vec<_>>>()
                     })
                     .transpose()?
-                    .unwrap_or(dirs.clone());
+                    .unwrap_or_else(|| dirs.clone());
 
                 Ok(Loader::FileSystem(FileSystemLoader::new(paths, encoding)))
             }
@@ -235,14 +235,12 @@ pub mod django_rusty_templates {
 
     #[derive(Debug)]
     pub struct Engine {
-        #[allow(dead_code)]
         dirs: Vec<PathBuf>,
         app_dirs: bool,
         context_processors: Vec<String>,
         debug: bool,
         template_loaders: Mutex<Vec<Loader>>,
         string_if_invalid: String,
-        #[allow(dead_code)]
         encoding: &'static Encoding,
         builtins: Vec<String>,
         pub autoescape: bool,
@@ -593,7 +591,7 @@ pub mod django_rusty_templates {
 
         fn _render(&self, py: Python<'_>, context: &mut Context) -> PyResult<String> {
             match self.render(py, context) {
-                Ok(content) => Ok(content.to_string()),
+                Ok(content) => Ok(content),
                 Err(err) => Err(err
                     .try_into_render_error()?
                     .into_pyerr(self.template.clone())),

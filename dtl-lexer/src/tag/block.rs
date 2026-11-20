@@ -5,7 +5,7 @@ use crate::common::NextChar;
 use crate::tag::TagParts;
 use crate::types::{At, TemplateString};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct BlockToken {
     pub at: At,
 }
@@ -28,8 +28,8 @@ pub enum BlockType {
 impl BlockType {
     fn name(&self) -> &'static str {
         match self {
-            BlockType::Start => "block",
-            BlockType::End => "endblock",
+            Self::Start => "block",
+            Self::End => "endblock",
         }
     }
 }

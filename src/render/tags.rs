@@ -11,7 +11,7 @@ use pyo3::prelude::*;
 use pyo3::sync::{MutexExt, PyOnceLock};
 use pyo3::types::{PyBool, PyDict, PyList, PyNone, PyString, PyTuple};
 
-use crate::render::lorem::{COMMON_WORDS, paragraphs, words};
+use crate::render::lorem::{COMMON_WORDS_LEN, paragraphs, words};
 use dtl_lexer::tag::lorem::LoremMethod;
 use dtl_lexer::types::{At, TemplateString};
 
@@ -88,7 +88,7 @@ impl Resolve for Url {
             for arg in &self.args {
                 py_args.append(
                     arg.resolve(py, template, template_name, context, failures)?
-                        .unwrap_or("".as_content()),
+                        .unwrap_or_else(|| "".as_content()),
                 )?;
             }
             reverse.call1((
@@ -105,7 +105,7 @@ impl Resolve for Url {
                     key,
                     value
                         .resolve(py, template, template_name, context, failures)?
-                        .unwrap_or("".as_content()),
+                        .unwrap_or_else(|| "".as_content()),
                 )?;
             }
             reverse.call1((view_name, py.None(), py.None(), kwargs, current_app))
@@ -196,12 +196,12 @@ impl PyCmp<Content<'_, '_>> for Content<'_, '_> {
             }
             (Self::Float(obj), Content::Float(other)) => obj == other,
             (Self::Int(obj), Content::Int(other)) => obj == other,
-            (Self::Int(obj), Content::Bool(other)) => u8::try_from(obj)
-                .map(|o| o == u8::from(*other))
-                .unwrap_or(false),
-            (Self::Bool(obj), Content::Int(other)) => u8::try_from(other)
-                .map(|o| o == u8::from(*obj))
-                .unwrap_or(false),
+            (Self::Int(obj), Content::Bool(other)) => {
+                u8::try_from(obj).is_ok_and(|o| o == u8::from(*other))
+            }
+            (Self::Bool(obj), Content::Int(other)) => {
+                u8::try_from(other).is_ok_and(|o| o == u8::from(*obj))
+            }
             (Self::Float(obj), Content::Int(other)) => {
                 match other.to_f64().expect("BigInt to f64 is always possible") {
                     f64::INFINITY | f64::NEG_INFINITY => false,
@@ -262,15 +262,11 @@ impl PyCmp<Content<'_, '_>> for Content<'_, '_> {
             (Self::Int(obj), Content::Int(other)) => obj < other,
             (Self::Int(obj), Content::Bool(other)) => match obj.sign() {
                 Sign::Minus => true,
-                _ => u8::try_from(obj)
-                    .map(|o| o < u8::from(*other))
-                    .unwrap_or(false),
+                _ => u8::try_from(obj).is_ok_and(|o| o < u8::from(*other)),
             },
             (Self::Bool(obj), Content::Int(other)) => match other.sign() {
                 Sign::Minus => false,
-                _ => u8::try_from(other)
-                    .map(|o| o > u8::from(*obj))
-                    .unwrap_or(true),
+                _ => u8::try_from(other).map_or(true, |o| o > u8::from(*obj)),
             },
             (Self::Float(obj), Content::Int(other)) => {
                 match other.to_f64().expect("BigInt to f64 is always possible") {
@@ -334,15 +330,11 @@ impl PyCmp<Content<'_, '_>> for Content<'_, '_> {
             (Self::Int(obj), Content::Int(other)) => obj > other,
             (Self::Int(obj), Content::Bool(other)) => match obj.sign() {
                 Sign::Minus => false,
-                _ => u8::try_from(obj)
-                    .map(|o| o > u8::from(*other))
-                    .unwrap_or(true),
+                _ => u8::try_from(obj).map_or(true, |o| o > u8::from(*other)),
             },
             (Self::Bool(obj), Content::Int(other)) => match other.sign() {
                 Sign::Minus => true,
-                _ => u8::try_from(other)
-                    .map(|o| o < u8::from(*obj))
-                    .unwrap_or(false),
+                _ => u8::try_from(other).is_ok_and(|o| o < u8::from(*obj)),
             },
             (Self::Float(obj), Content::Int(other)) => {
                 match other.to_f64().expect("BigInt to f64 is always possible") {
@@ -406,15 +398,11 @@ impl PyCmp<Content<'_, '_>> for Content<'_, '_> {
             (Self::Int(obj), Content::Int(other)) => obj <= other,
             (Self::Int(obj), Content::Bool(other)) => match obj.sign() {
                 Sign::Minus => true,
-                _ => u8::try_from(obj)
-                    .map(|o| o <= u8::from(*other))
-                    .unwrap_or(false),
+                _ => u8::try_from(obj).is_ok_and(|o| o <= u8::from(*other)),
             },
             (Self::Bool(obj), Content::Int(other)) => match other.sign() {
                 Sign::Minus => false,
-                _ => u8::try_from(other)
-                    .map(|o| o >= u8::from(*obj))
-                    .unwrap_or(true),
+                _ => u8::try_from(other).map_or(true, |o| o >= u8::from(*obj)),
             },
             (Self::Float(obj), Content::Int(other)) => {
                 match other.to_f64().expect("BigInt to f64 is always possible") {
@@ -478,15 +466,11 @@ impl PyCmp<Content<'_, '_>> for Content<'_, '_> {
             (Self::Int(obj), Content::Int(other)) => obj >= other,
             (Self::Int(obj), Content::Bool(other)) => match obj.sign() {
                 Sign::Minus => false,
-                _ => u8::try_from(obj)
-                    .map(|o| o >= u8::from(*other))
-                    .unwrap_or(true),
+                _ => u8::try_from(obj).map_or(true, |o| o >= u8::from(*other)),
             },
             (Self::Bool(obj), Content::Int(other)) => match other.sign() {
                 Sign::Minus => true,
-                _ => u8::try_from(other)
-                    .map(|o| o <= u8::from(*obj))
-                    .unwrap_or(false),
+                _ => u8::try_from(other).is_ok_and(|o| o <= u8::from(*obj)),
             },
             (Self::Float(obj), Content::Int(other)) => {
                 match other.to_f64().expect("BigInt to f64 is always possible") {
@@ -651,7 +635,6 @@ impl<'t, 'py> ResolveTuple<'t, 'py> for (IfCondition, IfCondition) {
 }
 
 impl Evaluate for IfCondition {
-    #[allow(clippy::too_many_lines)]
     fn evaluate(
         &self,
         py: Python<'_>,
@@ -670,71 +653,42 @@ impl Evaluate for IfCondition {
                     .1
                     .evaluate(py, template, template_name, context)
                     .unwrap_or(false);
-                if left { right } else { false }
+                left && right
             }
             Self::Or(inner) => {
                 let left = inner.0.evaluate(py, template, template_name, context);
                 let right = inner.1.evaluate(py, template, template_name, context);
-                match left {
-                    None => false,
-                    Some(left) => {
-                        if left {
-                            true
-                        } else {
-                            right.unwrap_or(false)
-                        }
-                    }
-                }
+                left.is_some_and(|left| left || right.unwrap_or(false))
             }
-            Self::Not(inner) => match inner.evaluate(py, template, template_name, context) {
-                None | Some(true) => false,
-                Some(false) => true,
+            Self::Not(inner) => inner
+                .evaluate(py, template, template_name, context)
+                .is_some_and(|b| !b),
+            Self::Equal(inner) => inner
+                .resolve(py, template, template_name, context)
+                .is_ok_and(|(l, r)| l.eq(&r)),
+            Self::NotEqual(inner) => inner
+                .resolve(py, template, template_name, context)
+                .is_ok_and(|(l, r)| l.ne(&r)),
+            Self::LessThan(inner) => inner
+                .resolve(py, template, template_name, context)
+                .is_ok_and(|(l, r)| l.lt(&r)),
+            Self::GreaterThan(inner) => inner
+                .resolve(py, template, template_name, context)
+                .is_ok_and(|(l, r)| l.gt(&r)),
+            Self::LessThanEqual(inner) => inner
+                .resolve(py, template, template_name, context)
+                .is_ok_and(|(l, r)| l.lte(&r)),
+            Self::GreaterThanEqual(inner) => inner
+                .resolve(py, template, template_name, context)
+                .is_ok_and(|(l, r)| l.gte(&r)),
+            Self::In(inner) => match inner.resolve(py, template, template_name, context) {
+                Ok((l, Some(r))) => r.contains(l).unwrap_or(false),
+                _ => false,
             },
-            Self::Equal(inner) => match inner.resolve(py, template, template_name, context) {
-                Ok((l, r)) => l.eq(&r),
-                Err(_) => false,
+            Self::NotIn(inner) => match inner.resolve(py, template, template_name, context) {
+                Ok((l, Some(r))) => !(r.contains(l).unwrap_or(true)),
+                _ => false,
             },
-            Self::NotEqual(inner) => match inner.resolve(py, template, template_name, context) {
-                Ok((l, r)) => l.ne(&r),
-                Err(_) => false,
-            },
-            Self::LessThan(inner) => match inner.resolve(py, template, template_name, context) {
-                Ok((l, r)) => l.lt(&r),
-                Err(_) => false,
-            },
-            Self::GreaterThan(inner) => match inner.resolve(py, template, template_name, context) {
-                Ok((l, r)) => l.gt(&r),
-                Err(_) => false,
-            },
-            Self::LessThanEqual(inner) => match inner.resolve(py, template, template_name, context)
-            {
-                Ok((l, r)) => l.lte(&r),
-                Err(_) => false,
-            },
-            Self::GreaterThanEqual(inner) => {
-                match inner.resolve(py, template, template_name, context) {
-                    Ok((l, r)) => l.gte(&r),
-                    Err(_) => false,
-                }
-            }
-            Self::In(inner) => {
-                let Ok(inner) = inner.resolve(py, template, template_name, context) else {
-                    return Some(false);
-                };
-                match inner {
-                    (l, Some(r)) => r.contains(l).unwrap_or(false),
-                    _ => false,
-                }
-            }
-            Self::NotIn(inner) => {
-                let Ok(inner) = inner.resolve(py, template, template_name, context) else {
-                    return Some(false);
-                };
-                match inner {
-                    (l, Some(r)) => !(r.contains(l).unwrap_or(true)),
-                    _ => false,
-                }
-            }
             Self::Is(inner) => {
                 let Ok(inner) = inner.resolve(py, template, template_name, context) else {
                     return Some(false);
@@ -1260,11 +1214,11 @@ impl Render for Include {
 }
 
 impl Extends {
-    fn load_template<'t, 'py>(
+    fn load_template(
         &self,
-        py: Python<'py>,
+        py: Python<'_>,
         template_path: String,
-        template: TemplateString<'t>,
+        template: TemplateString<'_>,
         context: &mut Context,
     ) -> Result<Template, PyErr> {
         if context.render_context.seen.is_none() {
@@ -1278,8 +1232,8 @@ impl Extends {
             .expect("context.seen should be populated");
 
         if let Some(origin) = &self.origin {
-            seen.push(origin.clone())
-        };
+            seen.push(origin.clone());
+        }
         match get_template(
             self.engine.clone(),
             py,
@@ -1297,9 +1251,9 @@ impl Extends {
         }
     }
 
-    fn get_template<'t, 'py>(
+    fn get_template<'t>(
         &self,
-        py: Python<'py>,
+        py: Python<'_>,
         template: TemplateString<'t>,
         template_name: &'t FileName,
         context: &mut Context,
@@ -1370,7 +1324,7 @@ impl Render for Extends {
                 TokenTree::Text(_)
                 | TokenTree::TranslatedText(_)
                 | TokenTree::Int(_)
-                | TokenTree::Float(_) => continue,
+                | TokenTree::Float(_) => {}
                 TokenTree::Tag(Tag::Extends(_)) => break,
                 _ => {
                     for block in parent.nodes.get_blocks() {
@@ -1756,27 +1710,29 @@ impl Render for Lorem {
         let text = match self.method {
             LoremMethod::Words => {
                 let final_count = match (val, self.common) {
-                    (val, true) if val < 0 => (COMMON_WORDS.len() as i64 + val).max(0) as usize,
+                    (val, true) if val < 0 => (i64::from(COMMON_WORDS_LEN) + val)
+                        .max(0)
+                        .try_into()
+                        .expect("count should be nonnegative"),
                     (val, false) if val < 0 => 0,
-                    (val, _) => val as usize,
+                    (val, _) => val.try_into().expect("value should be nonnegative"),
                 };
                 words(final_count, self.common)
             }
             LoremMethod::Paragraphs | LoremMethod::Blocks => {
                 if val <= 0 {
                     return Ok(Cow::Borrowed(""));
+                }
+                let count = val.try_into().expect("value should be positive");
+                let paras = paragraphs(count, self.common);
+                if matches!(self.method, LoremMethod::Paragraphs) {
+                    paras
+                        .into_iter()
+                        .map(|p| format!("<p>{p}</p>"))
+                        .collect::<Vec<_>>()
+                        .join("\n\n")
                 } else {
-                    let count = val as usize;
-                    let paras = paragraphs(count, self.common);
-                    if matches!(self.method, LoremMethod::Paragraphs) {
-                        paras
-                            .into_iter()
-                            .map(|p| format!("<p>{}</p>", p))
-                            .collect::<Vec<_>>()
-                            .join("\n\n")
-                    } else {
-                        paras.join("\n\n")
-                    }
+                    paras.join("\n\n")
                 }
             }
         };
@@ -1803,7 +1759,7 @@ impl Render for FirstOf {
             )? && content.to_bool().unwrap_or(false)
             {
                 if let Some(asvar) = &self.asvar {
-                    context.insert(asvar.to_string(), content.to_py(py));
+                    context.insert(asvar.clone(), content.to_py(py));
                     return Ok(Cow::Borrowed(""));
                 }
 
@@ -1812,7 +1768,7 @@ impl Render for FirstOf {
             }
         }
         if let Some(asvar) = &self.asvar {
-            context.insert(asvar.to_string(), PyString::new(py, "").into_any());
+            context.insert(asvar.clone(), PyString::new(py, "").into_any());
         }
         Ok(Cow::Borrowed(""))
     }

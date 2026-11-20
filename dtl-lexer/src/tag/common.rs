@@ -5,7 +5,7 @@ use crate::common::{
 use crate::tag::TagParts;
 use crate::types::{At, TemplateString};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TagElementTokenType {
     Numeric,
     Text,
@@ -13,7 +13,7 @@ pub enum TagElementTokenType {
     Variable,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TagElementToken {
     pub at: At,
     pub token_type: TagElementTokenType,
@@ -94,14 +94,14 @@ impl<'t> TagElementLexer<'t> {
         }
     }
 
-    fn lex_variable_or_filter(&mut self) -> Result<TagElementToken, LexerError> {
+    fn lex_variable_or_filter(&mut self) -> TagElementToken {
         let (at, byte, rest) = lex_variable(self.byte, self.rest);
         self.rest = rest;
         self.byte = byte;
-        Ok(TagElementToken {
+        TagElementToken {
             token_type: TagElementTokenType::Variable,
             at,
-        })
+        }
     }
 
     fn lex_remainder(
@@ -132,16 +132,16 @@ impl Iterator for TagElementLexer<'_> {
         let mut chars = self.rest.chars();
         let token = match chars.next()? {
             '_' => {
-                if let Some('(') = chars.next() {
+                if chars.next() == Some('(') {
                     self.lex_translated(&mut chars)
                 } else {
-                    self.lex_variable_or_filter()
+                    Ok(self.lex_variable_or_filter())
                 }
             }
             '"' => self.lex_text(&mut chars, '"'),
             '\'' => self.lex_text(&mut chars, '\''),
             '0'..='9' | '-' => Ok(self.lex_numeric()),
-            _ => self.lex_variable_or_filter(),
+            _ => Ok(self.lex_variable_or_filter()),
         };
         Some(self.lex_remainder(token))
     }

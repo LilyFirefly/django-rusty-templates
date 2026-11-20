@@ -76,6 +76,11 @@ pub enum VariableLexerError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     LexerError(#[from] LexerError),
+    #[error("Expected an argument")]
+    MissingArgument {
+        #[label("after this")]
+        at: SourceSpan,
+    },
     #[error("Expected a valid filter name")]
     InvalidFilterName {
         #[label("here")]
@@ -248,7 +253,7 @@ impl<'t> FilterLexer<'t> {
                 }
             }
             _ => {
-                let next = self.rest.find("|").unwrap_or(self.rest.len());
+                let next = self.rest.find('|').unwrap_or(self.rest.len());
                 let at = (self.byte, next);
                 self.rest = "";
                 Err(VariableLexerError::InvalidFilterName { at: at.into() })
@@ -257,20 +262,24 @@ impl<'t> FilterLexer<'t> {
     }
 
     fn lex_argument(&mut self) -> Result<Option<Argument>, VariableLexerError> {
-        let Some(a) = self.rest.find(":") else {
+        let Some(a) = self.rest.find(':') else {
             return Ok(None);
         };
-        let next = match self.rest.find("|") {
+        let next = match self.rest.find('|') {
             Some(f) if f < a => return Ok(None),
             _ => a + 1,
         };
+        let arg_at = (self.byte + a, 1);
         self.rest = &self.rest[next..];
         self.byte += next;
 
         let mut chars = self.rest.chars();
-        Ok(Some(match chars.next().unwrap() {
+        let Some(next_char) = chars.next() else {
+            return Err(VariableLexerError::MissingArgument { at: arg_at.into() });
+        };
+        Ok(Some(match next_char {
             '_' => {
-                if let Some('(') = chars.next() {
+                if chars.next() == Some('(') {
                     self.lex_translated(&mut chars)?
                 } else {
                     let end = self.rest.next_whitespace();
@@ -307,8 +316,8 @@ impl<'t> FilterLexer<'t> {
         }
     }
 
-    fn remainder_to_filter_or_argument(&mut self) -> (&'t str, usize) {
-        match (self.rest.find("|"), self.rest.find(":")) {
+    fn remainder_to_filter_or_argument(&self) -> (&'t str, usize) {
+        match (self.rest.find('|'), self.rest.find(':')) {
             (None, None) => (self.rest, self.rest.len()),
             (None, Some(a)) => (&self.rest[..a], a + 1),
             (Some(f), Some(a)) if a < f => (&self.rest[..a], a + 1),

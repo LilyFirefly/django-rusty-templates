@@ -193,7 +193,8 @@ static WORDS: [&str; 182] = [
     "corrupti",
 ];
 
-pub static COMMON_WORDS: [&str; 19] = [
+pub const COMMON_WORDS_LEN: u8 = 19;
+static COMMON_WORDS: [&str; COMMON_WORDS_LEN as usize] = [
     "lorem",
     "ipsum",
     "dolor",

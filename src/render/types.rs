@@ -82,7 +82,7 @@ pub struct BlockContext {
 
 impl BlockContext {
     pub fn pop(&mut self, name: &str) -> Option<BlockData> {
-        self.blocks.get_mut(name).map(|blocks| blocks.pop_back())?
+        self.blocks.get_mut(name).map(VecDeque::pop_back)?
     }
 
     pub fn push(&mut self, name: &str, block: BlockData) {
@@ -140,6 +140,7 @@ impl Context {
         }
     }
 
+    #[must_use]
     pub fn clone_ref(&self, py: Python<'_>) -> Self {
         Self {
             request: self.request.as_ref().map(|v| v.clone_ref(py)),
@@ -312,7 +313,7 @@ impl Context {
             .map_or_default(|values| values.last())
             .map(|dict| dict.bind(py))
             .cloned()
-            .unwrap_or(PyDict::new(py).into_any());
+            .unwrap_or_else(|| PyDict::new(py).into_any());
         for forloop in self.loops.iter().rev().take(self.loops.len() - depth) {
             let dict = PyDict::new(py);
             dict.set_item("parentloop", forloop_dict)
@@ -448,7 +449,6 @@ pub enum ContentString<'t> {
     HtmlUnsafe(Cow<'t, str>),
 }
 
-#[allow(clippy::needless_lifetimes)] // https://github.com/rust-lang/rust-clippy/issues/13923
 impl<'t, 'py> ContentString<'t> {
     pub fn content(self) -> Cow<'t, str> {
         match self {
@@ -478,8 +478,8 @@ impl<'t, 'py> ContentString<'t> {
     }
 }
 
-fn resolve_python<'py, 't>(
-    py: Python<'py>,
+fn resolve_python<'t>(
+    py: Python<'_>,
     value: Bound<'_, PyAny>,
     at: At,
     template: TemplateString<'t>,
@@ -532,12 +532,7 @@ fn resolve_bigint(
     template: &str,
 ) -> Result<usize, PyRenderError> {
     match bigint.to_isize() {
-        Some(n) => {
-            let n = n.max(0);
-            #[allow(clippy::cast_sign_loss)]
-            let n = n as usize;
-            Ok(n)
-        }
+        Some(n) => Ok(n.max(0).cast_unsigned()),
         None => Err(RenderError::OverflowError(Box::new(OverflowError {
             argument: bigint.to_string(),
             argument_at: at.into(),

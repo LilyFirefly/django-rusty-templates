@@ -140,11 +140,11 @@ impl<'t> IncludeLexer<'t> {
     }
 
     pub fn lex_with_or_only(&mut self) -> Result<IncludeWithToken, IncludeLexerError> {
+        const HELP: &str = "Try adding the 'with' keyword before the argument.";
         let token = match self.next_kwarg() {
             None => return Ok(IncludeWithToken::None),
             Some(result) => result?,
         };
-        const HELP: &str = "Try adding the 'with' keyword before the argument.";
         match token {
             TagElementKwargToken {
                 at,
@@ -166,7 +166,7 @@ impl<'t> IncludeLexer<'t> {
     }
 }
 
-impl<'t> Iterator for IncludeLexer<'t> {
+impl Iterator for IncludeLexer<'_> {
     type Item = Result<IncludeToken, IncludeLexerError>;
 
     fn next(&mut self) -> Option<Self::Item> {

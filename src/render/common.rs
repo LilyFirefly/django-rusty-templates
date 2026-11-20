@@ -18,6 +18,7 @@ use crate::error::{
 use crate::parse::{TagElement, TokenTree};
 use crate::types::Argument;
 use crate::types::ArgumentType;
+//use crate::types::BlockSuper;
 use crate::types::ForVariable;
 use crate::types::ForVariableName;
 use crate::types::Text;
@@ -122,57 +123,75 @@ impl Resolve for Variable {
                 })))
             }
             Self::ForVariable(for_variable) => {
-                let Some(for_loop) = context.get_for_loop(for_variable.parent_count) else {
-                    match context.loops.is_empty()
-                        || context.loops.len() < for_variable.parent_count
-                    {
-                        true => {
-                            let variable = Self::Variable(for_variable.at);
-                            return variable.resolve(
-                                py,
-                                template,
-                                template_name,
-                                context,
-                                failures,
-                            );
-                        }
-                        false => return Ok(Some("{}".as_content())),
-                    }
-                };
-                Ok(Some(match for_variable.variant {
-                    ForVariableName::Counter => Content::Int(for_loop.counter().into()),
-                    ForVariableName::Counter0 => Content::Int(for_loop.counter0().into()),
-                    ForVariableName::RevCounter => Content::Int(for_loop.rev_counter().into()),
-                    ForVariableName::RevCounter0 => Content::Int(for_loop.rev_counter0().into()),
-                    ForVariableName::First => Content::Bool(for_loop.first()),
-                    ForVariableName::Last => Content::Bool(for_loop.last()),
-                    ForVariableName::Object => Content::Py(PyContent {
-                        content: context.resolve_for_loop(py, for_variable.parent_count),
-                        at: for_variable.at,
-                    }),
-                }))
+                for_variable.resolve(py, template, template_name, context, failures)
             }
-            Self::BlockSuper(_) => {
-                let (block, template) = context
-                    .block
-                    .take()
-                    .expect("Should already have raised if None.");
-                let rendered = block
-                    .render(py, TemplateString(&template), template_name, context)
-                    .map(|content| content.to_string());
-                let rendered = match rendered {
-                    Ok(content) => Ok(content.into_content()),
-                    Err(error) => match error {
-                        PyRenderError::RenderError(RenderError::ArgumentDoesNotExist(..)) => {
-                            Ok(Cow::Borrowed("").as_content())
-                        }
-                        _ => Err(error),
-                    },
-                };
-                context.block = Some((block, template));
-                Ok(Some(rendered?))
-            }
+            Self::BlockSuper => BlockSuper.resolve(py, template, template_name, context, failures),
         }
+    }
+}
+
+impl Resolve for ForVariable {
+    fn resolve<'t, 'py>(
+        &self,
+        py: Python<'py>,
+        template: TemplateString<'t>,
+        template_name: &'t FileName,
+        context: &mut Context,
+        failures: ResolveFailures,
+    ) -> ResolveResult<'t, 'py> {
+        let Some(for_loop) = context.get_for_loop(self.parent_count) else {
+            match context.loops.is_empty() || context.loops.len() < self.parent_count {
+                true => {
+                    let variable = Variable::Variable(self.at);
+                    return variable.resolve(py, template, template_name, context, failures);
+                }
+                false => return Ok(Some("{}".as_content())),
+            }
+        };
+        Ok(Some(match self.variant {
+            ForVariableName::Counter => Content::Int(for_loop.counter().into()),
+            ForVariableName::Counter0 => Content::Int(for_loop.counter0().into()),
+            ForVariableName::RevCounter => Content::Int(for_loop.rev_counter().into()),
+            ForVariableName::RevCounter0 => Content::Int(for_loop.rev_counter0().into()),
+            ForVariableName::First => Content::Bool(for_loop.first()),
+            ForVariableName::Last => Content::Bool(for_loop.last()),
+            ForVariableName::Object => Content::Py(PyContent {
+                content: context.resolve_for_loop(py, self.parent_count),
+                at: self.at,
+            }),
+        }))
+    }
+}
+
+struct BlockSuper;
+
+impl Resolve for BlockSuper {
+    fn resolve<'t, 'py>(
+        &self,
+        py: Python<'py>,
+        _template: TemplateString<'t>,
+        template_name: &'t FileName,
+        context: &mut Context,
+        _failures: ResolveFailures,
+    ) -> ResolveResult<'t, 'py> {
+        let (block, template) = context
+            .block
+            .take()
+            .expect("Should already have raised if None.");
+        let rendered = block
+            .render(py, TemplateString(&template), template_name, context)
+            .map(|content| content.to_string());
+        let rendered = match rendered {
+            Ok(content) => Ok(content.into_content()),
+            Err(error) => match error {
+                PyRenderError::RenderError(RenderError::ArgumentDoesNotExist(..)) => {
+                    Ok(Cow::Borrowed("").as_content())
+                }
+                _ => Err(error),
+            },
+        };
+        context.block = Some((block, template));
+        Ok(Some(rendered?))
     }
 }
 
@@ -233,7 +252,7 @@ impl Resolve for Argument {
                     None => {
                         let at = match variable {
                             Variable::Variable(at) => *at,
-                            Variable::BlockSuper(_) => {
+                            Variable::BlockSuper => {
                                 unreachable!("A BlockSuper should always resolve.")
                             }
                             Variable::ForVariable(ForVariable { at, .. }) => *at,
