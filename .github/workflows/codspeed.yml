@@ -48,7 +48,7 @@ jobs:
         run: cargo codspeed build --locked -p dtl_benchmark
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.3.3
+        uses: astral-sh/setup-uv@v10.4.0
 
       - name: Install dependencies
         run: uv sync --dev
