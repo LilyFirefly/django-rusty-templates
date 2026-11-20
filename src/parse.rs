@@ -954,16 +954,15 @@ struct UntilEndTagTypes<'u> {
 impl std::fmt::Display for UntilEndTagTypes<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self.tags {
-            [] => write!(f, "'{}'", self.last.as_cow()),
-            end_tags => {
-                let end_tags = end_tags
-                    .iter()
-                    .map(|end_tag: &EndTagType| format!("'{}'", end_tag.as_cow()))
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                write!(f, "{end_tags} or '{}'", self.last.as_cow())
+            [] => write!(f, "'{}'", self.last.as_cow())?,
+            [end_tags @ .., penultimate] => {
+                for end_tag in end_tags {
+                    write!(f, "'{}', ", end_tag.as_cow())?;
+                }
+                write!(f, "'{}' or '{}'", penultimate.as_cow(), self.last.as_cow())?;
             }
         }
+        Ok(())
     }
 }
 
