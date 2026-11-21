@@ -1198,3 +1198,39 @@ def test_else_invalid_content(assert_parse_error):
     assert_parse_error(
         template=template, django_message=django_message, rusty_message=rusty_message
     )
+
+
+def test_missing_end_tag_elif(assert_parse_error):
+    template = "{% if a %}"
+    django_message = snapshot(
+        "Unclosed tag on line 1: 'if'. Looking for one of: elif, else, endif."
+    )
+    rusty_message = snapshot("""\
+  × Unclosed 'if' tag, expected 'elif', 'else' or 'endif'
+   ╭────
+ 1 │ {% if a %}
+   · ─────┬────
+   ·      ╰── started here
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
+def test_missing_end_tag_endif(assert_parse_error):
+    template = "{% if a %}{% else %}"
+    django_message = snapshot(
+        "Unclosed tag on line 1: 'if'. Looking for one of: endif."
+    )
+    rusty_message = snapshot("""\
+  × Unclosed 'else' tag, expected 'endif'
+   ╭────
+ 1 │ {% if a %}{% else %}
+   ·           ─────┬────
+   ·                ╰── started here
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
