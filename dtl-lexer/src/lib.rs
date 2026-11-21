@@ -2,6 +2,7 @@ use crate::types::{At, TemplateString};
 
 pub mod common;
 pub mod core;
+pub mod python_compat;
 pub mod tag;
 pub mod types;
 pub mod variable;
