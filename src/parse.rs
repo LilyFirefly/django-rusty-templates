@@ -946,35 +946,34 @@ impl EndTag {
     }
 }
 
-struct UntilEndTagTypes<'u> {
-    tags: &'u [EndTagType],
-    last: EndTagType,
+struct Until<'u> {
+    first: EndTagType,
+    rest: &'u [EndTagType],
 }
 
-impl std::fmt::Display for UntilEndTagTypes<'_> {
+impl std::fmt::Display for Until<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self.tags {
-            [] => write!(f, "'{}'", self.last.as_cow())?,
-            [end_tags @ .., penultimate] => {
-                for end_tag in end_tags {
-                    write!(f, "'{}', ", end_tag.as_cow())?;
-                }
-                write!(f, "'{}' or '{}'", penultimate.as_cow(), self.last.as_cow())?;
+        write!(f, "'{}'", self.first.as_cow())?;
+        if let [middle @ .., last] = self.rest {
+            for tag in middle {
+                write!(f, ", '{}'", tag.as_cow())?;
             }
+            write!(f, " or '{}'", last.as_cow())?;
         }
         Ok(())
     }
 }
 
-impl UntilEndTagTypes<'_> {
+impl Until<'_> {
     fn contains(&self, end_tag: &EndTagType) -> bool {
-        self.last == *end_tag || self.tags.contains(end_tag)
+        self.first == *end_tag || self.rest.contains(end_tag)
     }
 }
 
 macro_rules! until {
-    ($last:expr) => {UntilEndTagTypes { tags: &[], last: $last }};
-    ($($tags:expr),*; $last:expr) => {UntilEndTagTypes { tags: &[$($tags),*], last: $last }};
+    ($first:expr $(, $rest:expr)* $(,)?) => {
+        Until { first: $first, rest: &[$($rest),*] }
+    };
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -1541,7 +1540,7 @@ impl<'t, 'py> Parser<'t, 'py> {
 
     fn parse_until(
         &mut self,
-        until: UntilEndTagTypes,
+        until: Until,
         start: Cow<'static, str>,
         start_at: At,
     ) -> Result<(Vec<TokenTree>, EndTag), PyParseError> {
@@ -2467,7 +2466,10 @@ impl<'t, 'py> Parser<'t, 'py> {
         };
         let in_block = self.in_block;
         self.in_block = true;
-        let until = until!(EndTagType::EndBlock(None); EndTagType::EndBlock(Some(name.clone())));
+        let until = until!(
+            EndTagType::EndBlock(None),
+            EndTagType::EndBlock(Some(name.clone())),
+        );
         let result = self.parse_until(until, "block".into(), at);
         self.in_block = in_block;
         let (nodes, _) = result?;
@@ -2583,7 +2585,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         start: &'static str,
     ) -> Result<TokenTree, PyParseError> {
         let condition = parse_if_condition(self, parts, at)?;
-        let until = until!(EndTagType::Elif, EndTagType::Else; EndTagType::EndIf);
+        let until = until!(EndTagType::Elif, EndTagType::Else, EndTagType::EndIf);
         let (nodes, end_tag) = self.parse_until(until, start.into(), at)?;
         let falsey = match end_tag {
             EndTag {
@@ -2615,7 +2617,7 @@ impl<'t, 'py> Parser<'t, 'py> {
 
     fn parse_for(&mut self, at: At, parts: TagParts) -> Result<TokenTree, PyParseError> {
         let (iterable, variables, reversed) = parse_for_loop(self, parts, at)?;
-        let until = until!(EndTagType::Empty; EndTagType::EndFor);
+        let until = until!(EndTagType::Empty, EndTagType::EndFor);
         let (nodes, end_tag) = self.parse_until(until, "for".into(), at)?;
         let empty = match end_tag {
             EndTag {
