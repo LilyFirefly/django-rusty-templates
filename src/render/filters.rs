@@ -858,7 +858,7 @@ impl ResolveFilter for WordcountFilter {
                 let content_string = content.resolve_string(py, template, context)?;
                 let word_count = content_string
                     .as_raw()
-                    .split(is_python_whitespace)
+                    .split(dtl_lexer::python_compat::is_whitespace)
                     .filter(|word| !word.is_empty())
                     .count();
                 Content::Int(word_count.into())
