@@ -41,7 +41,7 @@ jobs:
       env:
         UV_PROJECT_ENVIRONMENT: ${{ env.pythonLocation }}
     - name: Install cargo-binstall
-      uses: cargo-bins/cargo-binstall@v1.27.0
+      uses: cargo-bins/cargo-binstall@v1.28.0
     - name: Install cargo-llvm-cov
       run: cargo binstall cargo-llvm-cov
     - name: Run tests
