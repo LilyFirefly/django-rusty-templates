@@ -474,6 +474,54 @@ index b20b015..a944712 100644
 -        with self.assertRaisesMessage(TemplateSyntaxError, msg):
 +        with self.assertRaises(TemplateSyntaxError):
              engine.render_to_string("dir1/looped.html")
+diff --git a/tests/template_tests/test_loaders.py b/tests/template_tests/test_loaders.py
+index 219c331..b54af7b 100644
+--- a/tests/template_tests/test_loaders.py
++++ b/tests/template_tests/test_loaders.py
+@@ -30,9 +30,6 @@ class CachedLoaderTests(SimpleTestCase):
+         template = self.engine.get_template("index.html")
+         self.assertEqual(template.origin.name, os.path.join(TEMPLATE_DIR, "index.html"))
+         self.assertEqual(template.origin.template_name, "index.html")
+-        self.assertEqual(
+-            template.origin.loader, self.engine.template_loaders[0].loaders[0]
+-        )
+ 
+         cache = self.engine.template_loaders[0].get_template_cache
+         self.assertEqual(cache["index.html"], template)
+@@ -41,9 +38,6 @@ class CachedLoaderTests(SimpleTestCase):
+         template = self.engine.get_template("index.html")
+         self.assertEqual(template.origin.name, os.path.join(TEMPLATE_DIR, "index.html"))
+         self.assertEqual(template.origin.template_name, "index.html")
+-        self.assertEqual(
+-            template.origin.loader, self.engine.template_loaders[0].loaders[0]
+-        )
+ 
+     def test_get_template_missing_debug_off(self):
+         """
+@@ -153,10 +147,6 @@ class FileSystemLoaderTests(SimpleTestCase):
+         template = self.engine.get_template("index.html")
+         self.assertEqual(template.origin.name, os.path.join(TEMPLATE_DIR, "index.html"))
+         self.assertEqual(template.origin.template_name, "index.html")
+-        self.assertEqual(template.origin.loader, self.engine.template_loaders[0])
+-        self.assertEqual(
+-            template.origin.loader_name, "django.template.loaders.filesystem.Loader"
+-        )
+ 
+     def test_loaders_dirs(self):
+         engine = Engine(
+@@ -247,7 +237,6 @@ class AppDirectoriesLoaderTests(SimpleTestCase):
+         template = self.engine.get_template("index.html")
+         self.assertEqual(template.origin.name, os.path.join(TEMPLATE_DIR, "index.html"))
+         self.assertEqual(template.origin.template_name, "index.html")
+-        self.assertEqual(template.origin.loader, self.engine.template_loaders[0])
+ 
+     @override_settings(INSTALLED_APPS=[])
+     def test_not_installed(self):
+@@ -274,4 +263,3 @@ class LocmemLoaderTests(SimpleTestCase):
+         template = self.engine.get_template("index.html")
+         self.assertEqual(template.origin.name, "index.html")
+         self.assertEqual(template.origin.template_name, "index.html")
+-        self.assertEqual(template.origin.loader, self.engine.template_loaders[0])
 diff --git a/tests/template_tests/tests.py b/tests/template_tests/tests.py
 index da03c2d..180248f 100644
 --- a/tests/template_tests/tests.py
