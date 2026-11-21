@@ -477,6 +477,7 @@ version = "0.0.0"
 dependencies = [
  "codspeed-divan-compat",
  "django-rusty-templates",
+ "dtl-lexer",
 ]
 
 [[package]]
