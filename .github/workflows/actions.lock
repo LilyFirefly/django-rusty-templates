@@ -19,7 +19,7 @@ workflows:
         - 'moonrepo/setup-rust@v1.3.0'
     '.github/workflows/lint.yml':
         - 'actions/checkout@v7.0.1'
-        - 'cargo-bins/cargo-binstall@v1.27.0'
+        - 'cargo-bins/cargo-binstall@v1.28.0'
     '.github/workflows/pr-comment-django-test-suite.yml':
         - 'dawidd6/action-download-artifact@v28'
         - 'peter-evans/create-or-update-comment@v5.0.0'
@@ -29,13 +29,13 @@ workflows:
         - 'actions/setup-python@v7.1.0'
         - 'actions/upload-artifact@v7.0.2'
         - 'astral-sh/setup-uv@v10.4.0'
-        - 'cargo-bins/cargo-binstall@v1.27.0'
+        - 'cargo-bins/cargo-binstall@v1.28.0'
         - 'codecov/codecov-action@v7.1.1'
     '.github/workflows/rust.yml':
         - 'actions/checkout@v7.0.1'
         - 'actions/setup-python@v7.1.0'
         - 'astral-sh/setup-uv@v10.4.0'
-        - 'cargo-bins/cargo-binstall@v1.27.0'
+        - 'cargo-bins/cargo-binstall@v1.28.0'
         - 'codecov/codecov-action@v7.1.1'
 dependencies:
     'actions/attest@v4.2.2':
@@ -78,9 +78,9 @@ dependencies:
         commit: 'sha1-1db35dd8eee11c5894872e0b383ae6c406cf738d'
         owner_id: 115962839
         repo_id: 846733598
-    'cargo-bins/cargo-binstall@v1.27.0':
-        ref: 'v1.27.0'
-        commit: 'sha1-5885714d0a40a14b2535c6ffc051fd8e49aa9665'
+    'cargo-bins/cargo-binstall@v1.28.0':
+        ref: 'v1.28.0'
+        commit: 'sha1-4b6fa09d0d1ef9740a0c332e31b9ae336f97efa0'
         owner_id: 110581826
         repo_id: 321270638
     'codecov/codecov-action@v7.1.1':
