@@ -131,3 +131,15 @@ def engine_class(request):
     if request.param == "django":
         return DjangoTemplates
     return RustyTemplates
+
+
+def locmem_config(*templates):
+    loaders = [
+        ("django.template.loaders.locmem.Loader", template) for template in templates
+    ]
+    return {
+        "OPTIONS": {"loaders": loaders},
+        "NAME": "locmem",
+        "DIRS": (),
+        "APP_DIRS": False,
+    }
