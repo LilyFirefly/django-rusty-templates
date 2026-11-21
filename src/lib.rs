@@ -21,6 +21,7 @@ mod filters;
 mod loaders;
 mod parse;
 mod path;
+mod python_compat;
 pub mod render;
 mod template;
 mod types;
