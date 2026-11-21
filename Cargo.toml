@@ -19,7 +19,7 @@ edition = "2024"
 rust-version = "1.99"
 
 [workspace.dependencies]
-miette = { version = "7.6.0", features = ["fancy"] }
+miette = "7.6.0"
 num-bigint = "0.4.6"
 thiserror = "2.0.16"
 
@@ -73,7 +73,7 @@ dtl-lexer = { path = "dtl-lexer" }
 either = "1.15.0"
 encoding_rs = "0.8.35"
 html-escape = "0.3.0"
-miette.workspace = true
+miette = { workspace = true, features = ["fancy"] }
 num-bigint.workspace = true
 num-traits = "0.2.19"
 pyo3 = { version = "0.30.0", features = ["num-bigint"] }
