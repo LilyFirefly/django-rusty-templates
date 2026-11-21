@@ -19,6 +19,7 @@ from tests.utils import BrokenDunderStr
         pytest.param("hello\n\nworld", "2", id="multiple_newlines"),
         pytest.param("  ", "0", id="only_spaces"),
         pytest.param("\t\n", "0", id="only_whitespace"),
+        pytest.param("a\x1cb\x1dc\x1ed\x1fe", "5", id="ascii_separators"),
         # Punctuation
         pytest.param("hello-world", "1", id="hyphenated"),
         pytest.param("hello_world", "1", id="underscored"),

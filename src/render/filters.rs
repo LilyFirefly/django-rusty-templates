@@ -860,7 +860,11 @@ impl ResolveFilter for WordcountFilter {
         let content = match variable {
             Some(content) => {
                 let content_string = content.resolve_string(py, template, context)?;
-                let word_count = content_string.as_raw().split_whitespace().count();
+                let word_count = content_string
+                    .as_raw()
+                    .split(is_python_whitespace)
+                    .filter(|word| !word.is_empty())
+                    .count();
                 Content::Int(word_count.into())
             }
             None => Content::Int(0.into()),
