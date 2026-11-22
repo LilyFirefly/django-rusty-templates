@@ -87,12 +87,20 @@ pub mod django_rusty_templates {
         }
     }
 
-    #[pyclass(frozen)]
+    #[pyclass(eq, frozen)]
+    #[derive(PartialEq, Eq)]
     struct PyOrigin {
         #[pyo3(get)]
         name: String,
         #[pyo3(get)]
         template_name: String,
+    }
+
+    #[pymethods]
+    impl PyOrigin {
+        fn __repr__(&self) -> String {
+            format!("<Origin name={:?}>", self.name).replace('"', "'")
+        }
     }
 
     fn import_libraries(libraries: Bound<'_, PyAny>) -> PyResult<HashMap<String, Py<PyAny>>> {
@@ -525,6 +533,7 @@ pub mod django_rusty_templates {
         pub template: Arc<String>,
         pub nodes: Vec<TokenTree>,
         pub engine: Arc<Engine>,
+        origin: Option<Origin>,
     }
 
     impl Template {
@@ -551,6 +560,7 @@ pub mod django_rusty_templates {
                 filename: FileName(Some(filename)),
                 nodes,
                 engine,
+                origin: parser.origin,
             })
         }
 
@@ -572,6 +582,7 @@ pub mod django_rusty_templates {
                 filename: FileName(None),
                 nodes,
                 engine,
+                origin: None,
             })
         }
 
@@ -668,6 +679,14 @@ pub mod django_rusty_templates {
             let rendered = self.py_render(py, context, request)?;
             let safe_string = SAFE_STRING.import(py, "django.utils.safestring", "SafeString")?;
             safe_string.call1((rendered,))
+        }
+
+        #[getter]
+        fn origin(&self) -> Option<PyOrigin> {
+            self.origin.clone().map(|origin| PyOrigin {
+                name: origin.name,
+                template_name: origin.template_name,
+            })
         }
     }
 }

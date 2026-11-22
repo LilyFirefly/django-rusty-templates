@@ -1445,7 +1445,7 @@ pub struct Parser<'t, 'py> {
     template: TemplateString<'t>,
     lexer: Lexer<'t>,
     engine: Arc<Engine>,
-    origin: Option<Origin>,
+    pub origin: Option<Origin>,
     external_tags: HashMap<String, TagContext<'py>>,
     external_filters: HashMap<String, Bound<'py, PyAny>>,
     named_cycles: HashMap<String, Cycle>,
