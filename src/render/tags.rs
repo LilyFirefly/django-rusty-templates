@@ -2064,10 +2064,7 @@ impl Render for SimpleCycle {
     ) -> RenderResult<'t> {
         let ResolvedCycleValue { content, .. } =
             self.resolve_next(py, template, template_name, context, string_if_invalid)?;
-        Ok(match content {
-            ResolveContent::Content(content) => content.render(py, template, context)?,
-            ResolveContent::Missing(variable) => string_if_invalid.format(variable),
-        })
+        content.render(py, template, context, string_if_invalid)
     }
 }
 
@@ -2082,10 +2079,7 @@ impl Render for NamedCycle {
     ) -> RenderResult<'t> {
         let ResolvedCycleValue { content, .. } =
             self.resolve_and_store(py, template, template_name, context, string_if_invalid)?;
-        Ok(match content {
-            ResolveContent::Content(content) => content.render(py, template, context)?,
-            ResolveContent::Missing(variable) => string_if_invalid.format(variable),
-        })
+        content.render(py, template, context, string_if_invalid)
     }
 }
 

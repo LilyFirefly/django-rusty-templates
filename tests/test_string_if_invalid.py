@@ -10,6 +10,13 @@ from .conftest import locmem_config
     (
         ("{{ missing }}", "INVALID", "INVALID", {}),
         ("{{ missing }}", "%s", "missing", {}),
+        ("{{ missing }}", "<b>%s</b>", "&lt;b&gt;missing&lt;/b&gt;", {}),
+        (
+            "{% autoescape off %}{{ missing }}{% endautoescape %}",
+            "<b>%s</b>",
+            "<b>missing</b>",
+            {},
+        ),
         ("{{ missing|capfirst }}", "invalid", "invalid", {}),
         ("{{ missing|capfirst }}", "%s", "missing", {}),
         (
@@ -117,6 +124,18 @@ from .conftest import locmem_config
             "missingb",
             {"items": range(2)},
         ),
+        (
+            "{% for item in items %}{% cycle missing 'b' %}{% endfor %}",
+            "<b>%s</b>",
+            "&lt;b&gt;missing&lt;/b&gt;b",
+            {"items": range(2)},
+        ),
+        (
+            "{% autoescape off %}{% for item in items %}{% cycle missing 'b' %}{% endfor %}{% endautoescape %}",
+            "<b>%s</b>",
+            "<b>missing</b>b",
+            {"items": range(2)},
+        ),
         ("{% cycle missing 'b' as c %}{% cycle c %}", "INVALID", "INVALIDb", {}),
         ("{% cycle missing 'b' as c %}{% cycle c %}", "%s", "missingb", {}),
         (
@@ -130,6 +149,42 @@ from .conftest import locmem_config
             "%s",
             "missingb",
             {"items": range(2)},
+        ),
+        (
+            "{% for item in items %}{% cycle missing 'b' as c silent %}{{ c }}{% endfor %}",
+            "<b>%s</b>",
+            "&lt;b&gt;missing&lt;/b&gt;b",
+            {"items": range(2)},
+        ),
+        (
+            "{% autoescape off %}{% for item in items %}{% cycle missing 'b' as c silent %}{{ c }}{% endfor %}{% endautoescape %}",
+            "<b>%s</b>",
+            "<b>missing</b>b",
+            {"items": range(2)},
+        ),
+        (
+            "{% cycle missing 'b' as c %}{% cycle c %}",
+            "<b>%s</b>",
+            "&lt;b&gt;missing&lt;/b&gt;b",
+            {},
+        ),
+        (
+            "{% autoescape off %}{% cycle missing 'b' as c %}{% cycle c %}{% endautoescape %}",
+            "<b>%s</b>",
+            "<b>missing</b>b",
+            {},
+        ),
+        (
+            "{% cycle 'a' missing as c %}{% cycle c %}",
+            "<b>%s</b>",
+            "a&lt;b&gt;missing&lt;/b&gt;",
+            {},
+        ),
+        (
+            "{% autoescape off %}{% cycle 'a' missing as c %}{% cycle c %}{% endautoescape %}",
+            "<b>%s</b>",
+            "a<b>missing</b>",
+            {},
         ),
         ("{{ number|add:'string' }}", "INVALID", "", {"number": 2}),
         ("{% url 'home' as home %}", "INVALID", "", {}),

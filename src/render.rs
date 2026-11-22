@@ -12,7 +12,7 @@ use pyo3::prelude::*;
 use dtl_lexer::types::TemplateString;
 
 use crate::error::PyRenderError;
-use crate::render::types::AsBorrowedContent;
+use crate::render::types::{AsBorrowedContent, ContentString};
 use types::{Content, Context};
 
 pub enum ResolveContent<'t, 'py> {
@@ -39,6 +39,26 @@ impl<'t, 'py> ResolveContent<'t, 'py> {
         match self {
             Self::Content(content) => content,
             Self::Missing(_) => unreachable!("{}", message),
+        }
+    }
+
+    fn render(
+        self,
+        py: Python<'_>,
+        template: TemplateString<'t>,
+        context: &Context,
+        string_if_invalid: StringIfInvalid<'t>,
+    ) -> RenderResult<'t> {
+        match self {
+            ResolveContent::Content(content) => Ok(content.render(py, template, context)?),
+            ResolveContent::Missing(variable) => {
+                let content = string_if_invalid.format(variable);
+                let content = match context.autoescape {
+                    true => ContentString::HtmlUnsafe(content),
+                    false => ContentString::String(content),
+                };
+                Ok(content.content())
+            }
         }
     }
 }
@@ -164,17 +184,15 @@ where
         context: &mut Context,
         string_if_invalid: StringIfInvalid<'t>,
     ) -> RenderResult<'t> {
-        match self.resolve(
+        self.resolve(
             py,
             template,
             template_name,
             context,
             ResolveFailures::Raise,
             string_if_invalid,
-        )? {
-            ResolveContent::Content(content) => Ok(content.render(py, template, context)?),
-            ResolveContent::Missing(variable) => Ok(string_if_invalid.format(variable)),
-        }
+        )?
+        .render(py, template, context, string_if_invalid)
     }
 }
 
