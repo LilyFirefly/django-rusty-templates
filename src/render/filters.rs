@@ -297,7 +297,7 @@ impl ResolveFilter for AddSlashesFilter {
                     )
                 })
             }
-            ResolveContent::Missing(_) => "".as_content(),
+            content @ ResolveContent::Missing(_) => return Ok(content),
         };
         Ok(ResolveContent::Content(content))
     }
@@ -316,7 +316,7 @@ impl ResolveFilter for AddFilter {
     ) -> ResolveResult<'t, 'py> {
         let variable = match variable {
             ResolveContent::Content(content) => content,
-            ResolveContent::Missing(missing) => return Ok(ResolveContent::Missing(missing)),
+            content @ ResolveContent::Missing(_) => return Ok(content),
         };
         let right = self
             .argument
@@ -369,7 +369,7 @@ impl ResolveFilter for CapfirstFilter {
                         None => content,
                     }
                 }),
-            ResolveContent::Missing(_) => "".as_content(),
+            content @ ResolveContent::Missing(_) => return Ok(content),
         };
         Ok(ResolveContent::Content(content))
     }
@@ -505,11 +505,11 @@ impl ResolveFilter for DefaultFilter {
             {
                 Ok(ResolveContent::Content(left))
             }
-            ResolveContent::Missing(missing)
+            content @ ResolveContent::Missing(_)
                 if string_if_invalid.is_set()
                     && !matches!(failures, ResolveFailures::IgnoreVariableDoesNotExist) =>
             {
-                Ok(ResolveContent::Missing(missing))
+                Ok(content)
             }
             _ => self.argument.resolve(
                 py,
@@ -748,7 +748,7 @@ impl ResolveFilter for EscapeFilter {
                     Content::Bool(true) => Cow::Borrowed("True"),
                     Content::Bool(false) => Cow::Borrowed("False"),
                 },
-                ResolveContent::Missing(_) => Cow::Borrowed(""),
+                content @ ResolveContent::Missing(_) => return Ok(content),
             }),
         )))
     }
@@ -799,7 +799,7 @@ impl ResolveFilter for EscapejsFilter {
             ResolveContent::Content(content) => content
                 .resolve_string(py, template, context)?
                 .map_content(|content| Cow::Owned(escapejs(&content))),
-            ResolveContent::Missing(_) => "".as_content(),
+            content @ ResolveContent::Missing(_) => return Ok(content),
         };
         Ok(ResolveContent::Content(content))
     }
@@ -920,7 +920,7 @@ impl ResolveFilter for LowerFilter {
             ResolveContent::Content(content) => content
                 .resolve_string(py, template, context)?
                 .map_content(|content| Cow::Owned(content.to_lowercase())),
-            ResolveContent::Missing(_) => "".as_content(),
+            content @ ResolveContent::Missing(_) => return Ok(content),
         };
         Ok(ResolveContent::Content(content))
     }
@@ -935,10 +935,11 @@ impl ResolveFilter for LengthFilter {
         _template_name: &'t FileName,
         _context: &mut Context,
         _failures: ResolveFailures,
-        _string_if_invalid: StringIfInvalid<'t>,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let len = match variable {
-            ResolveContent::Missing(_) => 0,
+            ResolveContent::Missing(_) if !string_if_invalid.is_set() => 0,
+            content @ ResolveContent::Missing(_) => return Ok(content),
             ResolveContent::Content(Content::String(s)) => s.as_raw().chars().count(),
             ResolveContent::Content(Content::Py(PyContent { content: obj, .. })) => {
                 obj.len().unwrap_or(0)
@@ -982,7 +983,7 @@ impl ResolveFilter for SafeFilter {
                     Content::Bool(true) => Cow::Borrowed("True"),
                     Content::Bool(false) => Cow::Borrowed("False"),
                 },
-                ResolveContent::Missing(_) => Cow::Borrowed(""),
+                content @ ResolveContent::Missing(_) => return Ok(content),
             }),
         )))
     }
@@ -1053,7 +1054,7 @@ impl ResolveFilter for SlugifyFilter {
                 Content::Bool(true) => "true".as_content(),
                 Content::Bool(false) => "false".as_content(),
             },
-            ResolveContent::Missing(_) => "".as_content(),
+            content @ ResolveContent::Missing(_) => return Ok(content),
         };
         Ok(ResolveContent::Content(content))
     }
@@ -1129,7 +1130,7 @@ impl ResolveFilter for UpperFilter {
                 };
                 content.map_content(|content| Cow::Owned(content.to_uppercase()))
             }
-            ResolveContent::Missing(_) => "".as_content(),
+            content @ ResolveContent::Missing(_) => return Ok(content),
         };
         Ok(ResolveContent::Content(content))
     }
@@ -1144,7 +1145,7 @@ impl ResolveFilter for WordcountFilter {
         _template_name: &'t FileName,
         context: &mut Context,
         _failures: ResolveFailures,
-        _string_if_invalid: StringIfInvalid<'t>,
+        string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
         let content = match variable {
             ResolveContent::Content(content) => {
@@ -1156,7 +1157,8 @@ impl ResolveFilter for WordcountFilter {
                     .count();
                 Content::Int(word_count.into())
             }
-            ResolveContent::Missing(_) => Content::Int(0.into()),
+            ResolveContent::Missing(_) if !string_if_invalid.is_set() => Content::Int(0.into()),
+            content @ ResolveContent::Missing(_) => return Ok(content),
         };
         Ok(ResolveContent::Content(content))
     }
@@ -1418,7 +1420,8 @@ impl ResolveFilter for YesnoFilter {
                     return Err(error.into());
                 }
             },
-            ResolveContent::Missing(_) => no,
+            ResolveContent::Missing(_) if !string_if_invalid.is_set() => no,
+            content @ ResolveContent::Missing(_) => return Ok(content),
         };
 
         Ok(ResolveContent::Content(result.to_string().into_content()))
