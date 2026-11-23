@@ -10,7 +10,7 @@ pub mod lorem;
 pub mod now;
 pub mod templatetag;
 
-use crate::common::NextChar;
+use crate::python_compat::{NextChar, trim_end, trim_start};
 use crate::types::{At, TemplateString};
 use crate::{END_TAG_LEN, START_TAG_LEN, TemplateContent};
 use miette::{Diagnostic, SourceSpan};
@@ -64,8 +64,8 @@ impl<'t> TemplateContent<'t> for Tag {
 ///
 /// Returns a `TagLexerError` when the tag is empty or has an invalid name.
 pub fn lex_tag(tag: &str, start: usize) -> Result<Tag, TagLexerError> {
-    let rest = tag.trim_start();
-    if rest.trim().is_empty() {
+    let rest = trim_start(tag);
+    if rest.is_empty() {
         return Err(TagLexerError::EmptyTag {
             at: (
                 start - START_TAG_LEN,
@@ -76,7 +76,7 @@ pub fn lex_tag(tag: &str, start: usize) -> Result<Tag, TagLexerError> {
     }
 
     let start = start + tag.len() - rest.len();
-    let tag = rest.trim_end();
+    let tag = trim_end(rest);
     let Some(tag_len) = tag.find(|c: char| !c.is_xid_continue()) else {
         let at = (start, tag.len());
         let parts = TagParts {
@@ -91,7 +91,7 @@ pub fn lex_tag(tag: &str, start: usize) -> Result<Tag, TagLexerError> {
     }
     let at = (start, tag_len);
     let rest = &tag[tag_len..];
-    let trimmed = rest.trim_start();
+    let trimmed = trim_start(rest);
     let start = start + tag_len + rest.len() - trimmed.len();
     let parts = TagParts {
         at: (start, trimmed.len()),

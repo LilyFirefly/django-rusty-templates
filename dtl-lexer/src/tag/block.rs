@@ -1,7 +1,7 @@
 use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 
-use crate::common::NextChar;
+use crate::python_compat::NextChar;
 use crate::tag::TagParts;
 use crate::types::{At, TemplateString};
 

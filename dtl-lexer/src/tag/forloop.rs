@@ -3,9 +3,10 @@ use thiserror::Error;
 
 use crate::TemplateContent;
 use crate::common::{
-    LexerError, NextChar, lex_numeric, lex_text, lex_translated, lex_variable, text_content_at,
+    LexerError, lex_numeric, lex_text, lex_translated, lex_variable, text_content_at,
     translated_text_content_at,
 };
+use crate::python_compat::{NextChar, trim_start};
 use crate::tag::TagParts;
 use crate::types::{At, TemplateString};
 
@@ -184,7 +185,7 @@ impl<'t> ForLexer<'t> {
         let remainder = self.rest.next_whitespace();
         match remainder {
             0 => {
-                let rest = self.rest.trim_start();
+                let rest = trim_start(self.rest);
                 self.byte += self.rest.len() - rest.len();
                 self.rest = rest;
                 Ok(())

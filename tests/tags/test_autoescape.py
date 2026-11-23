@@ -55,6 +55,22 @@ def test_extra_argument(assert_parse_error):
     )
 
 
+def test_extra_argument_python_whitespace(assert_parse_error):
+    template = "{% autoescape on\x1coff %}{{ html }}"
+    django_message = snapshot("'autoescape' tag requires exactly one argument.")
+    rusty_message = snapshot("""\
+  × 'autoescape' tag requires exactly one argument.
+   ╭────
+ 1 │ {% autoescape on\x1coff %}{{ html }}
+   ·               ──┬──
+   ·                 ╰── here
+   ╰────
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
 def test_missing_endautoescape(assert_parse_error):
     template = "{% autoescape off %}{{ html }}"
     django_message = snapshot(

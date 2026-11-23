@@ -1,6 +1,7 @@
 use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 
+use crate::python_compat::is_whitespace;
 use crate::tag::TagParts;
 use crate::types::{At, TemplateString};
 
@@ -60,7 +61,7 @@ pub fn lex_autoescape_argument(
             enabled: AutoescapeEnabled::On,
         }),
         "" => Err(AutoescapeError::MissingArgument { at: at.into() }),
-        _ => match content.find(char::is_whitespace) {
+        _ => match content.find(is_whitespace) {
             None => Err(AutoescapeError::InvalidArgument { at: at.into() }),
             Some(_) => Err(AutoescapeError::UnexpectedArgument { at: at.into() }),
         },

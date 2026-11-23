@@ -4,9 +4,10 @@ use thiserror::Error;
 use unicode_xid::UnicodeXID;
 
 use crate::common::{
-    LexerError, NextChar, check_variable_attrs, lex_numeric, lex_text, lex_translated,
-    lex_variable_argument, trim_variable,
+    LexerError, check_variable_attrs, lex_numeric, lex_text, lex_translated, lex_variable_argument,
+    trim_variable,
 };
+use crate::python_compat::{NextChar, is_whitespace, trim, trim_end, trim_start};
 use crate::types::{At, TemplateString};
 use crate::{END_TRANSLATE_LEN, QUOTE_LEN, START_TRANSLATE_LEN, TemplateContent};
 
@@ -97,8 +98,8 @@ pub fn lex_variable_or_filter(
     variable: &str,
     start: usize,
 ) -> Result<Option<(VariableToken, At, FilterLexer<'_>)>, VariableLexerError> {
-    let rest = variable.trim_start();
-    if rest.trim().is_empty() {
+    let rest = trim_start(variable);
+    if rest.is_empty() {
         return Ok(None);
     }
 
@@ -106,7 +107,7 @@ pub fn lex_variable_or_filter(
     let content = trim_variable(rest);
 
     if content.is_empty() {
-        let at = (start, rest.trim().len());
+        let at = (start, trim(rest).len());
         return Err(VariableLexerError::InvalidVariableName { at: at.into() });
     }
 
@@ -142,8 +143,8 @@ impl<'t> FilterLexer<'t> {
     fn new(variable: &'t str, start: usize) -> Result<Self, LexerError> {
         let pipe = variable.find('|');
         let remainder = &variable[..pipe.unwrap_or(variable.len())];
-        if let Some(n) = remainder.find(|c: char| !c.is_whitespace()) {
-            let at = (start + n, remainder.trim().len());
+        if let Some(n) = remainder.find(|c| !is_whitespace(c)) {
+            let at = (start + n, trim(remainder).len());
             return Err(LexerError::InvalidRemainder { at: at.into() });
         }
         let Some(offset) = pipe else {
@@ -154,14 +155,14 @@ impl<'t> FilterLexer<'t> {
         };
         let offset = offset + 1;
         let variable = &variable[offset..];
-        let rest = variable.trim_start();
+        let rest = trim_start(variable);
         if rest.is_empty() {
             Err(LexerError::InvalidRemainder {
                 at: (start, 1).into(),
             })
         } else {
             Ok(Self {
-                rest: rest.trim_end(),
+                rest: trim_end(rest),
                 byte: start + offset + variable.len() - rest.len(),
             })
         }
@@ -224,7 +225,7 @@ impl<'t> FilterLexer<'t> {
     }
 
     fn lex_filter(&mut self) -> Result<FilterToken, VariableLexerError> {
-        let filter = self.rest.trim_start();
+        let filter = trim_start(self.rest);
         let start = self.rest.len() - filter.len();
         self.byte += start;
         self.rest = &self.rest[start..];
@@ -246,7 +247,7 @@ impl<'t> FilterLexer<'t> {
                         Ok(FilterToken { at, argument })
                     }
                     _ => {
-                        let at = (self.byte, remainder.trim().len());
+                        let at = (self.byte, trim(remainder).len());
                         self.rest = "";
                         Err(LexerError::InvalidRemainder { at: at.into() }.into())
                     }
@@ -302,14 +303,14 @@ impl<'t> FilterLexer<'t> {
         remainder: &'t str,
         start_next: usize,
     ) -> Result<FilterToken, VariableLexerError> {
-        match remainder.find(|c: char| !c.is_whitespace()) {
+        match remainder.find(|c| !is_whitespace(c)) {
             None => {
                 self.rest = &self.rest[start_next..];
                 self.byte += start_next;
                 Ok(token)
             }
             Some(n) => {
-                let at = (self.byte + n, remainder.trim().len());
+                let at = (self.byte + n, trim(remainder).len());
                 self.rest = "";
                 Err(LexerError::InvalidRemainder { at: at.into() }.into())
             }
