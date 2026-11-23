@@ -1,4 +1,5 @@
 use divan::{Bencher, black_box};
+use djangofmt_corpus::{ALL_TEMPLATES, Syntax, Template};
 use dtl_lexer::core::Lexer;
 
 fn main() {
@@ -10,16 +11,10 @@ fn lex(bencher: Bencher, unit: &str, repeats: usize) {
     bencher.bench_local(|| Lexer::new(black_box(template.as_str()).into()).count());
 }
 
-// Real page, mostly text.
-#[divan::bench]
-fn django_asv_base(bencher: Bencher) {
-    lex(bencher, include_str!("django-asv/base.html"), 1);
-}
-
-// Real page, mostly tags.
-#[divan::bench]
-fn django_asv_permalink(bencher: Bencher) {
-    lex(bencher, include_str!("django-asv/permalink.html"), 1);
+// Real pages, from mostly text to mostly tags.
+#[divan::bench(args = ALL_TEMPLATES.into_iter().filter(|t| t.syntax == Syntax::Django))]
+fn corpus(bencher: Bencher, template: &'static Template) {
+    lex(bencher, template.code, 1);
 }
 
 // Tags, variables and comments back to back.

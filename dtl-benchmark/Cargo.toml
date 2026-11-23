@@ -22,6 +22,7 @@ harness = false
 # See https://codspeed.io/docs/benchmarks/rust/divan
 divan = { package = "codspeed-divan-compat", version = "*" }
 django-rusty-templates = { path = ".." }
+djangofmt_corpus = { git = "https://github.com/UnknownPlatypus/djangofmt", rev = "2d103003859fef78ee497f9a353f574f2f3857af" }
 dtl-lexer = { path = "../dtl-lexer" }
 
 [lints]
