@@ -3,6 +3,11 @@ pub fn is_whitespace(c: char) -> bool {
     c.is_whitespace() || matches!(c, '\x1c'..='\x1f')
 }
 
+/// `str.strip` with no argument.
+pub fn trim(s: &str) -> &str {
+    s.trim_matches(is_whitespace)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
