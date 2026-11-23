@@ -40,6 +40,7 @@ use crate::filters::WordwrapFilter;
 use crate::filters::YesnoFilter;
 use dtl_lexer::common::{LexerError, get_all_at, text_content_at, translated_text_content_at};
 use dtl_lexer::core::{Lexer, TokenType};
+use dtl_lexer::python_compat;
 use dtl_lexer::tag::autoescape::{AutoescapeEnabled, AutoescapeError, lex_autoescape_argument};
 use dtl_lexer::tag::block::{BlockLexerError, BlockType, lex_block};
 use dtl_lexer::tag::common::{TagElementLexer, TagElementToken, TagElementTokenType};
@@ -1751,11 +1752,10 @@ impl<'t, 'py> Parser<'t, 'py> {
 
     fn parse_comment(&mut self, at: At, _parts: TagParts) -> Result<Comment, PyParseError> {
         for token in self.lexer.by_ref() {
-            if token.token_type == TokenType::Tag {
-                let content = token.content(self.template).trim();
-                if content.split_whitespace().next() == Some("endcomment") {
-                    return Ok(Comment);
-                }
+            if token.token_type == TokenType::Tag
+                && python_compat::trim(token.content(self.template)) == "endcomment"
+            {
+                return Ok(Comment);
             }
         }
 

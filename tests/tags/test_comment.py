@@ -133,3 +133,16 @@ def test_comment_unclosed_string_error(assert_parse_error):
    ╰────
 """),
     )
+
+
+@pytest.mark.parametrize(
+    "template,expected",
+    [
+        pytest.param("{% comment %}x{%\x1cendcomment\x1d%}y", "y", id="whitespace"),
+        pytest.param(
+            "{% comment %}x{% endcomment foo %}y{% endcomment %}z", "z", id="argument"
+        ),
+    ],
+)
+def test_endcomment_exact(assert_render, template, expected):
+    assert_render(template=template, context={}, expected=expected)
