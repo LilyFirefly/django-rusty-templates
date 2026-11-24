@@ -7,7 +7,8 @@ fn main() {
 }
 
 fn lex(bencher: Bencher, template: &str) {
-    bencher.bench_local(|| Lexer::new(black_box(template).into()).count());
+    let template = black_box(template).into();
+    bencher.bench_local(|| Lexer::new(template).count());
 }
 
 // djangofmt's benchmark pages, from mostly text to mostly tags.
