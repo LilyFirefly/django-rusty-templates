@@ -463,8 +463,8 @@ dependencies = [
 
 [[package]]
 name = "djangofmt_corpus"
-version = "1.1.0"
-source = "git+https://github.com/UnknownPlatypus/djangofmt?rev=2d103003859fef78ee497f9a353f574f2f3857af#2d103003859fef78ee497f9a353f574f2f3857af"
+version = "1.2.0"
+source = "git+https://github.com/UnknownPlatypus/djangofmt?rev=35de0311bf8a0db17fec1b6aa5a54b3859c2aa22#35de0311bf8a0db17fec1b6aa5a54b3859c2aa22"
 
 [[package]]
 name = "dtl-lexer"
