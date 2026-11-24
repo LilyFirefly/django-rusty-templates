@@ -286,20 +286,17 @@ impl ResolveFilter for AddSlashesFilter {
         _failures: ResolveFailures,
         _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
-        let content = match variable {
-            ResolveContent::Content(content) => {
-                let content_string = content.resolve_string(py, template, context)?;
-                content_string.map_content(|raw| {
-                    Cow::Owned(
-                        raw.replace('\\', r"\\")
-                            .replace('"', "\\\"")
-                            .replace('\'', r"\'"),
-                    )
-                })
-            }
-            content @ ResolveContent::Missing(_) => return Ok(content),
+        let ResolveContent::Content(content) = variable else {
+            return Ok(variable);
         };
-        Ok(ResolveContent::Content(content))
+        let content_string = content.resolve_string(py, template, context)?;
+        Ok(ResolveContent::Content(content_string.map_content(|raw| {
+            Cow::Owned(
+                raw.replace('\\', r"\\")
+                    .replace('"', "\\\"")
+                    .replace('\'', r"\'"),
+            )
+        })))
     }
 }
 
@@ -314,9 +311,8 @@ impl ResolveFilter for AddFilter {
         _failures: ResolveFailures,
         string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
-        let variable = match variable {
-            ResolveContent::Content(content) => content,
-            content @ ResolveContent::Missing(_) => return Ok(content),
+        let ResolveContent::Content(variable) = variable else {
+            return Ok(variable);
         };
         let right = self
             .argument
@@ -359,18 +355,18 @@ impl ResolveFilter for CapfirstFilter {
         _failures: ResolveFailures,
         _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
-        let content = match variable {
-            ResolveContent::Content(content) => content
-                .resolve_string(py, template, context)?
-                .map_content(|content| {
-                    let mut chars = content.chars();
-                    match chars.next() {
-                        Some(first) => Cow::Owned(first.to_uppercase().chain(chars).collect()),
-                        None => content,
-                    }
-                }),
-            content @ ResolveContent::Missing(_) => return Ok(content),
+        let ResolveContent::Content(content) = variable else {
+            return Ok(variable);
         };
+        let content = content
+            .resolve_string(py, template, context)?
+            .map_content(|content| {
+                let mut chars = content.chars();
+                match chars.next() {
+                    Some(first) => Cow::Owned(first.to_uppercase().chain(chars).collect()),
+                    None => content,
+                }
+            });
         Ok(ResolveContent::Content(content))
     }
 }
@@ -711,45 +707,45 @@ impl ResolveFilter for EscapeFilter {
         _failures: ResolveFailures,
         _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
+        let ResolveContent::Content(content) = variable else {
+            return Ok(variable);
+        };
+        let content = match content {
+            Content::String(ContentString::HtmlSafe(content)) => content,
+            Content::String(content) => {
+                let mut encoded = String::new();
+                encode_quoted_attribute_to_string(content.as_raw(), &mut encoded);
+                Cow::Owned(encoded)
+            }
+            Content::Int(n) => Cow::Owned(n.to_string()),
+            Content::Float(n) => Cow::Owned(n.to_string()),
+            Content::Py(PyContent {
+                content: object,
+                at,
+            }) => {
+                let content = object
+                    .str()
+                    .map_err(|error| error.annotate(py, at, "here", template))?
+                    .extract::<String>()?;
+                // Like Django's `conditional_escape`, leave safe strings alone.
+                #[allow(non_snake_case)]
+                let SafeData = SAFEDATA.import(py, "django.utils.safestring", "SafeData")?;
+                if object
+                    .is_instance(SafeData)
+                    .map_err(|error| error.annotate(py, at, "here", template))?
+                {
+                    Cow::Owned(content)
+                } else {
+                    let mut encoded = String::new();
+                    encode_quoted_attribute_to_string(&content, &mut encoded);
+                    Cow::Owned(encoded)
+                }
+            }
+            Content::Bool(true) => Cow::Borrowed("True"),
+            Content::Bool(false) => Cow::Borrowed("False"),
+        };
         Ok(ResolveContent::Content(Content::String(
-            ContentString::HtmlSafe(match variable {
-                ResolveContent::Content(content) => match content {
-                    Content::String(ContentString::HtmlSafe(content)) => content,
-                    Content::String(content) => {
-                        let mut encoded = String::new();
-                        encode_quoted_attribute_to_string(content.as_raw(), &mut encoded);
-                        Cow::Owned(encoded)
-                    }
-                    Content::Int(n) => Cow::Owned(n.to_string()),
-                    Content::Float(n) => Cow::Owned(n.to_string()),
-                    Content::Py(PyContent {
-                        content: object,
-                        at,
-                    }) => {
-                        let content = object
-                            .str()
-                            .map_err(|error| error.annotate(py, at, "here", template))?
-                            .extract::<String>()?;
-                        // Like Django's `conditional_escape`, leave safe strings alone.
-                        #[allow(non_snake_case)]
-                        let SafeData =
-                            SAFEDATA.import(py, "django.utils.safestring", "SafeData")?;
-                        if object
-                            .is_instance(SafeData)
-                            .map_err(|error| error.annotate(py, at, "here", template))?
-                        {
-                            Cow::Owned(content)
-                        } else {
-                            let mut encoded = String::new();
-                            encode_quoted_attribute_to_string(&content, &mut encoded);
-                            Cow::Owned(encoded)
-                        }
-                    }
-                    Content::Bool(true) => Cow::Borrowed("True"),
-                    Content::Bool(false) => Cow::Borrowed("False"),
-                },
-                content @ ResolveContent::Missing(_) => return Ok(content),
-            }),
+            ContentString::HtmlSafe(content),
         )))
     }
 }
@@ -795,12 +791,12 @@ impl ResolveFilter for EscapejsFilter {
         _failures: ResolveFailures,
         _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
-        let content = match variable {
-            ResolveContent::Content(content) => content
-                .resolve_string(py, template, context)?
-                .map_content(|content| Cow::Owned(escapejs(&content))),
-            content @ ResolveContent::Missing(_) => return Ok(content),
+        let ResolveContent::Content(content) = variable else {
+            return Ok(variable);
         };
+        let content = content
+            .resolve_string(py, template, context)?
+            .map_content(|content| Cow::Owned(escapejs(&content)));
         Ok(ResolveContent::Content(content))
     }
 }
@@ -916,12 +912,12 @@ impl ResolveFilter for LowerFilter {
         _failures: ResolveFailures,
         _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
-        let content = match variable {
-            ResolveContent::Content(content) => content
-                .resolve_string(py, template, context)?
-                .map_content(|content| Cow::Owned(content.to_lowercase())),
-            content @ ResolveContent::Missing(_) => return Ok(content),
+        let ResolveContent::Content(content) = variable else {
+            return Ok(variable);
         };
+        let content = content
+            .resolve_string(py, template, context)?
+            .map_content(|content| Cow::Owned(content.to_lowercase()));
         Ok(ResolveContent::Content(content))
     }
 }
@@ -964,27 +960,28 @@ impl ResolveFilter for SafeFilter {
         _failures: ResolveFailures,
         _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
+        let ResolveContent::Content(content) = variable else {
+            return Ok(variable);
+        };
+        let content = match content {
+            Content::String(content) => content.into_raw(),
+            Content::Int(n) => Cow::Owned(n.to_string()),
+            Content::Float(n) => Cow::Owned(n.to_string()),
+            Content::Py(PyContent {
+                content: object,
+                at,
+            }) => {
+                let content = object
+                    .str()
+                    .map_err(|error| error.annotate(py, at, "here", template))?
+                    .extract::<String>()?;
+                Cow::Owned(content)
+            }
+            Content::Bool(true) => Cow::Borrowed("True"),
+            Content::Bool(false) => Cow::Borrowed("False"),
+        };
         Ok(ResolveContent::Content(Content::String(
-            ContentString::HtmlSafe(match variable {
-                ResolveContent::Content(content) => match content {
-                    Content::String(content) => content.into_raw(),
-                    Content::Int(n) => Cow::Owned(n.to_string()),
-                    Content::Float(n) => Cow::Owned(n.to_string()),
-                    Content::Py(PyContent {
-                        content: object,
-                        at,
-                    }) => {
-                        let content = object
-                            .str()
-                            .map_err(|error| error.annotate(py, at, "here", template))?
-                            .extract::<String>()?;
-                        Cow::Owned(content)
-                    }
-                    Content::Bool(true) => Cow::Borrowed("True"),
-                    Content::Bool(false) => Cow::Borrowed("False"),
-                },
-                content @ ResolveContent::Missing(_) => return Ok(content),
-            }),
+            ContentString::HtmlSafe(content),
         )))
     }
 }
@@ -1028,33 +1025,33 @@ impl ResolveFilter for SlugifyFilter {
         _failures: ResolveFailures,
         _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
-        let content = match variable {
-            ResolveContent::Content(content) => match content {
-                Content::Py(PyContent { content, at }) => {
-                    let slug = slugify(Cow::Owned(
-                        content
-                            .str()
-                            .map_err(|error| error.annotate(py, at, "here", template))?
-                            .extract::<String>()?,
-                    ));
-                    #[allow(non_snake_case)]
-                    let SafeData = SAFEDATA.import(py, "django.utils.safestring", "SafeData")?;
-                    match content
-                        .is_instance(SafeData)
+        let ResolveContent::Content(content) = variable else {
+            return Ok(variable);
+        };
+        let content = match content {
+            Content::Py(PyContent { content, at }) => {
+                let slug = slugify(Cow::Owned(
+                    content
+                        .str()
                         .map_err(|error| error.annotate(py, at, "here", template))?
-                    {
-                        true => Content::String(ContentString::HtmlSafe(slug)),
-                        false => Content::String(ContentString::HtmlUnsafe(slug)),
-                    }
+                        .extract::<String>()?,
+                ));
+                #[allow(non_snake_case)]
+                let SafeData = SAFEDATA.import(py, "django.utils.safestring", "SafeData")?;
+                match content
+                    .is_instance(SafeData)
+                    .map_err(|error| error.annotate(py, at, "here", template))?
+                {
+                    true => Content::String(ContentString::HtmlSafe(slug)),
+                    false => Content::String(ContentString::HtmlUnsafe(slug)),
                 }
-                // Int and Float requires no slugify, we only need to turn it into a string.
-                Content::Int(content) => content.to_string().into_content(),
-                Content::Float(content) => content.to_string().into_content(),
-                Content::String(content) => content.map_content(slugify),
-                Content::Bool(true) => "true".as_content(),
-                Content::Bool(false) => "false".as_content(),
-            },
-            content @ ResolveContent::Missing(_) => return Ok(content),
+            }
+            // Int and Float requires no slugify, we only need to turn it into a string.
+            Content::Int(content) => content.to_string().into_content(),
+            Content::Float(content) => content.to_string().into_content(),
+            Content::String(content) => content.map_content(slugify),
+            Content::Bool(true) => "true".as_content(),
+            Content::Bool(false) => "false".as_content(),
         };
         Ok(ResolveContent::Content(content))
     }
@@ -1121,17 +1118,15 @@ impl ResolveFilter for UpperFilter {
         _failures: ResolveFailures,
         _string_if_invalid: StringIfInvalid<'t>,
     ) -> ResolveResult<'t, 'py> {
-        let content = match variable {
-            ResolveContent::Content(content) => {
-                // Django's `upper` is not `is_safe`, so a safe input is escaped again.
-                let content = match content.resolve_string(py, template, context)? {
-                    ContentString::HtmlSafe(content) => ContentString::HtmlUnsafe(content),
-                    content => content,
-                };
-                content.map_content(|content| Cow::Owned(content.to_uppercase()))
-            }
-            content @ ResolveContent::Missing(_) => return Ok(content),
+        let ResolveContent::Content(content) = variable else {
+            return Ok(variable);
         };
+        let content = match content.resolve_string(py, template, context)? {
+            // Django's `upper` is not `is_safe`, so a safe input is escaped again.
+            ContentString::HtmlSafe(content) => ContentString::HtmlUnsafe(content),
+            content => content,
+        };
+        let content = content.map_content(|content| Cow::Owned(content.to_uppercase()));
         Ok(ResolveContent::Content(content))
     }
 }
