@@ -462,6 +462,11 @@ dependencies = [
 ]
 
 [[package]]
+name = "djangofmt_corpus"
+version = "1.1.0"
+source = "git+https://github.com/UnknownPlatypus/djangofmt?rev=2d103003859fef78ee497f9a353f574f2f3857af#2d103003859fef78ee497f9a353f574f2f3857af"
+
+[[package]]
 name = "dtl-lexer"
 version = "0.1.0"
 dependencies = [
@@ -477,6 +482,8 @@ version = "0.0.0"
 dependencies = [
  "codspeed-divan-compat",
  "django-rusty-templates",
+ "djangofmt_corpus",
+ "dtl-lexer",
 ]
 
 [[package]]
