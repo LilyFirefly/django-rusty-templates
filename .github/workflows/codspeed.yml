@@ -45,7 +45,8 @@ jobs:
           bins: cargo-codspeed
 
       - name: Build the benchmark target(s)
-        run: cargo codspeed build --locked -p dtl_benchmark
+        # Built for every mode the action runs, which then sets `CODSPEED_RUNNER_MODE` for each run.
+        run: cargo codspeed build --locked -m simulation,memory -p dtl_benchmark
 
       - name: Install uv
         uses: astral-sh/setup-uv@v10.4.0
@@ -56,7 +57,7 @@ jobs:
       - name: Run the benchmarks
         uses: CodSpeedHQ/action@v5.8.0
         with:
-          mode: simulation
+          mode: simulation,memory
           run: |
             cargo codspeed run -p dtl_benchmark
             uv run pytest tests/ --codspeed
