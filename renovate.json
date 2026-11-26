@@ -5,8 +5,8 @@
   ],
   "packageRules": [
     {
-      "matchPackageNames": ["djangofmt_corpus"],
-      "extractVersion": "^corpus-v(?<version>.+)$"
+      "matchDepNames": ["djangofmt_corpus"],
+      "versioning": "regex:^corpus-v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
     }
   ]
 }
