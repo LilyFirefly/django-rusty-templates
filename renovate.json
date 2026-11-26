@@ -2,5 +2,11 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
+  ],
+  "packageRules": [
+    {
+      "matchPackageNames": ["djangofmt_corpus"],
+      "extractVersion": "^corpus-v(?<version>.+)$"
+    }
   ]
 }
