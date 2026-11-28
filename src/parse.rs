@@ -1316,6 +1316,13 @@ pub enum ParseError {
         #[label("start tag")]
         start_at: SourceSpan,
     },
+    #[error("Invalid block tag '{tag}'")]
+    #[diagnostic(help("Did you forget to register or load this tag?"))]
+    InvalidBlockTag {
+        tag: String,
+        #[label("here")]
+        at: SourceSpan,
+    },
     #[error("Incorrect format for '{tag}' tag")]
     InvalidTagFormat {
         tag: &'static str,
@@ -1994,7 +2001,14 @@ impl<'t, 'py> Parser<'t, 'py> {
                     at,
                     parts: None,
                 }),
-                None => todo!("{tag_name}"),
+                None if is_unimplemented_builtin_tag(tag_name) => todo!("{tag_name}"),
+                None => {
+                    return Err(ParseError::InvalidBlockTag {
+                        tag: tag_name.to_string(),
+                        at: tag.at.into(),
+                    }
+                    .into());
+                }
             },
         })
     }
@@ -2644,6 +2658,24 @@ impl<'t, 'py> Parser<'t, 'py> {
             empty,
         })))
     }
+}
+
+/// Django builtin tags not ported yet: these are missing features, not invalid tags.
+fn is_unimplemented_builtin_tag(tag_name: &str) -> bool {
+    matches!(
+        tag_name,
+        "debug"
+            | "filter"
+            | "ifchanged"
+            | "partial"
+            | "partialdef"
+            | "querystring"
+            | "regroup"
+            | "resetcycle"
+            | "spaceless"
+            | "widthratio"
+            | "with"
+    )
 }
 
 fn get_defaults_count(defaults: &Bound<'_, PyAny>) -> PyResult<usize> {
