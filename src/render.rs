@@ -109,7 +109,11 @@ impl FileName {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ResolveFailures {
+    /// Like Django's `Variable.resolve`, used for filter arguments.
     Raise,
+    /// Like Django's `FilterExpression.resolve`: a failed lookup renders `string_if_invalid`.
+    StringIfInvalid,
+    /// Like Django's `FilterExpression.resolve(ignore_failures=True)`.
     IgnoreVariableDoesNotExist,
 }
 
@@ -189,7 +193,7 @@ where
             template,
             template_name,
             context,
-            ResolveFailures::Raise,
+            ResolveFailures::StringIfInvalid,
             string_if_invalid,
         )?
         .render(py, template, context, string_if_invalid)

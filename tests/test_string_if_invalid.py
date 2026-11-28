@@ -10,6 +10,7 @@ from .conftest import locmem_config
     (
         ("{{ missing }}", "INVALID", "INVALID", {}),
         ("{{ missing }}", "%s", "missing", {}),
+        ("{{ foo.missing }}", "%s", "foo.missing", {"foo": None}),
         ("{{ missing }}", "<b>%s</b>", "&lt;b&gt;missing&lt;/b&gt;", {}),
         (
             "{% autoescape off %}{{ missing }}{% endautoescape %}",
