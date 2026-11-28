@@ -487,23 +487,25 @@ mod proptests {
     use super::*;
     use proptest::prelude::*;
 
-    // Uniformly random strings would almost never contain a closed tag.
-    fn template() -> impl Strategy<Value = String> {
+    fn arb_template() -> impl Strategy<Value = String> {
+        // Need a custom strategy because uniformly random strings would almost never contain a closed tag.
+        // Simplest fragments first, because shrinking goes toward the start of the list.
+        // See https://altsysrq.github.io/proptest-book/proptest/tutorial/shrinking-basics.html
         let fragment = prop::sample::select(vec![
-            "{%",
-            "%}",
-            "{{",
-            "}}",
-            "{#",
-            "#}",
+            "x",
+            "é",
+            " ",
+            "\n",
             "{",
             "}",
             "%",
             "#",
-            " ",
-            "\n",
-            "x",
-            "é",
+            "{{",
+            "}}",
+            "{%",
+            "%}",
+            "{#",
+            "#}",
             "{% verbatim %}",
             "{% endverbatim %}",
             "{% verbatim x %}",
@@ -543,7 +545,7 @@ mod proptests {
         #![proptest_config(ProptestConfig::with_cases(4096))]
 
         #[test]
-        fn tokens_are_contiguous_non_empty_and_cover_the_template(template in template()) {
+        fn tokens_are_contiguous_non_empty_and_cover_the_template(template in arb_template()) {
             let mut end = 0;
             for token in lex(&template) {
                 let (start, len) = token.at;
@@ -555,7 +557,7 @@ mod proptests {
         }
 
         #[test]
-        fn non_text_token_is_the_tag_at_its_start(template in template()) {
+        fn non_text_token_is_the_tag_at_its_start(template in arb_template()) {
             for token in lex(&template) {
                 if token.token_type != TokenType::Text {
                     prop_assert_eq!(tag_at(&template, token.at.0), Some(token));
@@ -564,7 +566,7 @@ mod proptests {
         }
 
         #[test]
-        fn no_tag_starts_inside_a_text_token_outside_verbatim(template in template()) {
+        fn no_tag_starts_inside_a_text_token_outside_verbatim(template in arb_template()) {
             let mut in_verbatim = false;
             for token in lex(&template) {
                 if token.token_type != TokenType::Text {
@@ -580,7 +582,7 @@ mod proptests {
         }
 
         #[test]
-        fn verbatim_block_content_is_a_single_text_token(content in template()) {
+        fn verbatim_block_content_is_a_single_text_token(content in arb_template()) {
             let open = "{% verbatim block %}";
             // The newline keeps an unclosed `{%` in the content from swallowing the end tag.
             let text = format!("{content}\n");
