@@ -1,6 +1,37 @@
 /// Whitespace as Python's `str.strip` and `\s` see it.
+#[expect(clippy::disallowed_methods, reason = "the helper the ban points to")]
 pub fn is_whitespace(c: char) -> bool {
     c.is_whitespace() || matches!(c, '\x1c'..='\x1f')
+}
+
+/// `str.strip` with no argument.
+pub fn trim(s: &str) -> &str {
+    s.trim_matches(is_whitespace)
+}
+
+/// `str.lstrip` with no argument.
+pub fn trim_start(s: &str) -> &str {
+    s.trim_start_matches(is_whitespace)
+}
+
+/// `str.rstrip` with no argument.
+pub fn trim_end(s: &str) -> &str {
+    s.trim_end_matches(is_whitespace)
+}
+
+pub trait NextChar {
+    fn next_whitespace(&self) -> usize;
+    fn next_non_whitespace(&self) -> usize;
+}
+
+impl NextChar for str {
+    fn next_whitespace(&self) -> usize {
+        self.find(is_whitespace).unwrap_or(self.len())
+    }
+
+    fn next_non_whitespace(&self) -> usize {
+        self.find(|c| !is_whitespace(c)).unwrap_or(self.len())
+    }
 }
 
 #[cfg(test)]

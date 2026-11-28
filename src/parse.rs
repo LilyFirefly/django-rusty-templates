@@ -40,6 +40,7 @@ use crate::filters::WordwrapFilter;
 use crate::filters::YesnoFilter;
 use dtl_lexer::common::{LexerError, get_all_at, text_content_at, translated_text_content_at};
 use dtl_lexer::core::{Lexer, TokenType};
+use dtl_lexer::python_compat;
 use dtl_lexer::tag::autoescape::{AutoescapeEnabled, AutoescapeError, lex_autoescape_argument};
 use dtl_lexer::tag::block::{BlockLexerError, BlockType, lex_block};
 use dtl_lexer::tag::common::{TagElementLexer, TagElementToken, TagElementTokenType};
@@ -1586,11 +1587,10 @@ impl<'t, 'py> Parser<'t, 'py> {
         let mut parts = self.template.content(at).split('.');
         let first = parts
             .next()
-            .expect("a variable can always be split into at least one part")
-            .trim();
+            .expect("a variable can always be split into at least one part");
         if first == "block" && self.in_block {
             return match parts.next() {
-                Some(part) if part.trim() == "super" => {
+                Some("super") => {
                     if self.seen_extends {
                         Ok(Variable::BlockSuper)
                     } else {
@@ -1610,7 +1610,7 @@ impl<'t, 'py> Parser<'t, 'py> {
                 at,
             }));
         };
-        let variant = match part.trim() {
+        let variant = match part {
             "counter" => ForVariableName::Counter,
             "counter0" => ForVariableName::Counter0,
             "revcounter" => ForVariableName::RevCounter,
@@ -1622,7 +1622,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         };
         let parts: Vec<_> = parts.collect();
         for part in &parts {
-            if part.trim() != "parentloop" {
+            if *part != "parentloop" {
                 return Ok(Variable::Variable(at));
             }
         }
@@ -1751,11 +1751,10 @@ impl<'t, 'py> Parser<'t, 'py> {
 
     fn parse_comment(&mut self, at: At, _parts: TagParts) -> Result<Comment, PyParseError> {
         for token in self.lexer.by_ref() {
-            if token.token_type == TokenType::Tag {
-                let content = token.content(self.template).trim();
-                if content.split_whitespace().next() == Some("endcomment") {
-                    return Ok(Comment);
-                }
+            if token.token_type == TokenType::Tag
+                && python_compat::trim(token.content(self.template)) == "endcomment"
+            {
+                return Ok(Comment);
             }
         }
 
@@ -1933,7 +1932,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             }
             "verbatim" => Either::Left(self.parse_verbatim(at, tag.parts)?),
             "endverbatim" => Either::Right(EndTag {
-                end: EndTagType::Verbatim(tag.parts.content(self.template).trim().to_string()),
+                end: EndTagType::Verbatim(tag.parts.content(self.template).to_string()),
                 at,
                 parts: None,
             }),
@@ -2561,7 +2560,7 @@ impl<'t, 'py> Parser<'t, 'py> {
     }
 
     fn parse_verbatim(&mut self, at: At, parts: TagParts) -> Result<TokenTree, PyParseError> {
-        let name = parts.content(self.template).trim().to_string();
+        let name = parts.content(self.template).to_string();
         let (_, end_tag) =
             self.parse_until(until!(EndTagType::Verbatim(name)), "verbatim".into(), at)?;
         let start = at.0 + at.1;

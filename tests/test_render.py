@@ -187,3 +187,33 @@ class TestUserFacingTemplateRenderRequiresDict:
             TypeError, match="context must be a dict rather than RequestContext"
         ):
             response.render()
+
+
+@pytest.mark.parametrize(
+    "template,expected",
+    [
+        pytest.param(
+            "{%\x1cverbatim %}{{ a }}{% endverbatim %}", "{{ a }}", id="verbatim"
+        ),
+        pytest.param(
+            "{%\x1dload\x1ccustom_filters\x1e%}{{ a|double }}", "6", id="load"
+        ),
+        pytest.param("{{\x1fa\x1c|\x1dadd:1\x1e}}", "4", id="variable"),
+        pytest.param("{{ a|add:1\x1f|\x1cadd:1 }}", "5", id="filter_argument"),
+        pytest.param("{% if\x1ca\x1dand\x1ea %}yes{% endif %}", "yes", id="if"),
+        pytest.param(
+            "{% for\x1cx\x1din\x1el\x1freversed %}{{ x }}{% endfor %}", "21", id="for"
+        ),
+        pytest.param(
+            "{% autoescape off\x1c%}{{ html }}{% endautoescape %}", "<b>", id="tag_end"
+        ),
+        pytest.param("{% cycle 'x'\x1c'y' %}", "x", id="tag_element"),
+        pytest.param(
+            "{% url\x1c'users:user'\x1dusername='lily' %}", "/users/lily/", id="kwarg"
+        ),
+    ],
+)
+def test_render_python_whitespace(assert_render, template, expected):
+    """U+001C to U+001F are whitespace to Python, but not to Rust."""
+    context = {"a": 3, "l": [1, 2], "html": "<b>", "none": None}
+    assert_render(template=template, context=context, expected=expected)

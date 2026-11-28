@@ -3,9 +3,10 @@ use thiserror::Error;
 use unicode_xid::UnicodeXID;
 
 use crate::common::{
-    LexerError, NextChar, get_all_at, lex_numeric, lex_text, lex_translated, lex_variable,
-    text_content_at, translated_text_content_at,
+    LexerError, get_all_at, lex_numeric, lex_text, lex_translated, lex_variable, text_content_at,
+    translated_text_content_at,
 };
+use crate::python_compat::{NextChar, is_whitespace, trim_start};
 use crate::tag::TagParts;
 use crate::tag::common::TagElementTokenType;
 use crate::types::{At, TemplateString};
@@ -154,7 +155,7 @@ impl<'t> TagElementKwargLexer<'t> {
         let remainder = self.rest.next_whitespace();
         match remainder {
             0 => {
-                let rest = self.rest.trim_start();
+                let rest = trim_start(self.rest);
                 self.byte += self.rest.len() - rest.len();
                 self.rest = rest;
                 token
@@ -181,7 +182,7 @@ impl Iterator for TagElementKwargLexer<'_> {
 
         let mut chars = self.rest.chars();
         let next = match chars.next() {
-            Some(next) if !next.is_whitespace() => next,
+            Some(next) if !is_whitespace(next) => next,
             _ => {
                 self.rest = "";
                 let at = kwarg.expect("kwarg is Some or we'd already have exited");
