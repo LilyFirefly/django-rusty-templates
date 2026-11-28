@@ -103,7 +103,8 @@ impl Resolve for Variable {
                                             ))
                                             .into())
                                         }
-                                        ResolveFailures::IgnoreVariableDoesNotExist => {
+                                        ResolveFailures::StringIfInvalid
+                                        | ResolveFailures::IgnoreVariableDoesNotExist => {
                                             Ok(ResolveContent::Missing(template.content(*at)))
                                         }
                                     };

@@ -31,6 +31,11 @@ def test_render_attribute_int(assert_render):
     assert_render(template=template, context={"foo": {1: 3}}, expected="3")
 
 
+def test_render_missing_attribute(assert_render):
+    template = "{{ foo.bar }}"
+    assert_render(template=template, context={"foo": None}, expected="")
+
+
 def test_render_variable_hyphen(assert_parse_error):
     template = "{{ foo-1 }}"
     django_message = snapshot("Could not parse the remainder: '-1' from 'foo-1'")

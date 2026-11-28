@@ -1,7 +1,5 @@
 from inline_snapshot import snapshot
 import pytest
-from django.template import engines
-from django.template.base import VariableDoesNotExist
 from django.template.exceptions import TemplateSyntaxError
 from django.test import RequestFactory
 from django.urls import resolve, NoReverseMatch
@@ -154,31 +152,23 @@ def test_parse_url_args_and_kwargs(template_engine):
         assert str(exc_info.value) == django_message
 
 
-def test_render_url_view_name_error():
-    template = "{% url foo.bar.1b.baz %}"
-
-    django_template = engines["django"].from_string(template)
-    rust_template = engines["rusty"].from_string(template)
-
-    with pytest.raises(NoReverseMatch) as django_error:
-        django_template.render({"foo": {"bar": 1}})
-
-    msg = "Reverse for '' not found. '' is not a valid view function or pattern name."
-    assert django_error.value.args[0] == msg
-
-    with pytest.raises(VariableDoesNotExist) as rust_error:
-        rust_template.render({"foo": {"bar": 1}})
-
-    expected = """\
-  × Failed lookup for key [1b] in 1
-   ╭─[<string template>:1:8]
+def test_render_url_view_name_error(assert_render_error):
+    assert_render_error(
+        template="{% url foo.bar.1b.baz %}",
+        context={"foo": {"bar": 1}},
+        exception=NoReverseMatch,
+        django_message=snapshot(
+            "Reverse for '' not found. '' is not a valid view function or pattern name."
+        ),
+        rusty_message=snapshot("""\
+  × Reverse for '' not found. '' is not a valid view function or pattern name.
+   ╭────
  1 │ {% url foo.bar.1b.baz %}
-   ·        ───┬─── ─┬
-   ·           │     ╰── key
-   ·           ╰── 1
+   · ────────────┬───────────
+   ·             ╰── here
    ╰────
-"""
-    assert str(rust_error.value) == expected
+"""),
+    )
 
 
 def test_render_url_invalid_keyword(assert_parse_error):
