@@ -11,5 +11,8 @@ num-bigint.workspace = true
 thiserror.workspace = true
 unicode-xid =  "0.2.6"
 
+[dev-dependencies]
+proptest = "1.10.0"
+
 [lints]
 workspace = true

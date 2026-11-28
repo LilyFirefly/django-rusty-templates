@@ -481,3 +481,114 @@ mod tests {
         assert_eq!(Token::comment((34, 5)).trimmed_at(), (36, 1));
     }
 }
+
+#[cfg(test)]
+mod proptests {
+    use super::*;
+    use proptest::prelude::*;
+
+    fn arb_template() -> impl Strategy<Value = String> {
+        // Need a custom strategy because uniformly random strings would almost never contain a closed tag.
+        // Simplest fragments first, because shrinking goes toward the start of the list.
+        // See https://altsysrq.github.io/proptest-book/proptest/tutorial/shrinking-basics.html
+        let fragment = prop::sample::select(vec![
+            "x",
+            "é",
+            " ",
+            "\n",
+            "{",
+            "}",
+            "%",
+            "#",
+            "{{",
+            "}}",
+            "{%",
+            "%}",
+            "{#",
+            "#}",
+            "{% verbatim %}",
+            "{% endverbatim %}",
+            "{% verbatim x %}",
+            "{% endverbatim x %}",
+        ]);
+        prop::collection::vec(fragment, 0..=40).prop_map(|fragments| fragments.concat())
+    }
+
+    fn lex(template: &str) -> Vec<Token> {
+        Lexer::new(template.into()).collect()
+    }
+
+    // A tag is an opener, then its first closer on the same line.
+    fn tag_at(template: &str, start: usize) -> Option<Token> {
+        let line = template.get(start..)?.split('\n').next()?;
+        let (token_type, closer) = match line.get(..START_TAG_LEN)? {
+            "{%" => (TokenType::Tag, "%}"),
+            "{{" => (TokenType::Variable, "}}"),
+            "{#" => (TokenType::Comment, "#}"),
+            _ => return None,
+        };
+        let content_len = line[START_TAG_LEN..].find(closer)?;
+        let at = (start, START_TAG_LEN + content_len + END_TAG_LEN);
+        Some(Token { token_type, at })
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig {
+            timeout: 1000, // See https://altsysrq.github.io/proptest-book/proptest/forking.html
+            ..ProptestConfig::with_cases(4096)
+        })]
+
+        #[test]
+        fn tokens_are_contiguous_non_empty_and_cover_the_template(template in arb_template()) {
+            let mut end = 0;
+            for token in lex(&template) {
+                let (start, len) = token.at;
+                prop_assert_eq!(start, end);
+                prop_assert!(len > 0);
+                end += len;
+            }
+            prop_assert_eq!(end, template.len());
+        }
+
+        #[test]
+        fn non_text_token_is_the_tag_at_its_start(template in arb_template()) {
+            for token in lex(&template) {
+                if token.token_type != TokenType::Text {
+                    prop_assert_eq!(tag_at(&template, token.at.0), Some(token));
+                }
+            }
+        }
+
+        #[test]
+        fn no_tag_starts_inside_a_text_token_outside_verbatim(template in arb_template()) {
+            let mut in_verbatim = false;
+            for token in lex(&template) {
+                if token.token_type != TokenType::Text {
+                    let content = token.content(template.as_str().into()).trim();
+                    in_verbatim = token.token_type == TokenType::Tag
+                        && (content == "verbatim" || content.starts_with("verbatim "));
+                } else if !in_verbatim {
+                    let (start, len) = token.at;
+                    for at in start..start + len {
+                        prop_assert_eq!(tag_at(&template, at), None);
+                    }
+                }
+            }
+        }
+
+        #[test]
+        fn verbatim_block_content_is_a_single_text_token(content in arb_template()) {
+            let open = "{% verbatim block %}";
+            // The newline keeps an unclosed `{%` in the content from swallowing the end tag.
+            let text = format!("{content}\n");
+            let close = "{% endverbatim block %}";
+            let template = format!("{open}{text}{close}");
+            let expected = [
+                Token::tag((0, open.len())),
+                Token::text((open.len(), text.len())),
+                Token::tag((open.len() + text.len(), close.len())),
+            ];
+            prop_assert_eq!(lex(&template), expected);
+        }
+    }
+}
