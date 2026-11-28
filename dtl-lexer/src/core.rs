@@ -535,12 +535,6 @@ mod proptests {
         Some(Token { token_type, at })
     }
 
-    fn is_verbatim_tag(token: &Token, template: &str) -> bool {
-        let content = token.content(template.into()).trim();
-        token.token_type == TokenType::Tag
-            && (content == "verbatim" || content.starts_with("verbatim "))
-    }
-
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(4096))]
 
@@ -570,8 +564,9 @@ mod proptests {
             let mut in_verbatim = false;
             for token in lex(&template) {
                 if token.token_type != TokenType::Text {
-                    // The only tag lexed inside verbatim is the one that ends it.
-                    in_verbatim = is_verbatim_tag(&token, &template);
+                    let content = token.content(template.as_str().into()).trim();
+                    in_verbatim = token.token_type == TokenType::Tag
+                        && (content == "verbatim" || content.starts_with("verbatim "));
                 } else if !in_verbatim {
                     let (start, len) = token.at;
                     for at in start..start + len {
