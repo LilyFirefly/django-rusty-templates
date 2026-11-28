@@ -1,3 +1,4 @@
+from django.template.base import VariableDoesNotExist
 from inline_snapshot import snapshot
 
 
@@ -29,6 +30,24 @@ def test_render_negative_float(assert_render):
 def test_render_attribute_int(assert_render):
     template = "{{ foo.1 }}"
     assert_render(template=template, context={"foo": {1: 3}}, expected="3")
+
+
+def test_render_attribute_int_not_subscriptable(assert_render_error):
+    assert_render_error(
+        template="{{ foo|add:bar.0 }}",
+        context={"foo": 1, "bar": None},
+        exception=VariableDoesNotExist,
+        django_message=snapshot("Failed lookup for key [0] in None"),
+        rusty_message=snapshot("""\
+  × Failed lookup for key [0] in None
+   ╭─[<string template>:1:12]
+ 1 │ {{ foo|add:bar.0 }}
+   ·            ─┬─ ┬
+   ·             │  ╰── key
+   ·             ╰── None
+   ╰────
+"""),
+    )
 
 
 def test_render_variable_hyphen(assert_parse_error):
