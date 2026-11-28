@@ -3,3 +3,12 @@
 
 # Allow unwrap in test code
 allow-unwrap-in-tests = true
+
+# Rust's whitespace misses U+001C to U+001F, which Python (and so Django) treats as whitespace.
+disallowed-methods = [
+    { path = "str::trim", reason = "use `python_compat::trim`" },
+    { path = "str::trim_start", reason = "use `python_compat::trim_start`" },
+    { path = "str::trim_end", reason = "use `python_compat::trim_end`" },
+    { path = "str::split_whitespace", reason = "split on `python_compat::is_whitespace`" },
+    { path = "char::is_whitespace", reason = "use `python_compat::is_whitespace`" },
+]

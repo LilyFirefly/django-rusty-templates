@@ -1587,11 +1587,10 @@ impl<'t, 'py> Parser<'t, 'py> {
         let mut parts = self.template.content(at).split('.');
         let first = parts
             .next()
-            .expect("a variable can always be split into at least one part")
-            .trim();
+            .expect("a variable can always be split into at least one part");
         if first == "block" && self.in_block {
             return match parts.next() {
-                Some(part) if part.trim() == "super" => {
+                Some("super") => {
                     if self.seen_extends {
                         Ok(Variable::BlockSuper)
                     } else {
@@ -1611,7 +1610,7 @@ impl<'t, 'py> Parser<'t, 'py> {
                 at,
             }));
         };
-        let variant = match part.trim() {
+        let variant = match part {
             "counter" => ForVariableName::Counter,
             "counter0" => ForVariableName::Counter0,
             "revcounter" => ForVariableName::RevCounter,
@@ -1623,7 +1622,7 @@ impl<'t, 'py> Parser<'t, 'py> {
         };
         let parts: Vec<_> = parts.collect();
         for part in &parts {
-            if part.trim() != "parentloop" {
+            if *part != "parentloop" {
                 return Ok(Variable::Variable(at));
             }
         }
@@ -1933,7 +1932,7 @@ impl<'t, 'py> Parser<'t, 'py> {
             }
             "verbatim" => Either::Left(self.parse_verbatim(at, tag.parts)?),
             "endverbatim" => Either::Right(EndTag {
-                end: EndTagType::Verbatim(tag.parts.content(self.template).trim().to_string()),
+                end: EndTagType::Verbatim(tag.parts.content(self.template).to_string()),
                 at,
                 parts: None,
             }),
@@ -2561,7 +2560,7 @@ impl<'t, 'py> Parser<'t, 'py> {
     }
 
     fn parse_verbatim(&mut self, at: At, parts: TagParts) -> Result<TokenTree, PyParseError> {
-        let name = parts.content(self.template).trim().to_string();
+        let name = parts.content(self.template).to_string();
         let (_, end_tag) =
             self.parse_until(until!(EndTagType::Verbatim(name)), "verbatim".into(), at)?;
         let start = at.0 + at.1;

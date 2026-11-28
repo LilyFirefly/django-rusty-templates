@@ -462,7 +462,6 @@ mod tests {
 
     #[test]
     fn test_verbatim_python_whitespace() {
-        // U+001C to U+001F are whitespace to Python's `str.strip`, but not to Rust's `trim`.
         let template = "{%\x1cverbatim\x1f%}{{ a }}{%\x1cendverbatim\x1f%}";
         let lexer = Lexer::new(template.into());
         let tokens: Vec<_> = lexer.collect();
@@ -473,6 +472,10 @@ mod tests {
                 Token::text((14, 7)),
                 Token::tag((21, 17)),
             ]
+        );
+        assert_eq!(
+            contents(template, tokens),
+            vec!["\x1cverbatim\x1f", "{{ a }}", "\x1cendverbatim\x1f"]
         );
     }
 

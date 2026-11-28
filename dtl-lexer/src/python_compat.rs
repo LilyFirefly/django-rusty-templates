@@ -1,4 +1,5 @@
 /// Whitespace as Python's `str.strip` and `\s` see it.
+#[expect(clippy::disallowed_methods, reason = "the helper the ban points to")]
 pub fn is_whitespace(c: char) -> bool {
     c.is_whitespace() || matches!(c, '\x1c'..='\x1f')
 }
