@@ -86,7 +86,11 @@ impl Resolve for Variable {
                         Err(_) => match variable.getattr(part) {
                             Ok(variable) => variable,
                             Err(_) => {
-                                let Ok(int) = part.parse::<usize>() else {
+                                let item = part
+                                    .parse::<usize>()
+                                    .ok()
+                                    .and_then(|int| variable.get_item(int).ok());
+                                let Some(item) = item else {
                                     return match failures {
                                         ResolveFailures::Raise => {
                                             Err(RenderError::VariableDoesNotExist(Box::new(
@@ -108,10 +112,7 @@ impl Resolve for Variable {
                                         }
                                     };
                                 };
-                                match variable.get_item(int) {
-                                    Ok(variable) => variable,
-                                    Err(_) => todo!(),
-                                }
+                                item
                             }
                         },
                     };
