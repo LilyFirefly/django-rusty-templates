@@ -514,11 +514,8 @@ mod proptests {
         prop::collection::vec(fragment, 0..=40).prop_map(|fragments| fragments.concat())
     }
 
-    // The cap only cuts short a lexer stuck on empty tokens, which would otherwise hang the tests.
     fn lex(template: &str) -> Vec<Token> {
-        Lexer::new(template.into())
-            .take(template.len() + 1)
-            .collect()
+        Lexer::new(template.into()).collect()
     }
 
     // A tag is an opener, then its first closer on the same line.
@@ -536,7 +533,10 @@ mod proptests {
     }
 
     proptest! {
-        #![proptest_config(ProptestConfig::with_cases(4096))]
+        #![proptest_config(ProptestConfig {
+            timeout: 1000, // See https://altsysrq.github.io/proptest-book/proptest/forking.html
+            ..ProptestConfig::with_cases(4096)
+        })]
 
         #[test]
         fn tokens_are_contiguous_non_empty_and_cover_the_template(template in arb_template()) {
