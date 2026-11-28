@@ -82,6 +82,25 @@ def test_unknown_filter(assert_parse_error):
     )
 
 
+def test_unknown_tag(assert_parse_error):
+    template = "{% bar %}"
+    django_message = snapshot(
+        "Invalid block tag on line 1: 'bar'. Did you forget to register or load this tag?"
+    )
+    rusty_message = snapshot("""\
+  × Invalid block tag 'bar'
+   ╭────
+ 1 │ {% bar %}
+   ·    ─┬─
+   ·     ╰── here
+   ╰────
+  help: Did you forget to register or load this tag?
+""")
+    assert_parse_error(
+        template=template, django_message=django_message, rusty_message=rusty_message
+    )
+
+
 def test_load_no_filters(template_engine):
     template = "{% load no_filters %}"
 
